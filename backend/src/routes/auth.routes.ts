@@ -40,6 +40,7 @@ router.post('/register', async (req: AuthRequest, res: Response) => {
           name: user.name,
           email: user.email,
           avatar: user.avatar,
+          labels: user.labels || [],
         },
         token,
       },
@@ -102,6 +103,7 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
           name: user.name,
           email: user.email,
           avatar: user.avatar,
+          labels: user.labels || [],
         },
         token,
       },
@@ -127,6 +129,7 @@ router.get('/me', protect, async (req: AuthRequest, res: Response) => {
         name: req.user?.name,
         email: req.user?.email,
         avatar: req.user?.avatar,
+        labels: req.user?.labels || [],
       },
     });
   } catch {

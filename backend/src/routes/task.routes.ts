@@ -10,7 +10,7 @@ import {
   GetObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { Task, Project, Comment } from '../models';
+import { Task, Project, Comment, User } from '../models';
 import { protect, AuthRequest } from '../middleware/auth';
 import { AWS_S3_CONFIG } from '../config/config';
 
@@ -55,6 +55,19 @@ const safeFileName = (original: string) =>
 
 const getAbsoluteLocalUrl = (req: AuthRequest, relative: string) =>
   `${req.protocol}://${req.get('host')}${relative}`;
+
+const normalizeLabels = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  value.forEach(v => {
+    if (typeof v !== 'string') return;
+    const cleaned = v.trim().replace(/\s+/g, ' ');
+    if (!cleaned) return;
+    if (cleaned.length > 40) return;
+    if (!out.includes(cleaned)) out.push(cleaned);
+  });
+  return out;
+};
 
 // All routes require authentication
 router.use(protect);
@@ -200,6 +213,15 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     });
     await task.save();
 
+    // Save user-created labels to the current user profile
+    const normalizedLabels = normalizeLabels(labels);
+    if (normalizedLabels.length > 0 && req.user?._id) {
+      await User.updateOne(
+        { _id: req.user._id },
+        { $addToSet: { labels: { $each: normalizedLabels } } }
+      );
+    }
+
     const populatedTask = await Task.findById(task._id)
       .populate('assignee', 'name email avatar')
       .populate('creator', 'name email avatar')
@@ -274,19 +296,52 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
       order,
     } = req.body;
 
-    const updateData: Record<string, unknown> = {};
-    if (title !== undefined) updateData.title = title;
-    if (description !== undefined) updateData.description = description;
-    if (section !== undefined) updateData.section = section;
-    if (assignee !== undefined) updateData.assignee = assignee;
-    if (priority !== undefined) updateData.priority = priority;
-    if (status !== undefined) updateData.status = status;
-    if (dueDate !== undefined) updateData.dueDate = dueDate;
-    if (labels !== undefined) updateData.labels = labels;
-    if (isCompleted !== undefined) updateData.isCompleted = isCompleted;
-    if (order !== undefined) updateData.order = order;
+    const $set: Record<string, unknown> = {};
+    const $unset: Record<string, unknown> = {};
 
-    const task = await Task.findByIdAndUpdate(req.params.id, updateData, {
+    if (title !== undefined) $set.title = title;
+    if (description !== undefined) $set.description = description;
+    if (section !== undefined) $set.section = section;
+    if (assignee !== undefined) $set.assignee = assignee;
+    if (priority !== undefined) $set.priority = priority;
+    if (dueDate !== undefined) $set.dueDate = dueDate;
+    if (labels !== undefined) $set.labels = labels;
+    if (order !== undefined) $set.order = order;
+
+    // Keep `status`, `isCompleted`, `completedAt` consistent.
+    if (isCompleted !== undefined) {
+      $set.isCompleted = isCompleted;
+      if (isCompleted) {
+        $set.status = 'completed';
+        $set.completedAt = new Date();
+      } else {
+        $set.status = 'open';
+        $unset.completedAt = 1;
+      }
+    } else if (status !== undefined) {
+      $set.status = status;
+      if (status === 'completed') {
+        $set.isCompleted = true;
+        $set.completedAt = new Date();
+      } else {
+        $set.isCompleted = false;
+        $unset.completedAt = 1;
+      }
+    }
+
+    // Save user-created labels to the current user profile
+    const normalizedLabels = normalizeLabels(labels);
+    if (normalizedLabels.length > 0 && req.user?._id) {
+      await User.updateOne(
+        { _id: req.user._id },
+        { $addToSet: { labels: { $each: normalizedLabels } } }
+      );
+    }
+
+    const updateOps: Record<string, unknown> = { $set };
+    if (Object.keys($unset).length > 0) updateOps.$unset = $unset;
+
+    const task = await Task.findByIdAndUpdate(req.params.id, updateOps, {
       new: true,
       runValidators: true,
     })

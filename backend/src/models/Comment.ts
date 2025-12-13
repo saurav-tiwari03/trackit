@@ -6,6 +6,7 @@ export interface IComment extends Document {
   task: Types.ObjectId;
   author: Types.ObjectId;
   attachments: string[];
+  mentions: Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,6 +32,12 @@ const commentSchema = new Schema<IComment>(
     attachments: [
       {
         type: String,
+      },
+    ],
+    mentions: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
       },
     ],
   },

@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
-import { Comment, Task } from '../models';
+import mongoose from 'mongoose';
+import { Comment, Project, Task } from '../models';
 import { protect, AuthRequest } from '../middleware/auth';
 
 const router = Router();
@@ -14,6 +15,7 @@ router.get('/task/:taskId', async (req: AuthRequest, res: Response) => {
   try {
     const comments = await Comment.find({ task: req.params.taskId })
       .populate('author', 'name email avatar')
+      .populate('mentions', 'name email avatar')
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -34,7 +36,7 @@ router.get('/task/:taskId', async (req: AuthRequest, res: Response) => {
 // @access  Private
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
-    const { content, task, attachments } = req.body;
+    const { content, task, attachments, mentions } = req.body;
 
     // Verify task exists
     const taskDoc = await Task.findById(task);
@@ -46,18 +48,51 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       return;
     }
 
+    // Validate mentions are project members (owner or members)
+    let mentionIds: mongoose.Types.ObjectId[] = [];
+    if (Array.isArray(mentions) && mentions.length > 0) {
+      mentionIds = mentions
+        .filter(
+          (id: unknown) =>
+            typeof id === 'string' && mongoose.Types.ObjectId.isValid(id)
+        )
+        .map((id: string) => new mongoose.Types.ObjectId(id));
+
+      const projectDoc = await Project.findById(taskDoc.project).select(
+        'owner members'
+      );
+      if (!projectDoc) {
+        res.status(404).json({ success: false, message: 'Project not found' });
+        return;
+      }
+
+      const allowed = new Set<string>([
+        String(projectDoc.owner),
+        ...projectDoc.members.map(m => String(m)),
+      ]);
+
+      const invalid = mentionIds.find(id => !allowed.has(String(id)));
+      if (invalid) {
+        res.status(400).json({
+          success: false,
+          message: 'You can only mention users in this project',
+        });
+        return;
+      }
+    }
+
     const comment = new Comment({
       content,
       task,
       author: req.user?._id,
       attachments: attachments || [],
+      mentions: mentionIds,
     });
     await comment.save();
 
-    const populatedComment = await Comment.findById(comment._id).populate(
-      'author',
-      'name email avatar'
-    );
+    const populatedComment = await Comment.findById(comment._id)
+      .populate('author', 'name email avatar')
+      .populate('mentions', 'name email avatar');
 
     res.status(201).json({
       success: true,

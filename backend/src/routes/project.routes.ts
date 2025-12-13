@@ -145,6 +145,75 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// @route   POST /api/projects/:id/sections
+// @desc    Add a section to a project
+// @access  Private (owner or members)
+router.post('/:id/sections', async (req: AuthRequest, res: Response) => {
+  try {
+    const { name, color } = req.body;
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      res.status(400).json({
+        success: false,
+        message: 'Section name is required',
+      });
+      return;
+    }
+
+    const project = await Project.findOne({
+      _id: req.params.id,
+      $or: [{ owner: req.user?._id }, { members: req.user?._id }],
+    });
+
+    if (!project) {
+      res.status(404).json({
+        success: false,
+        message: 'Project not found',
+      });
+      return;
+    }
+
+    const trimmedName = name.trim();
+    const duplicate = (project.sections || []).some(
+      s => s.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+    if (duplicate) {
+      res.status(409).json({
+        success: false,
+        message: 'A section with this name already exists',
+      });
+      return;
+    }
+
+    const maxOrder = Math.max(
+      ...(project.sections || []).map(s => s.order),
+      -1
+    );
+    project.sections.push({
+      _id: new mongoose.Types.ObjectId(),
+      name: trimmedName,
+      order: maxOrder + 1,
+      color:
+        typeof color === 'string' && color.trim() ? color.trim() : '#6366f1',
+    });
+
+    await project.save();
+
+    const populated = await Project.findById(project._id)
+      .populate('owner', 'name email avatar')
+      .populate('members', 'name email avatar');
+
+    res.status(201).json({
+      success: true,
+      data: populated,
+    });
+  } catch {
+    res.status(500).json({
+      success: false,
+      message: 'Error adding section',
+    });
+  }
+});
+
 // @route   PUT /api/projects/:id/sections
 // @desc    Update project sections
 // @access  Private
