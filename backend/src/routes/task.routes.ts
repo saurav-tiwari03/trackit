@@ -1,9 +1,60 @@
 import { Router, Response } from 'express';
 import mongoose from 'mongoose';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs/promises';
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Task, Project, Comment } from '../models';
 import { protect, AuthRequest } from '../middleware/auth';
+import { AWS_S3_CONFIG } from '../config/config';
 
 const router = Router();
+
+const isS3Enabled =
+  !!AWS_S3_CONFIG.AWS_BUCKET_NAME &&
+  !!AWS_S3_CONFIG.AWS_REGION &&
+  !!AWS_S3_CONFIG.AWS_ACCESS_KEY &&
+  !!AWS_S3_CONFIG.AWS_SECRET_KEY;
+
+const s3 = isS3Enabled
+  ? new S3Client({
+      region: AWS_S3_CONFIG.AWS_REGION,
+      // NOTE: we intentionally use our config variables here.
+      // `fromEnv()` expects AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY, but this project uses AWS_ACCESS_KEY / AWS_SECRET_KEY.
+      credentials: {
+        accessKeyId: AWS_S3_CONFIG.AWS_ACCESS_KEY,
+        secretAccessKey: AWS_S3_CONFIG.AWS_SECRET_KEY,
+      },
+    })
+  : null;
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = [
+      'application/pdf',
+      'image/png',
+      'image/jpeg',
+      'image/webp',
+      'image/gif',
+    ];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Only PDF and images are allowed'));
+  },
+});
+
+const safeFileName = (original: string) =>
+  original.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+
+const getAbsoluteLocalUrl = (req: AuthRequest, relative: string) =>
+  `${req.protocol}://${req.get('host')}${relative}`;
 
 // All routes require authentication
 router.use(protect);
@@ -262,6 +313,250 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     });
   }
 });
+
+// @route   POST /api/tasks/:id/attachments
+// @desc    Upload attachments (pdf/images) to a task
+// @access  Private
+router.post(
+  '/:id/attachments',
+  upload.array('files', 10),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const task = await Task.findById(req.params.id);
+      if (!task) {
+        res.status(404).json({ success: false, message: 'Task not found' });
+        return;
+      }
+
+      // Ensure user has access via project membership
+      const projectDoc = await Project.findOne({
+        _id: task.project,
+        $or: [{ owner: req.user?._id }, { members: req.user?._id }],
+      });
+      if (!projectDoc) {
+        res.status(403).json({ success: false, message: 'Not authorized' });
+        return;
+      }
+
+      const files = (req.files || []) as Express.Multer.File[];
+      if (files.length === 0) {
+        res.status(400).json({ success: false, message: 'No files uploaded' });
+        return;
+      }
+
+      const newAttachments = await Promise.all(
+        files.map(async f => {
+          const id = new mongoose.Types.ObjectId();
+          const { originalname: originalName, mimetype: mimeType, size } = f;
+
+          if (isS3Enabled && s3) {
+            const key = `tasks/${task._id.toString()}/${Date.now()}-${id.toString()}-${safeFileName(originalName)}`;
+
+            await s3.send(
+              new PutObjectCommand({
+                Bucket: AWS_S3_CONFIG.AWS_BUCKET_NAME,
+                Key: key,
+                Body: f.buffer,
+                ContentType: mimeType,
+              })
+            );
+
+            return {
+              _id: id,
+              name: originalName,
+              // for s3 we store key in url, and keep key explicitly too
+              url: key,
+              key,
+              storage: 's3' as const,
+              mimeType,
+              size,
+              uploadedAt: new Date(),
+            };
+          }
+
+          // Local fallback
+          const fileName = `${Date.now()}-${id.toString()}-${safeFileName(originalName)}`;
+          const uploadsDir = path.join(process.cwd(), 'uploads');
+          await fs.mkdir(uploadsDir, { recursive: true });
+          await fs.writeFile(path.join(uploadsDir, fileName), f.buffer);
+
+          return {
+            _id: id,
+            name: originalName,
+            url: `/uploads/${fileName}`,
+            key: fileName,
+            storage: 'local' as const,
+            mimeType,
+            size,
+            uploadedAt: new Date(),
+          };
+        })
+      );
+
+      task.attachments = [...(task.attachments || []), ...newAttachments];
+      await task.save();
+
+      const populatedTask = await Task.findById(task._id)
+        .populate('assignee', 'name email avatar')
+        .populate('creator', 'name email avatar')
+        .populate('project', 'name color');
+
+      res.status(200).json({ success: true, data: populatedTask });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Error uploading attachments',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+);
+
+// @route   GET /api/tasks/:id/attachments/:attachmentId/url
+// @desc    Get a preview/open URL for an attachment (signed for S3)
+// @access  Private
+router.get(
+  '/:id/attachments/:attachmentId/url',
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const task = await Task.findById(req.params.id);
+      if (!task) {
+        res.status(404).json({ success: false, message: 'Task not found' });
+        return;
+      }
+
+      const projectDoc = await Project.findOne({
+        _id: task.project,
+        $or: [{ owner: req.user?._id }, { members: req.user?._id }],
+      });
+      if (!projectDoc) {
+        res.status(403).json({ success: false, message: 'Not authorized' });
+        return;
+      }
+
+      const attachment = (task.attachments || []).find(
+        a => a._id.toString() === req.params.attachmentId
+      );
+      if (!attachment) {
+        res
+          .status(404)
+          .json({ success: false, message: 'Attachment not found' });
+        return;
+      }
+
+      if (attachment.storage === 's3') {
+        if (!isS3Enabled || !s3) {
+          res
+            .status(500)
+            .json({ success: false, message: 'S3 not configured' });
+          return;
+        }
+        const key = attachment.key || attachment.url;
+        const signedUrl = await getSignedUrl(
+          s3,
+          new GetObjectCommand({
+            Bucket: AWS_S3_CONFIG.AWS_BUCKET_NAME,
+            Key: key,
+          }),
+          { expiresIn: 60 * 10 }
+        );
+        res.status(200).json({ success: true, data: { url: signedUrl } });
+        return;
+      }
+
+      // Local
+      res.status(200).json({
+        success: true,
+        data: { url: getAbsoluteLocalUrl(req, attachment.url) },
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Error getting attachment url',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+);
+
+// @route   DELETE /api/tasks/:id/attachments/:attachmentId
+// @desc    Remove an attachment from task and delete from storage (S3/local)
+// @access  Private
+router.delete(
+  '/:id/attachments/:attachmentId',
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const task = await Task.findById(req.params.id);
+      if (!task) {
+        res.status(404).json({ success: false, message: 'Task not found' });
+        return;
+      }
+
+      const projectDoc = await Project.findOne({
+        _id: task.project,
+        $or: [{ owner: req.user?._id }, { members: req.user?._id }],
+      });
+      if (!projectDoc) {
+        res.status(403).json({ success: false, message: 'Not authorized' });
+        return;
+      }
+
+      const attachment = (task.attachments || []).find(
+        a => a._id.toString() === req.params.attachmentId
+      );
+      if (!attachment) {
+        res
+          .status(404)
+          .json({ success: false, message: 'Attachment not found' });
+        return;
+      }
+
+      if (attachment.storage === 's3') {
+        if (!isS3Enabled || !s3) {
+          res
+            .status(500)
+            .json({ success: false, message: 'S3 not configured' });
+          return;
+        }
+        const key = attachment.key || attachment.url;
+        await s3.send(
+          new DeleteObjectCommand({
+            Bucket: AWS_S3_CONFIG.AWS_BUCKET_NAME,
+            Key: key,
+          })
+        );
+      } else {
+        const { key } = attachment;
+        if (key) {
+          const filePath = path.join(process.cwd(), 'uploads', key);
+          try {
+            await fs.unlink(filePath);
+          } catch {
+            // ignore missing local file
+          }
+        }
+      }
+
+      task.attachments = (task.attachments || []).filter(
+        a => a._id.toString() !== req.params.attachmentId
+      );
+      await task.save();
+
+      const populatedTask = await Task.findById(task._id)
+        .populate('assignee', 'name email avatar')
+        .populate('creator', 'name email avatar')
+        .populate('project', 'name color');
+
+      res.status(200).json({ success: true, data: populatedTask });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Error deleting attachment',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+);
 
 // @route   PUT /api/tasks/:id/move
 // @desc    Move task to different section

@@ -19,6 +19,16 @@ export interface ITask extends Document {
   status: 'open' | 'in_progress' | 'completed' | 'overdue';
   dueDate?: Date;
   labels: string[];
+  attachments: Array<{
+    _id: Types.ObjectId;
+    name: string;
+    url: string;
+    storage: 'local' | 's3';
+    key?: string;
+    mimeType: string;
+    size: number;
+    uploadedAt: Date;
+  }>;
   subtasks: ISubtask[];
   order: number;
   isCompleted: boolean;
@@ -90,6 +100,17 @@ const taskSchema = new Schema<ITask>(
       {
         type: String,
         trim: true,
+      },
+    ],
+    attachments: [
+      {
+        name: { type: String, required: true, trim: true },
+        url: { type: String, required: true },
+        storage: { type: String, enum: ['local', 's3'], default: 'local' },
+        key: { type: String },
+        mimeType: { type: String, required: true },
+        size: { type: Number, required: true },
+        uploadedAt: { type: Date, default: Date.now },
       },
     ],
     subtasks: {

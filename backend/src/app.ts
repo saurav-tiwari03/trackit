@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import path from 'path';
 import routes from './routes';
 
 const app = express();
@@ -26,6 +27,9 @@ app.get('/health', (_req: Request, res: Response) => {
 
 // API routes
 app.use('/api', routes);
+
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // 404 handler
 app.use((_req: Request, res: Response) => {

@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import mongoose from 'mongoose';
-import { Project, Task } from '../models';
+import { Project, Task, User } from '../models';
 import { protect, AuthRequest } from '../middleware/auth';
 
 const router = Router();
@@ -18,6 +18,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       isArchived: false,
     })
       .populate('owner', 'name email avatar')
+      .populate('members', 'name email avatar')
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -75,7 +76,9 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
     const project = await Project.findOne({
       _id: req.params.id,
       $or: [{ owner: req.user?._id }, { members: req.user?._id }],
-    }).populate('owner', 'name email avatar');
+    })
+      .populate('owner', 'name email avatar')
+      .populate('members', 'name email avatar');
 
     if (!project) {
       res.status(404).json({
@@ -166,14 +169,97 @@ router.put('/:id/sections', async (req: AuthRequest, res: Response) => {
       return;
     }
 
+    const populated = await Project.findById(project._id)
+      .populate('owner', 'name email avatar')
+      .populate('members', 'name email avatar');
+
     res.status(200).json({
       success: true,
-      data: project,
+      data: populated,
     });
   } catch {
     res.status(500).json({
       success: false,
       message: 'Error updating sections',
+    });
+  }
+});
+
+// @route   POST /api/projects/:id/invite
+// @desc    Invite (add) a member to the project by email
+// @access  Private (owner only)
+router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string') {
+      res.status(400).json({
+        success: false,
+        message: 'Email is required',
+      });
+      return;
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const project = await Project.findOne({
+      _id: req.params.id,
+      owner: req.user?._id,
+    });
+
+    if (!project) {
+      res.status(404).json({
+        success: false,
+        message: 'Project not found or not authorized',
+      });
+      return;
+    }
+
+    const userToInvite = await User.findOne({ email: normalizedEmail });
+    if (!userToInvite) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+      return;
+    }
+
+    if (String(userToInvite._id) === String(project.owner)) {
+      res.status(400).json({
+        success: false,
+        message: 'Owner is already part of the project',
+      });
+      return;
+    }
+
+    const alreadyMember = project.members.some(
+      m => String(m) === String(userToInvite._id)
+    );
+
+    if (alreadyMember) {
+      res.status(409).json({
+        success: false,
+        message: 'User is already a member of this project',
+      });
+      return;
+    }
+
+    project.members.push(userToInvite._id);
+    await project.save();
+
+    const populated = await Project.findById(project._id)
+      .populate('owner', 'name email avatar')
+      .populate('members', 'name email avatar');
+
+    res.status(200).json({
+      success: true,
+      message: 'User added to project',
+      data: populated,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error inviting user to project',
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });
@@ -209,9 +295,13 @@ router.post('/:id/sections', async (req: AuthRequest, res: Response) => {
 
     await project.save();
 
+    const populated = await Project.findById(project._id)
+      .populate('owner', 'name email avatar')
+      .populate('members', 'name email avatar');
+
     res.status(201).json({
       success: true,
-      data: project,
+      data: populated,
     });
   } catch {
     res.status(500).json({
