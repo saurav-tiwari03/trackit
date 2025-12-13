@@ -1,29 +1,16 @@
-import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
-dotenv.config(
-  {
-    path: `.env.${process.env.NODE_ENV}`,
-    override: true,
-  }
-);
+import { SERVER } from './config/config';
+import { connectDB } from './config/database';
+import app from './app';
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Routes
-app.get('/', (req: Request, res: Response) => {
-  res.json({ message: 'Hello from TypeScript backend!' });
-});
-
-app.get('/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok' });
+// Load environment variables first
+dotenv.config({
+  path: `.env.${process.env.NODE_ENV}`,
+  override: true,
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+app.listen(SERVER.PORT, () => {
+  console.log(`Server is running on http://localhost:${SERVER.PORT}`);
+  connectDB();
 });
