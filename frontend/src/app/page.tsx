@@ -36,7 +36,7 @@ export default function Home() {
   }, [isHydrated]);
 
   useEffect(() => {
-    if (isAuthenticated) router.push('/dashboard');
+    // if (isAuthenticated) router.push('/dashboard');
   }, [isAuthenticated, router]);
 
   const primaryCta = hasToken ? (
