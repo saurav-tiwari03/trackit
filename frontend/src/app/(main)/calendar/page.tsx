@@ -300,7 +300,7 @@ export default function CalendarPage() {
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex flex-col">
+    <div className="min-h-screen bg-linear-to-br from-background via-background to-muted/20 flex flex-col">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-6 py-4 gap-4">
@@ -452,7 +452,7 @@ export default function CalendarPage() {
                               onClick={() => setSelectedTask(task)}
                               className={cn(
                                 'p-3 rounded-xl cursor-pointer transition-all hover:scale-[1.02]',
-                                'bg-gradient-to-r from-muted/50 to-transparent',
+                                'bg-linear-to-r from-muted/50 to-transparent',
                                 'border border-border/50 hover:border-border'
                               )}
                             >
