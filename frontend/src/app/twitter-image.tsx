@@ -25,8 +25,10 @@ export default async function TwitterImage() {
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: 64,
-          background:
-            'radial-gradient(900px 500px at 25% 30%, rgba(99,102,241,0.35), transparent), radial-gradient(900px 500px at 85% 20%, rgba(34,197,94,0.22), transparent), #0b0b0f',
+          backgroundColor: '#0b0b0f',
+          backgroundImage:
+            'radial-gradient(900px 500px at 25% 30%, rgba(99,102,241,0.35), transparent), radial-gradient(900px 500px at 85% 20%, rgba(34,197,94,0.22), transparent)',
+          backgroundRepeat: 'no-repeat',
           color: 'white',
           fontFamily: 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif',
         }}

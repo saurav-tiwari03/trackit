@@ -24,8 +24,10 @@ export default async function OpenGraphImage() {
           flexDirection: 'column',
           justifyContent: 'space-between',
           padding: 64,
-          background:
-            'radial-gradient(1000px 500px at 30% 20%, rgba(99,102,241,0.35), transparent), radial-gradient(900px 500px at 80% 10%, rgba(34,197,94,0.25), transparent), #0b0b0f',
+          backgroundColor: '#0b0b0f',
+          backgroundImage:
+            'radial-gradient(1000px 500px at 30% 20%, rgba(99,102,241,0.35), transparent), radial-gradient(900px 500px at 80% 10%, rgba(34,197,94,0.25), transparent)',
+          backgroundRepeat: 'no-repeat',
           color: 'white',
           fontFamily: 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif',
         }}
@@ -79,10 +81,17 @@ export default async function OpenGraphImage() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ fontSize: 56, fontWeight: 700, lineHeight: 1.05 }}>
-            A clean workspace
-            <br />
-            for focused work.
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              fontSize: 56,
+              fontWeight: 700,
+              lineHeight: 1.05,
+            }}
+          >
+            <div>A clean workspace</div>
+            <div>for focused work.</div>
           </div>
           <div style={{ fontSize: 22, opacity: 0.82, maxWidth: 820, lineHeight: 1.35 }}>
             Inbox, projects, calendar scheduling, attachments, mentions and notifications.
