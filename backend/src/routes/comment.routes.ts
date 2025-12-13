@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import mongoose from 'mongoose';
-import { Comment, Project, Task } from '../models';
+import { Comment, Notification, Project, Task } from '../models';
 import { protect, AuthRequest } from '../middleware/auth';
 
 const router = Router();
@@ -89,6 +89,28 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       mentions: mentionIds,
     });
     await comment.save();
+
+    // Create notifications for mentioned users (excluding author)
+    if (mentionIds.length > 0) {
+      const actorId = req.user?._id;
+      const recipients = mentionIds.filter(
+        id => String(id) !== String(actorId)
+      );
+      if (recipients.length > 0) {
+        await Notification.insertMany(
+          recipients.map(recipientId => ({
+            recipient: recipientId,
+            actor: actorId,
+            type: 'mention',
+            title: 'You were mentioned',
+            body: `${req.user?.name || 'Someone'} mentioned you in a comment`,
+            project: taskDoc.project,
+            task: taskDoc._id,
+            comment: comment._id,
+          }))
+        );
+      }
+    }
 
     const populatedComment = await Comment.findById(comment._id)
       .populate('author', 'name email avatar')

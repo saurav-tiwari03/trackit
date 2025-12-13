@@ -13,6 +13,11 @@ export interface IProject extends Document {
   description?: string;
   owner: Types.ObjectId;
   members: Types.ObjectId[];
+  pendingInvites: Array<{
+    user: Types.ObjectId;
+    invitedBy: Types.ObjectId;
+    createdAt: Date;
+  }>;
   sections: ISection[];
   color: string;
   icon?: string;
@@ -37,6 +42,15 @@ const sectionSchema = new Schema<ISection>({
   },
 });
 
+const pendingInviteSchema = new Schema(
+  {
+    user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    invitedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
 const projectSchema = new Schema<IProject>(
   {
     name: {
@@ -60,6 +74,10 @@ const projectSchema = new Schema<IProject>(
         ref: 'User',
       },
     ],
+    pendingInvites: {
+      type: [pendingInviteSchema],
+      default: [],
+    },
     sections: [sectionSchema],
     color: {
       type: String,

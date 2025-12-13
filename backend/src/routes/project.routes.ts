@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import mongoose from 'mongoose';
-import { Project, Task, User } from '../models';
+import { Notification, Project, Task, User } from '../models';
 import { protect, AuthRequest } from '../middleware/auth';
 
 const router = Router();
@@ -312,8 +312,42 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    project.members.push(userToInvite._id);
+    const alreadyInvited = (project.pendingInvites || []).some(
+      inv => String(inv.user) === String(userToInvite._id)
+    );
+    if (alreadyInvited) {
+      res.status(409).json({
+        success: false,
+        message: 'Invite already sent to this user',
+      });
+      return;
+    }
+
+    project.pendingInvites = [
+      ...(project.pendingInvites || []),
+      {
+        user: userToInvite._id,
+        invitedBy: req.user!._id,
+        createdAt: new Date(),
+      },
+    ];
     await project.save();
+
+    // Create notification for invited user
+    await Notification.deleteMany({
+      recipient: userToInvite._id,
+      type: 'project_invite',
+      project: project._id,
+      readAt: null,
+    });
+    await Notification.create({
+      recipient: userToInvite._id,
+      actor: req.user?._id,
+      type: 'project_invite',
+      title: 'Project invitation',
+      body: `${req.user?.name || 'Someone'} invited you to ${project.name}`,
+      project: project._id,
+    });
 
     const populated = await Project.findById(project._id)
       .populate('owner', 'name email avatar')
@@ -321,7 +355,7 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
 
     res.status(200).json({
       success: true,
-      message: 'User added to project',
+      message: 'Invite sent',
       data: populated,
     });
   } catch (error) {
@@ -330,6 +364,99 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
       message: 'Error inviting user to project',
       error: error instanceof Error ? error.message : 'Unknown error',
     });
+  }
+});
+
+// @route   POST /api/projects/:id/invite/accept
+// @desc    Accept a project invite
+// @access  Private (invited user)
+router.post('/:id/invite/accept', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?._id;
+    const project = await Project.findById(req.params.id);
+
+    if (!project) {
+      res.status(404).json({ success: false, message: 'Project not found' });
+      return;
+    }
+
+    const pending = (project.pendingInvites || []).some(
+      inv => String(inv.user) === String(userId)
+    );
+    if (!pending) {
+      res.status(404).json({ success: false, message: 'Invite not found' });
+      return;
+    }
+
+    project.pendingInvites = (project.pendingInvites || []).filter(
+      inv => String(inv.user) !== String(userId)
+    );
+    if (!(project.members || []).some(m => String(m) === String(userId))) {
+      project.members.push(userId!);
+    }
+    await project.save();
+
+    await Notification.updateMany(
+      {
+        recipient: userId,
+        type: 'project_invite',
+        project: project._id,
+        readAt: null,
+      },
+      { $set: { readAt: new Date() } }
+    );
+
+    const populated = await Project.findById(project._id)
+      .populate('owner', 'name email avatar')
+      .populate('members', 'name email avatar');
+
+    res
+      .status(200)
+      .json({ success: true, message: 'Invite accepted', data: populated });
+  } catch {
+    res.status(500).json({ success: false, message: 'Error accepting invite' });
+  }
+});
+
+// @route   POST /api/projects/:id/invite/reject
+// @desc    Reject a project invite
+// @access  Private (invited user)
+router.post('/:id/invite/reject', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?._id;
+    const project = await Project.findById(req.params.id);
+
+    if (!project) {
+      res.status(404).json({ success: false, message: 'Project not found' });
+      return;
+    }
+
+    const pending = (project.pendingInvites || []).some(
+      inv => String(inv.user) === String(userId)
+    );
+    if (!pending) {
+      res.status(404).json({ success: false, message: 'Invite not found' });
+      return;
+    }
+
+    project.pendingInvites = (project.pendingInvites || []).filter(
+      inv => String(inv.user) !== String(userId)
+    );
+    await project.save();
+
+    await Notification.updateMany(
+      {
+        recipient: userId,
+        type: 'project_invite',
+        project: project._id,
+        readAt: null,
+      },
+      { $set: { readAt: new Date() } }
+    );
+
+    res.status(200).json({ success: true, message: 'Invite rejected' });
+  } catch {
+    res.status(500).json({ success: false, message: 'Error rejecting invite' });
   }
 });
 

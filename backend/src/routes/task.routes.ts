@@ -309,22 +309,26 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     if (order !== undefined) $set.order = order;
 
     // Keep `status`, `isCompleted`, `completedAt` consistent.
-    if (isCompleted !== undefined) {
+    // Rules:
+    // - If `status` is provided, respect it (source of truth) except `completed` always forces `isCompleted=true`.
+    // - If only `isCompleted` is provided, map true->completed, false->open.
+    if (status !== undefined) {
+      $set.status = status;
+      if (status === 'completed') {
+        $set.isCompleted = true;
+        $set.completedAt = new Date();
+      } else {
+        // any non-completed status implies not completed
+        $set.isCompleted = false;
+        $unset.completedAt = 1;
+      }
+    } else if (isCompleted !== undefined) {
       $set.isCompleted = isCompleted;
       if (isCompleted) {
         $set.status = 'completed';
         $set.completedAt = new Date();
       } else {
         $set.status = 'open';
-        $unset.completedAt = 1;
-      }
-    } else if (status !== undefined) {
-      $set.status = status;
-      if (status === 'completed') {
-        $set.isCompleted = true;
-        $set.completedAt = new Date();
-      } else {
-        $set.isCompleted = false;
         $unset.completedAt = 1;
       }
     }
