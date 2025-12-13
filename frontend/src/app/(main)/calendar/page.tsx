@@ -443,7 +443,7 @@ export default function CalendarPage() {
                       </div>
 
                       {dayData.tasks.length > 0 ? (
-                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                        <div className="space-y-2 max-h-64 overflow-y-auto no-scrollbar">
                           {dayData.tasks.map((task) => (
                             <motion.div
                               key={task._id}
@@ -605,8 +605,8 @@ export default function CalendarPage() {
 
                       {/* Hour rows */}
                       {hours.map((hour) => (
-                        <>
-                          <div key={`label-${hour}`} className="w-20 text-xs text-muted-foreground px-3 py-2 border-b font-medium sticky left-0 bg-card">
+                        <div key={`hour-row-${hour}`} className="contents">
+                          <div className="w-20 text-xs text-muted-foreground px-3 py-2 border-b font-medium sticky left-0 bg-card">
                             {hour === 0 ? '12 AM' : hour < 12 ? `${hour} AM` : hour === 12 ? '12 PM' : `${hour - 12} PM`}
                           </div>
                           {weekDays.map((day, index) => (
@@ -630,7 +630,7 @@ export default function CalendarPage() {
                               )}
                             </div>
                           ))}
-                        </>
+                        </div>
                       ))}
                     </div>
                   </div>

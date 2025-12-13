@@ -16,6 +16,7 @@ interface ProjectsState {
   updateProject: (id: string, data: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   addSection: (projectId: string, name: string, color?: string) => Promise<void>;
+  inviteToProject: (projectId: string, email: string) => Promise<Project>;
   fetchStats: () => Promise<void>;
   createTask: (data: {
     title: string;
@@ -24,6 +25,7 @@ interface ProjectsState {
     section: string;
     priority?: string;
     dueDate?: string;
+    labels?: string[];
   }) => Promise<Task>;
   updateTask: (id: string, data: Partial<Task>) => Promise<void>;
   moveTask: (id: string, section: string, order: number) => Promise<void>;
@@ -102,13 +104,33 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
     const updatedProject = response.data.data;
     set(state => ({
       projects: state.projects.map(p =>
-        p._id === projectId ? updatedProject : p
+        p._id === projectId ? { ...p, ...updatedProject } : p
       ),
       currentProject:
         state.currentProject?._id === projectId
-          ? updatedProject
+          ? {
+            ...state.currentProject,
+            ...updatedProject,
+            // keep tasks if backend doesn't include them on section update
+            tasks: state.currentProject.tasks || [],
+          }
           : state.currentProject,
     }));
+  },
+
+  inviteToProject: async (projectId, email) => {
+    const response = await projectsAPI.invite(projectId, { email });
+    const updatedProject = response.data.data;
+    set(state => ({
+      projects: state.projects.map(p =>
+        p._id === projectId ? { ...p, ...updatedProject } : p
+      ),
+      currentProject:
+        state.currentProject?._id === projectId
+          ? { ...state.currentProject, ...updatedProject }
+          : state.currentProject,
+    }));
+    return updatedProject;
   },
 
   fetchStats: async () => {
@@ -141,18 +163,18 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
     // Optimistic update - update local state immediately
     const currentTasks = get().tasks;
     const taskToMove = currentTasks.find(t => t._id === id);
-    
+
     if (!taskToMove) return;
-    
+
     const oldSection = taskToMove.section;
-    
+
     // Create updated tasks array with new order
     const updatedTasks = currentTasks.map(task => {
       if (task._id === id) {
         // Update the moved task
         return { ...task, section, order };
       }
-      
+
       if (task.section === section && task._id !== id) {
         // Shift other tasks in the destination section
         if (oldSection === section) {
@@ -170,13 +192,13 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
           }
         }
       }
-      
+
       return task;
     });
-    
+
     // Apply optimistic update
     set({ tasks: updatedTasks });
-    
+
     try {
       // Sync with server
       await tasksAPI.move(id, { section, order });

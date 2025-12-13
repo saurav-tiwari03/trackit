@@ -13,6 +13,7 @@ import {
   ChevronRight,
   LogOut,
   PanelLeftClose,
+  Inbox,
 } from 'lucide-react';
 
 import {
@@ -52,6 +53,7 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
+  { icon: Inbox, label: 'Inbox', href: '/inbox' },
   { icon: CheckSquare, label: 'All Tasks', href: '/tasks' },
   { icon: Calendar, label: 'Calendar', href: '/calendar' },
   { icon: Settings, label: 'Settings', href: '/settings' },
@@ -132,39 +134,49 @@ export function AppSidebar() {
         <SidebarGroup>
           <Collapsible open={projectsOpen} onOpenChange={setProjectsOpen}>
             <SidebarGroupLabel asChild>
-              <CollapsibleTrigger className="flex w-full items-center justify-between cursor-pointer group-data-[collapsible=icon]:justify-center">
-                <div className="flex items-center gap-2">
+              <div className="flex w-full items-center justify-between group-data-[collapsible=icon]:justify-center">
+                <Link
+                  href="/projects"
+                  className={cn(
+                    "flex items-center gap-2 hover:text-foreground transition-colors",
+                    pathname === '/projects' && 'text-foreground'
+                  )}
+                >
                   <FolderKanban className="h-4 w-4" />
                   <span className="group-data-[collapsible=icon]:hidden">Projects</span>
-                </div>
-                <ChevronRight
-                  className={cn(
-                    'h-4 w-4 transition-transform duration-200 group-data-[collapsible=icon]:hidden',
-                    projectsOpen && 'rotate-90'
-                  )}
-                />
-              </CollapsibleTrigger>
+                </Link>
+                <CollapsibleTrigger className="cursor-pointer p-1 hover:bg-muted rounded group-data-[collapsible=icon]:hidden">
+                  <ChevronRight
+                    className={cn(
+                      'h-4 w-4 transition-transform duration-200',
+                      projectsOpen && 'rotate-90'
+                    )}
+                  />
+                </CollapsibleTrigger>
+              </div>
             </SidebarGroupLabel>
             <CollapsibleContent className="group-data-[collapsible=icon]:hidden">
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuSub>
-                    {projects.map((project) => (
-                      <SidebarMenuSubItem key={project._id}>
-                        <SidebarMenuSubButton
-                          asChild
-                          isActive={pathname === `/projects/${project._id}`}
-                        >
-                          <Link href={`/projects/${project._id}`}>
-                            <span
-                              className="h-2 w-2 rounded-full shrink-0"
-                              style={{ backgroundColor: project.color }}
-                            />
-                            <span className="truncate">{project.name}</span>
-                          </Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    ))}
+                    {projects
+                      .filter((project) => project.name !== 'Inbox')
+                      .map((project) => (
+                        <SidebarMenuSubItem key={project._id}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={pathname === `/projects/${project._id}`}
+                          >
+                            <Link href={`/projects/${project._id}`}>
+                              <span
+                                className="h-2 w-2 rounded-full shrink-0"
+                                style={{ backgroundColor: project.color }}
+                              />
+                              <span className="truncate">{project.name}</span>
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
                     <SidebarMenuSubItem>
                       <SidebarMenuSubButton asChild>
                         <Link

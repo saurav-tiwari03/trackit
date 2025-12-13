@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Trash2, Plus, GripVertical, X } from 'lucide-react';
+import { Trash2, Plus, GripVertical, Users } from 'lucide-react';
 import { Modal, ModalHeader, ModalContent, ModalFooter } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,8 @@ import { TipTapEditor, TipTapViewer } from '@/components/ui/tiptap-editor';
 import { Project } from '@/types';
 import { useProjectsStore } from '@/store/projects';
 import { cn } from '@/lib/utils';
+import { toast } from '@/components/ui/sonner';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 interface ProjectSettingsModalProps {
   project: Project;
@@ -26,14 +28,18 @@ const PROJECT_COLORS = [
 const PROJECT_ICONS = ['📋', '🎯', '🚀', '💡', '📊', '🔧', '📝', '🎨', '💼', '🏠', '🎮', '📚'];
 
 export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettingsModalProps) {
-  const { updateProject, deleteProject, addSection } = useProjectsStore();
+  const { updateProject, deleteProject, addSection, inviteToProject, fetchProject, currentProject } = useProjectsStore();
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description || '');
   const [color, setColor] = useState(project.color || '#6366f1');
   const [icon, setIcon] = useState(project.icon || '📋');
   const [newSectionName, setNewSectionName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'general' | 'sections'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'sections' | 'members'>('general');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [isInviting, setIsInviting] = useState(false);
+
+  const liveProject = currentProject?._id === project._id ? currentProject : project;
 
   useEffect(() => {
     if (project) {
@@ -44,6 +50,13 @@ export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettin
     }
   }, [project]);
 
+  useEffect(() => {
+    if (isOpen) {
+      setInviteEmail('');
+      setIsInviting(false);
+    }
+  }, [isOpen]);
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -53,9 +66,11 @@ export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettin
         color,
         icon,
       });
+      toast.success('Project updated');
       onClose();
     } catch (error) {
       console.error('Failed to update project:', error);
+      toast.error('Failed to update project');
     } finally {
       setIsSaving(false);
     }
@@ -65,9 +80,11 @@ export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettin
     if (confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
       try {
         await deleteProject(project._id);
+        toast.success('Project deleted');
         onClose();
       } catch (error) {
         console.error('Failed to delete project:', error);
+        toast.error('Failed to delete project');
       }
     }
   };
@@ -76,18 +93,52 @@ export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettin
     if (!newSectionName.trim()) return;
     try {
       await addSection(project._id, newSectionName);
+      await fetchProject(project._id);
       setNewSectionName('');
+      toast.success('Section added');
     } catch (error) {
       console.error('Failed to add section:', error);
+      const message =
+        (error as any)?.response?.data?.message ||
+        (error as any)?.message ||
+        'Failed to add section';
+      toast.error(message);
     }
   };
+
+  const handleInvite = async () => {
+    const email = inviteEmail.trim();
+    if (!email) return;
+    setIsInviting(true);
+    try {
+      await inviteToProject(project._id, email);
+      toast.success('User invited to project');
+      setInviteEmail('');
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to invite user';
+      toast.error(message);
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
+  const getInitials = (fullName: string) =>
+    fullName
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="lg">
       <ModalHeader onClose={onClose}>
         <span>Project Settings</span>
       </ModalHeader>
-      
+
       <div className="flex border-b">
         <button
           onClick={() => setActiveTab('general')}
@@ -110,6 +161,18 @@ export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettin
           )}
         >
           Sections
+        </button>
+        <button
+          onClick={() => setActiveTab('members')}
+          className={cn(
+            'px-4 py-2 text-sm font-medium cursor-pointer transition-colors flex items-center gap-2',
+            activeTab === 'members'
+              ? 'border-b-2 border-primary text-foreground'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Users className="h-4 w-4" />
+          Members
         </button>
       </div>
 
@@ -175,7 +238,7 @@ export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettin
               />
             </div>
           </div>
-        ) : (
+        ) : activeTab === 'sections' ? (
           <div className="space-y-4">
             {/* Add New Section */}
             <div className="flex gap-2">
@@ -183,7 +246,12 @@ export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettin
                 value={newSectionName}
                 onChange={(e) => setNewSectionName(e.target.value)}
                 placeholder="New section name"
-                onKeyDown={(e) => e.key === 'Enter' && handleAddSection()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddSection();
+                  }
+                }}
               />
               <Button onClick={handleAddSection} disabled={!newSectionName.trim()}>
                 <Plus className="w-4 h-4 mr-1" />
@@ -193,7 +261,7 @@ export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettin
 
             {/* Sections List */}
             <div className="space-y-2">
-              {project.sections.map((section, index) => (
+              {liveProject.sections.map((section, index) => (
                 <motion.div
                   key={section._id}
                   initial={{ opacity: 0, y: -10 }}
@@ -212,6 +280,77 @@ export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettin
                   </span>
                 </motion.div>
               ))}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Invite by email</label>
+              <div className="flex gap-2">
+                <Input
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="user@example.com"
+                  onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
+                />
+                <Button
+                  type="button"
+                  onClick={handleInvite}
+                  disabled={!inviteEmail.trim() || isInviting}
+                >
+                  Invite
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                The invited user must already be registered.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">People</p>
+
+              {/* Owner */}
+              <div className="flex items-center gap-3 p-3 bg-muted/40 rounded-lg">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="text-xs">
+                    {getInitials(liveProject.owner?.name || 'Owner')}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {liveProject.owner?.name || 'Owner'}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {liveProject.owner?.email || ''}
+                  </p>
+                </div>
+                <span className="text-xs text-muted-foreground">Owner</span>
+              </div>
+
+              {/* Members */}
+              {(liveProject.members || []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">No members yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {(liveProject.members || []).map((member) => (
+                    <div
+                      key={(member as any).id || (member as any)._id || member.email}
+                      className="flex items-center gap-3 p-3 bg-muted/40 rounded-lg"
+                    >
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="text-xs">
+                          {getInitials(member.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{member.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                      </div>
+                      <span className="text-xs text-muted-foreground">Member</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -204,17 +204,25 @@ export default function TasksPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Projects</SelectItem>
-                {projects.map((project) => (
-                  <SelectItem key={project._id} value={project._id}>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="h-2 w-2 rounded-full shrink-0"
-                        style={{ backgroundColor: project.color }}
-                      />
-                      <span className="truncate">{project.name}</span>
-                    </div>
-                  </SelectItem>
-                ))}
+                {projects
+                  // Inbox has its own page/tab
+                  .filter((project) => project.name !== 'Inbox')
+                  // De-dupe by name to avoid showing duplicates (e.g. two Inboxes)
+                  .filter(
+                    (project, idx, arr) =>
+                      arr.findIndex((p) => p.name === project.name) === idx
+                  )
+                  .map((project) => (
+                    <SelectItem key={project._id} value={project._id}>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="h-2 w-2 rounded-full shrink-0"
+                          style={{ backgroundColor: project.color }}
+                        />
+                        <span className="truncate">{project.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
 

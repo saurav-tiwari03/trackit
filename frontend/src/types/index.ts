@@ -34,6 +34,17 @@ export interface Subtask {
   order: number;
 }
 
+export interface Attachment {
+  _id: string;
+  name: string;
+  url: string;
+  storage?: 'local' | 's3';
+  key?: string;
+  mimeType: string;
+  size: number;
+  uploadedAt: string;
+}
+
 export interface Task {
   _id: string;
   title: string;
@@ -46,6 +57,7 @@ export interface Task {
   status: 'open' | 'in_progress' | 'completed' | 'overdue';
   dueDate?: string;
   labels: string[];
+  attachments?: Attachment[];
   subtasks: Subtask[];
   order: number;
   isCompleted: boolean;

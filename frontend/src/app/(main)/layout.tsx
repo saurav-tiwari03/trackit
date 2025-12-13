@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { PanelLeft, Menu } from 'lucide-react';
+import { PanelLeft, Menu, Plus } from 'lucide-react';
 import { useAuthStore } from '@/store/auth';
 import { useProjectsStore } from '@/store/projects';
 import { AppSidebar } from '@/components/layout/app-sidebar';
-import { SidebarProvider, SidebarInset, SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
+import { SidebarProvider, SidebarInset, useSidebar } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
+import { CreateTaskModal } from '@/components/task/create-task-modal';
 
 function SidebarToggle() {
   const { state, isMobile, toggleSidebar } = useSidebar();
@@ -28,10 +29,36 @@ function SidebarToggle() {
   );
 }
 
+function FloatingAddButton() {
+  const { isMobile } = useSidebar();
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  // Only show on mobile/tablet
+  if (!isMobile) return null;
+
+  return (
+    <>
+      <button
+        onClick={() => setIsCreateModalOpen(true)}
+        className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-foreground text-background shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center"
+      >
+        <Plus className="h-6 w-6" strokeWidth={2} />
+      </button>
+
+      <CreateTaskModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        showProjectSelector={true}
+      />
+    </>
+  );
+}
+
 function MainContent({ children }: { children: React.ReactNode }) {
   return (
     <>
       <SidebarToggle />
+      <FloatingAddButton />
       <SidebarInset className="flex-1 overflow-hidden">
         <div className="flex h-full flex-col">
           {/* Add top padding on mobile/tablet so content starts below the hamburger menu */}

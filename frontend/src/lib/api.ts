@@ -59,6 +59,8 @@ export const projectsAPI = {
     api.post(`/projects/${id}/sections`, data),
   updateSections: (id: string, sections: Array<{ _id: string; name: string; order: number; color: string }>) =>
     api.put(`/projects/${id}/sections`, { sections }),
+  invite: (id: string, data: { email: string }) =>
+    api.post(`/projects/${id}/invite`, data),
 };
 
 // Tasks API
@@ -74,6 +76,7 @@ export const tasksAPI = {
     section: string;
     priority?: string;
     dueDate?: string;
+    labels?: string[];
   }) => api.post('/tasks', data),
   update: (id: string, data: Partial<{
     title: string;
@@ -84,6 +87,7 @@ export const tasksAPI = {
     isCompleted: boolean;
     order: number;
     dueDate: string;
+    labels: string[];
   }>) => api.put(`/tasks/${id}`, data),
   move: (id: string, data: { section: string; order: number; isCompleted?: boolean; status?: string }) =>
     api.put(`/tasks/${id}/move`, data),
@@ -94,6 +98,17 @@ export const tasksAPI = {
     api.put(`/tasks/${taskId}/subtasks/${subtaskId}`, data),
   deleteSubtask: (taskId: string, subtaskId: string) =>
     api.delete(`/tasks/${taskId}/subtasks/${subtaskId}`),
+  uploadAttachments: (taskId: string, files: File[]) => {
+    const formData = new FormData();
+    files.forEach((f) => formData.append('files', f));
+    return api.post(`/tasks/${taskId}/attachments`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  getAttachmentUrl: (taskId: string, attachmentId: string) =>
+    api.get(`/tasks/${taskId}/attachments/${attachmentId}/url`),
+  deleteAttachment: (taskId: string, attachmentId: string) =>
+    api.delete(`/tasks/${taskId}/attachments/${attachmentId}`),
 };
 
 // Comments API
