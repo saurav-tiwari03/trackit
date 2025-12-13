@@ -107,7 +107,7 @@ export default function NotificationsPage() {
 
       <div className="p-4 sm:p-6">
         {isLoading ? (
-          <div className="text-sm text-muted-foreground py-12">Loading�</div>
+          <div className="text-sm text-muted-foreground py-12">Loading…</div>
         ) : items.length === 0 ? (
           <div className="py-12 text-center">
             <p className="text-muted-foreground">No notifications yet</p>
@@ -235,7 +235,7 @@ export default function NotificationsPage() {
               className={cn(inviteDialog.action === 'reject' && 'bg-destructive text-destructive-foreground hover:bg-destructive/90')}
             >
               {isActing
-                ? 'Please wait�'
+                ? 'Please wait…'
                 : inviteDialog.action === 'accept'
                   ? 'Accept'
                   : 'Reject'}

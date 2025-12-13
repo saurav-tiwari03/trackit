@@ -9,6 +9,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+  ),
   title: {
     default: 'TrackIt',
     template: '%s · TrackIt',
@@ -29,6 +32,17 @@ export const metadata: Metadata = {
     icon: '/logo.png',
     apple: '/logo.png',
   },
+  alternates: {
+    canonical: '/',
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+  },
+  manifest: '/manifest.webmanifest',
   openGraph: {
     type: 'website',
     title: 'TrackIt',
@@ -36,19 +50,19 @@ export const metadata: Metadata = {
       'A clean, minimalist task and project manager with inbox, calendar scheduling, attachments, mentions, and notifications.',
     images: [
       {
-        url: '/logo.png',
-        width: 512,
-        height: 512,
+        url: '/opengraph-image',
+        width: 1200,
+        height: 630,
         alt: 'TrackIt',
       },
     ],
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image',
     title: 'TrackIt',
     description:
       'A clean, minimalist task and project manager with inbox, calendar scheduling, attachments, mentions, and notifications.',
-    images: ['/logo.png'],
+    images: ['/opengraph-image'],
   },
 };
 

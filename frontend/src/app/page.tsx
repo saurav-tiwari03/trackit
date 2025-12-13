@@ -68,6 +68,33 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* JSON-LD structured data */}
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(
+            {
+              '@context': 'https://schema.org',
+              '@graph': [
+                {
+                  '@type': 'Organization',
+                  name: 'TrackIt',
+                  url: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+                  logo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/logo.png`,
+                },
+                {
+                  '@type': 'WebSite',
+                  name: 'TrackIt',
+                  url: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+                },
+              ],
+            },
+            null,
+            0
+          ),
+        }}
+      />
       {/* Top bar */}
       <div className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-4 flex items-center justify-between">
