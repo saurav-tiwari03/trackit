@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { PanelLeft } from 'lucide-react';
+import { PanelLeft, Menu } from 'lucide-react';
 import { useAuthStore } from '@/store/auth';
 import { useProjectsStore } from '@/store/projects';
 import { AppSidebar } from '@/components/layout/app-sidebar';
@@ -10,18 +10,20 @@ import { SidebarProvider, SidebarInset, SidebarTrigger, useSidebar } from '@/com
 import { Button } from '@/components/ui/button';
 
 function SidebarToggle() {
-  const { state, toggleSidebar } = useSidebar();
-  
-  if (state === 'expanded') return null;
-  
+  const { state, isMobile, toggleSidebar } = useSidebar();
+
+  // On mobile, always show the hamburger menu
+  // On desktop, only show when sidebar is collapsed
+  if (!isMobile && state === 'expanded') return null;
+
   return (
     <Button
       variant="ghost"
       size="icon-sm"
       onClick={toggleSidebar}
-      className="fixed top-4 left-4 z-50"
+      className="fixed top-4 left-4 z-50 bg-background/80 backdrop-blur-sm shadow-sm border"
     >
-      <PanelLeft className="h-4 w-4" />
+      {isMobile ? <Menu className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
     </Button>
   );
 }
@@ -32,7 +34,8 @@ function MainContent({ children }: { children: React.ReactNode }) {
       <SidebarToggle />
       <SidebarInset className="flex-1 overflow-hidden">
         <div className="flex h-full flex-col">
-          <div className="flex-1 overflow-auto">
+          {/* Add top padding on mobile/tablet so content starts below the hamburger menu */}
+          <div className="flex-1 overflow-auto pt-14 lg:pt-0">
             {children}
           </div>
         </div>
@@ -58,13 +61,13 @@ export default function MainLayout({
       await checkAuth();
       setIsChecking(false);
     };
-    
+
     verifyAuth();
   }, [isHydrated, checkAuth]);
 
   useEffect(() => {
     if (!isHydrated || isChecking) return;
-    
+
     if (!isAuthenticated) {
       router.push('/login');
     } else {

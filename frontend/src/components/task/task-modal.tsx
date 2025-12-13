@@ -10,6 +10,11 @@ import {
   Circle,
   Trash2,
   Send,
+  ChevronDown,
+  ChevronUp,
+  Flag,
+  Tag,
+  Clock,
 } from 'lucide-react';
 import { Task, Comment, Subtask } from '@/types';
 import { Modal, ModalHeader, ModalContent } from '@/components/ui/modal';
@@ -23,6 +28,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { TipTapEditor, TipTapViewer } from '@/components/ui/tiptap-editor';
 import { cn } from '@/lib/utils';
 import { useProjectsStore } from '@/store/projects';
@@ -35,16 +45,16 @@ interface TaskModalProps {
   onClose: () => void;
 }
 
-const priorityColors: Record<string, string> = {
-  P1: 'bg-red-500',
-  P2: 'bg-orange-500',
-  P3: 'bg-yellow-500',
-  P4: 'bg-gray-400',
+const priorityConfig: Record<string, { color: string; bg: string; label: string }> = {
+  P1: { color: 'text-red-500', bg: 'bg-red-500', label: 'Urgent' },
+  P2: { color: 'text-orange-500', bg: 'bg-orange-500', label: 'High' },
+  P3: { color: 'text-yellow-500', bg: 'bg-yellow-500', label: 'Medium' },
+  P4: { color: 'text-gray-400', bg: 'bg-gray-400', label: 'Low' },
 };
 
 export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
   const { user } = useAuthStore();
-  const { updateTask, deleteTask, fetchProject } = useProjectsStore();
+  const { updateTask, deleteTask } = useProjectsStore();
   const [editedTask, setEditedTask] = useState<Task | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
@@ -53,10 +63,11 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [editedDescription, setEditedDescription] = useState('');
   const [isDateOpen, setIsDateOpen] = useState(false);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(true);
 
   useEffect(() => {
     if (task) {
-      setEditedTask({ 
+      setEditedTask({
         ...task,
         subtasks: task.subtasks || [],
         labels: task.labels || [],
@@ -192,7 +203,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
     if (!editedTask) return;
     try {
       const dueDate = date ? date.toISOString() : undefined;
-      await tasksAPI.update(editedTask._id, { dueDate: dueDate as any });
+      await tasksAPI.update(editedTask._id, { dueDate: dueDate as string });
       setEditedTask({ ...editedTask, dueDate });
       setIsDateOpen(false);
     } catch (error) {
@@ -219,16 +230,19 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
 
   if (!editedTask) return null;
 
+  const completedSubtasks = (editedTask.subtasks || []).filter(s => s.isCompleted).length;
+  const totalSubtasks = (editedTask.subtasks || []).length;
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="xl">
-      <div className="flex h-[70vh]">
+      <div className="flex flex-col lg:flex-row h-[100dvh] sm:h-[85vh]">
         {/* Main Content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           <ModalHeader onClose={onClose}>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 min-w-0">
               <button
                 onClick={handleToggleComplete}
-                className="cursor-pointer"
+                className="cursor-pointer shrink-0"
               >
                 {editedTask.isCompleted ? (
                   <CheckCircle2 className="w-6 h-6 text-green-500" />
@@ -238,6 +252,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
               </button>
               <span
                 className={cn(
+                  'truncate',
                   editedTask.isCompleted && 'line-through text-muted-foreground'
                 )}
               >
@@ -247,6 +262,150 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
           </ModalHeader>
 
           <ModalContent className="flex-1 overflow-y-auto">
+            {/* Mobile: Collapsible Details Section */}
+            <div className="lg:hidden mb-4">
+              <Collapsible open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+                <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-muted/50 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className={cn('w-2 h-2 rounded-full', priorityConfig[editedTask.priority]?.bg)} />
+                    <span className="text-sm font-medium">Task Details</span>
+                    {editedTask.dueDate && (
+                      <Badge variant="outline" className="text-xs">
+                        <Clock className="w-3 h-3 mr-1" />
+                        {format(new Date(editedTask.dueDate), 'MMM d')}
+                      </Badge>
+                    )}
+                  </div>
+                  {isDetailsOpen ? (
+                    <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  )}
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="mt-3 p-4 bg-muted/30 rounded-xl space-y-4">
+                    {/* Priority */}
+                    <div>
+                      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-2">
+                        <Flag className="w-3 h-3" />
+                        Priority
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(['P1', 'P2', 'P3', 'P4'] as const).map(p => (
+                          <button
+                            key={p}
+                            onClick={() => handlePriorityChange(p)}
+                            className={cn(
+                              'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                              editedTask.priority === p
+                                ? cn(priorityConfig[p].bg, 'text-white shadow-sm')
+                                : 'bg-muted text-muted-foreground hover:bg-accent'
+                            )}
+                          >
+                            {p} - {priorityConfig[p].label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Status */}
+                    <div>
+                      <div className="text-xs font-medium text-muted-foreground mb-2">Status</div>
+                      <Badge
+                        variant={
+                          editedTask.status === 'completed'
+                            ? 'default'
+                            : editedTask.status === 'in_progress'
+                              ? 'secondary'
+                              : 'outline'
+                        }
+                      >
+                        {editedTask.status === 'open'
+                          ? 'To Do'
+                          : editedTask.status === 'in_progress'
+                            ? 'In Progress'
+                            : 'Completed'}
+                      </Badge>
+                    </div>
+
+                    {/* Due Date */}
+                    <div>
+                      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-2">
+                        <CalendarIcon className="w-3 h-3" />
+                        Due Date
+                      </div>
+                      <Popover open={isDateOpen} onOpenChange={setIsDateOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={cn(
+                              'w-full justify-start text-left font-normal',
+                              !editedTask.dueDate && 'text-muted-foreground'
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {editedTask.dueDate
+                              ? format(new Date(editedTask.dueDate), 'PPP')
+                              : 'Pick a date'}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={editedTask.dueDate ? new Date(editedTask.dueDate) : undefined}
+                            onSelect={handleDateChange}
+                            initialFocus
+                          />
+                          {editedTask.dueDate && (
+                            <div className="p-2 border-t">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full"
+                                onClick={() => handleDateChange(undefined)}
+                              >
+                                Clear date
+                              </Button>
+                            </div>
+                          )}
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    {/* Labels */}
+                    <div>
+                      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-2">
+                        <Tag className="w-3 h-3" />
+                        Labels
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {(editedTask.labels || []).map((label, i) => (
+                          <Badge key={i} variant="secondary" className="text-xs">
+                            {label}
+                          </Badge>
+                        ))}
+                        {(!editedTask.labels || editedTask.labels.length === 0) && (
+                          <span className="text-xs text-muted-foreground">No labels</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Delete Button */}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="w-full"
+                      onClick={handleDelete}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete Task
+                    </Button>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+
             {/* Description */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-2">
@@ -307,7 +466,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
             <div className="mb-6">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-medium text-muted-foreground">
-                  Subtasks ({(editedTask.subtasks || []).filter(s => s.isCompleted).length}/{(editedTask.subtasks || []).length})
+                  Subtasks ({completedSubtasks}/{totalSubtasks})
                 </h3>
                 <Button
                   variant="ghost"
@@ -319,7 +478,19 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                 </Button>
               </div>
 
-              <div className="space-y-2">
+              {/* Subtask Progress */}
+              {totalSubtasks > 0 && (
+                <div className="mb-3">
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-green-500 transition-all duration-300"
+                      style={{ width: `${(completedSubtasks / totalSubtasks) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1">
                 {isAddingSubtask && (
                   <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
                     <Circle className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -336,23 +507,25 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                           setNewSubtask('');
                         }
                       }}
-                      placeholder="Enter subtask title and press Enter..."
+                      placeholder="Enter subtask title..."
                       className="flex-1 h-8 text-sm border-0 bg-transparent focus-visible:ring-0"
                       autoFocus
                     />
-                    <Button size="sm" onClick={handleAddSubtask} disabled={!newSubtask.trim()}>
-                      Add
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => {
-                        setIsAddingSubtask(false);
-                        setNewSubtask('');
-                      }}
-                    >
-                      Cancel
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button size="sm" onClick={handleAddSubtask} disabled={!newSubtask.trim()}>
+                        Add
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setIsAddingSubtask(false);
+                          setNewSubtask('');
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
                   </div>
                 )}
 
@@ -377,7 +550,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                       </button>
                       <span
                         className={cn(
-                          'text-sm flex-1',
+                          'text-sm flex-1 min-w-0 truncate',
                           subtask.isCompleted && 'line-through text-muted-foreground'
                         )}
                       >
@@ -385,7 +558,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                       </span>
                       <button
                         onClick={() => handleDeleteSubtask(subtask._id)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-1 hover:bg-destructive/10 rounded"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-1 hover:bg-destructive/10 rounded shrink-0"
                       >
                         <Trash2 className="w-3 h-3 text-muted-foreground hover:text-destructive" />
                       </button>
@@ -402,16 +575,16 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
             {/* Comments */}
             <div>
               <h3 className="text-sm font-medium text-muted-foreground mb-3">
-                Comments
+                Comments ({comments.length})
               </h3>
 
               <div className="flex items-start gap-3 mb-4">
-                <Avatar className="h-8 w-8">
+                <Avatar className="h-8 w-8 shrink-0">
                   <AvatarFallback className="text-xs">
                     {user?.name ? getInitials(user.name) : 'U'}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex-1 flex items-center gap-2 bg-muted rounded-lg px-3 py-2">
+                <div className="flex-1 flex items-center gap-2 bg-muted rounded-xl px-3 py-2">
                   <Input
                     value={newComment}
                     onChange={e => setNewComment(e.target.value)}
@@ -424,6 +597,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                     size="icon-sm"
                     onClick={handleAddComment}
                     disabled={!newComment.trim()}
+                    className="shrink-0"
                   >
                     <Send className="w-4 h-4" />
                   </Button>
@@ -438,13 +612,13 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                     animate={{ opacity: 1, y: 0 }}
                     className="flex items-start gap-3"
                   >
-                    <Avatar className="h-8 w-8">
+                    <Avatar className="h-8 w-8 shrink-0">
                       <AvatarFallback className="text-xs">
                         {getInitials(comment.author.name)}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="text-sm font-medium">
                           {comment.author.name}
                         </span>
@@ -452,7 +626,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                           {formatDateDisplay(comment.createdAt)}
                         </span>
                       </div>
-                      <p className="text-sm">{comment.content}</p>
+                      <p className="text-sm break-words">{comment.content}</p>
                     </div>
                   </motion.div>
                 ))}
@@ -461,23 +635,24 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
           </ModalContent>
         </div>
 
-        {/* Sidebar */}
-        <div className="w-64 border-l p-4 bg-muted/30 overflow-y-auto">
-          <div className="space-y-4">
+        {/* Desktop Sidebar */}
+        <div className="hidden lg:block w-72 border-l p-4 bg-muted/30 overflow-y-auto shrink-0">
+          <div className="space-y-5">
             {/* Priority */}
             <div>
-              <h4 className="text-xs font-medium text-muted-foreground mb-2">
+              <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                <Flag className="w-3 h-3" />
                 Priority
               </h4>
-              <div className="flex gap-1">
+              <div className="flex flex-wrap gap-1.5">
                 {(['P1', 'P2', 'P3', 'P4'] as const).map(p => (
                   <button
                     key={p}
                     onClick={() => handlePriorityChange(p)}
                     className={cn(
-                      'px-2 py-1 rounded text-xs font-medium transition-colors cursor-pointer',
+                      'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
                       editedTask.priority === p
-                        ? cn(priorityColors[p], 'text-white')
+                        ? cn(priorityConfig[p].bg, 'text-white shadow-sm')
                         : 'bg-muted text-muted-foreground hover:bg-accent'
                     )}
                   >
@@ -500,6 +675,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                       ? 'secondary'
                       : 'outline'
                 }
+                className="text-sm"
               >
                 {editedTask.status === 'open'
                   ? 'To Do'
@@ -511,7 +687,8 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
 
             {/* Due Date */}
             <div>
-              <h4 className="text-xs font-medium text-muted-foreground mb-2">
+              <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                <CalendarIcon className="w-3 h-3" />
                 Due Date
               </h4>
               <Popover open={isDateOpen} onOpenChange={setIsDateOpen}>
@@ -555,7 +732,8 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
 
             {/* Labels */}
             <div>
-              <h4 className="text-xs font-medium text-muted-foreground mb-2">
+              <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                <Tag className="w-3 h-3" />
                 Labels
               </h4>
               <div className="flex flex-wrap gap-1">

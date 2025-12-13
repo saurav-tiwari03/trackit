@@ -9,6 +9,7 @@ import {
   Calendar,
   MoreHorizontal,
   Loader2,
+  ListTodo,
 } from 'lucide-react';
 import { Task } from '@/types';
 import { tasksAPI } from '@/lib/api';
@@ -82,7 +83,7 @@ export default function TasksPage() {
 
     try {
       const params: { status?: string; project?: string; search?: string } = {};
-      
+
       if (statusFilter !== 'all') {
         params.status = statusFilter;
       }
@@ -114,10 +115,10 @@ export default function TasksPage() {
         prev.map((t) =>
           t._id === task._id
             ? {
-                ...t,
-                isCompleted: !t.isCompleted,
-                status: !t.isCompleted ? 'completed' : 'open',
-              }
+              ...t,
+              isCompleted: !t.isCompleted,
+              status: !t.isCompleted ? 'completed' : 'open',
+            }
             : t
         )
       );
@@ -160,17 +161,16 @@ export default function TasksPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-background border-b px-6 py-4">
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-semibold">All Tasks</h1>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary">{tasks.length} tasks</Badge>
-          </div>
+          <h1 className="text-xl sm:text-2xl font-semibold">All Tasks</h1>
+          <Badge variant="secondary" className="shrink-0">{tasks.length} tasks</Badge>
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 max-w-sm">
+        <div className="space-y-3">
+          {/* Search */}
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search tasks..."
@@ -183,59 +183,64 @@ export default function TasksPage() {
             )}
           </div>
 
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              {statusOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Filter Row */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 -mb-1">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-32 sm:w-40 shrink-0">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                {statusOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <Select value={projectFilter} onValueChange={setProjectFilter}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Project" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Projects</SelectItem>
-              {projects.map((project) => (
-                <SelectItem key={project._id} value={project._id}>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: project.color }}
-                    />
-                    {project.name}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <Select value={projectFilter} onValueChange={setProjectFilter}>
+              <SelectTrigger className="w-36 sm:w-48 shrink-0">
+                <SelectValue placeholder="Project" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Projects</SelectItem>
+                {projects.map((project) => (
+                  <SelectItem key={project._id} value={project._id}>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: project.color }}
+                      />
+                      <span className="truncate">{project.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          {hasActiveFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearFilters}
-            >
-              Clear filters
-            </Button>
-          )}
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="shrink-0"
+              >
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Task List */}
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
         ) : tasks.length === 0 ? (
           <div className="text-center py-12">
+            <ListTodo className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
             <p className="text-muted-foreground">
               {hasActiveFilters
                 ? 'No tasks match your filters'
@@ -259,137 +264,146 @@ export default function TasksPage() {
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ delay: index * 0.02 }}
                   className={cn(
-                    'group flex items-center gap-3 p-4 rounded-lg border bg-card cursor-pointer',
-                    'hover:shadow-sm transition-all duration-200',
+                    'group p-3 sm:p-4 rounded-xl border bg-card cursor-pointer',
+                    'hover:shadow-md hover:border-border/80 transition-all duration-200',
                     task.isCompleted && 'opacity-60'
                   )}
                   onClick={() => setSelectedTask(task)}
                 >
-                  {/* Checkbox */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleComplete(task);
-                    }}
-                    className="shrink-0 cursor-pointer"
-                  >
-                    {task.isCompleted ? (
-                      <CheckCircle2 className="h-5 w-5 text-green-500" />
-                    ) : (
-                      <Circle className="h-5 w-5 text-muted-foreground hover:text-foreground transition-colors" />
-                    )}
-                  </button>
-
-                  {/* Priority */}
-                  <div
-                    className={cn(
-                      'h-2 w-2 rounded-full shrink-0',
-                      priorityColors[task.priority]
-                    )}
-                  />
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <p
-                      className={cn(
-                        'font-medium truncate',
-                        task.isCompleted && 'line-through text-muted-foreground'
-                      )}
+                  {/* Mobile Layout */}
+                  <div className="flex items-start gap-3">
+                    {/* Checkbox */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleComplete(task);
+                      }}
+                      className="shrink-0 mt-0.5"
                     >
-                      {task.title}
-                    </p>
-                    {task.description && (
-                      <p className="text-sm text-muted-foreground truncate">
-                        {task.description.replace(/<[^>]*>/g, '')}
-                      </p>
-                    )}
-                  </div>
+                      {task.isCompleted ? (
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                      ) : (
+                        <Circle className="h-5 w-5 text-muted-foreground hover:text-foreground transition-colors" />
+                      )}
+                    </button>
 
-                  {/* Subtasks count */}
-                  {task.subtasks && task.subtasks.length > 0 && (
-                    <Badge variant="outline" className="shrink-0">
-                      {task.subtasks.filter(s => s.isCompleted).length}/{task.subtasks.length}
-                    </Badge>
-                  )}
-
-                  {/* Project */}
-                  <Badge
-                    variant="outline"
-                    className="shrink-0"
-                    style={{
-                      borderColor: getProjectColor(task),
-                      color: getProjectColor(task),
-                    }}
-                  >
-                    {getProjectName(task)}
-                  </Badge>
-
-                  {/* Due Date */}
-                  {task.dueDate && (
+                    {/* Priority Dot */}
                     <div
                       className={cn(
-                        'flex items-center gap-1 text-sm shrink-0',
-                        new Date(task.dueDate) < new Date() && !task.isCompleted
-                          ? 'text-destructive'
-                          : 'text-muted-foreground'
+                        'h-2 w-2 rounded-full shrink-0 mt-2',
+                        priorityColors[task.priority]
                       )}
-                    >
-                      <Calendar className="h-3 w-3" />
-                      {formatDate(task.dueDate)}
+                    />
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      {/* Title */}
+                      <p
+                        className={cn(
+                          'font-medium leading-tight',
+                          task.isCompleted && 'line-through text-muted-foreground'
+                        )}
+                      >
+                        {task.title}
+                      </p>
+
+                      {/* Description - Hidden on mobile */}
+                      {task.description && (
+                        <p className="hidden sm:block text-sm text-muted-foreground truncate mt-0.5">
+                          {task.description.replace(/<[^>]*>/g, '')}
+                        </p>
+                      )}
+
+                      {/* Badges Row */}
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        {/* Subtasks count */}
+                        {task.subtasks && task.subtasks.length > 0 && (
+                          <Badge variant="outline" className="text-xs h-5 px-1.5">
+                            {task.subtasks.filter(s => s.isCompleted).length}/{task.subtasks.length}
+                          </Badge>
+                        )}
+
+                        {/* Project */}
+                        <Badge
+                          variant="outline"
+                          className="text-xs h-5 px-1.5 max-w-24 sm:max-w-none"
+                          style={{
+                            borderColor: getProjectColor(task),
+                            color: getProjectColor(task),
+                          }}
+                        >
+                          <span className="truncate">{getProjectName(task)}</span>
+                        </Badge>
+
+                        {/* Due Date */}
+                        {task.dueDate && (
+                          <div
+                            className={cn(
+                              'flex items-center gap-1 text-xs',
+                              new Date(task.dueDate) < new Date() && !task.isCompleted
+                                ? 'text-destructive'
+                                : 'text-muted-foreground'
+                            )}
+                          >
+                            <Calendar className="h-3 w-3" />
+                            {formatDate(task.dueDate)}
+                          </div>
+                        )}
+
+                        {/* Status Badge */}
+                        <Badge
+                          variant={
+                            task.status === 'completed'
+                              ? 'default'
+                              : task.status === 'in_progress'
+                                ? 'secondary'
+                                : 'outline'
+                          }
+                          className="text-xs h-5 px-1.5"
+                        >
+                          {task.status === 'open'
+                            ? 'To Do'
+                            : task.status === 'in_progress'
+                              ? 'In Progress'
+                              : 'Completed'}
+                        </Badge>
+                      </div>
                     </div>
-                  )}
 
-                  {/* Status Badge */}
-                  <Badge
-                    variant={
-                      task.status === 'completed'
-                        ? 'default'
-                        : task.status === 'in_progress'
-                          ? 'secondary'
-                          : 'outline'
-                    }
-                    className="shrink-0"
-                  >
-                    {task.status === 'open'
-                      ? 'To Do'
-                      : task.status === 'in_progress'
-                        ? 'In Progress'
-                        : 'Completed'}
-                  </Badge>
-
-                  {/* Actions */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedTask(task);
-                        }}
-                      >
-                        View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleComplete(task);
-                        }}
-                      >
-                        {task.isCompleted
-                          ? 'Mark as incomplete'
-                          : 'Mark as complete'}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                    {/* Actions */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="shrink-0 opacity-0 group-hover:opacity-100 sm:opacity-100 transition-opacity"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTask(task);
+                          }}
+                        >
+                          View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleComplete(task);
+                          }}
+                        >
+                          {task.isCompleted
+                            ? 'Mark as incomplete'
+                            : 'Mark as complete'}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </motion.div>
               ))}
             </AnimatePresence>

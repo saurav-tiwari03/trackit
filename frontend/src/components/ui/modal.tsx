@@ -15,11 +15,11 @@ interface ModalProps {
 
 export function Modal({ isOpen, onClose, children, className, size = 'md' }: ModalProps) {
   const sizes = {
-    sm: 'max-w-md',
-    md: 'max-w-lg',
-    lg: 'max-w-2xl',
-    xl: 'max-w-4xl',
-    full: 'max-w-[90vw]',
+    sm: 'sm:max-w-md',
+    md: 'sm:max-w-lg',
+    lg: 'sm:max-w-2xl',
+    xl: 'sm:max-w-4xl',
+    full: 'sm:max-w-[90vw]',
   };
 
   // Close on escape key
@@ -62,17 +62,23 @@ export function Modal({ isOpen, onClose, children, className, size = 'md' }: Mod
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             className={cn(
-              'fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50',
-              'w-full p-4',
+              'fixed z-50',
+              // Mobile: full screen
+              'inset-0 sm:inset-auto',
+              // Desktop: centered
+              'sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2',
+              'w-full sm:p-4',
               sizes[size]
             )}
           >
             <div
               className={cn(
-                'relative rounded-2xl shadow-2xl',
+                'relative shadow-2xl h-full sm:h-auto',
                 'bg-white dark:bg-neutral-900',
-                'border border-neutral-200 dark:border-neutral-800',
-                'max-h-[85vh] overflow-hidden',
+                // Mobile: no rounded corners, Desktop: rounded
+                'sm:rounded-2xl',
+                'border-0 sm:border border-neutral-200 dark:border-neutral-800',
+                'sm:max-h-[85vh] overflow-hidden',
                 className
               )}
             >
@@ -97,18 +103,19 @@ export function ModalHeader({
   return (
     <div
       className={cn(
-        'flex items-center justify-between px-6 py-4',
+        'flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4',
         'border-b border-neutral-200 dark:border-neutral-800',
+        'sticky top-0 bg-white dark:bg-neutral-900 z-10',
         className
       )}
     >
-      <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">
+      <h2 className="text-base sm:text-lg font-semibold text-neutral-900 dark:text-white line-clamp-1">
         {children}
       </h2>
       {onClose && (
         <button
           onClick={onClose}
-          className="p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          className="p-2 -mr-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
         >
           <X className="w-5 h-5 text-neutral-500" />
         </button>
@@ -125,7 +132,7 @@ export function ModalContent({
   className?: string;
 }) {
   return (
-    <div className={cn('p-6 overflow-y-auto max-h-[60vh]', className)}>
+    <div className={cn('p-4 sm:p-6 overflow-y-auto', className)}>
       {children}
     </div>
   );
@@ -141,8 +148,9 @@ export function ModalFooter({
   return (
     <div
       className={cn(
-        'flex items-center justify-end gap-3 px-6 py-4',
+        'flex items-center justify-end gap-3 px-4 sm:px-6 py-3 sm:py-4',
         'border-t border-neutral-200 dark:border-neutral-800',
+        'sticky bottom-0 bg-white dark:bg-neutral-900',
         className
       )}
     >
@@ -150,4 +158,3 @@ export function ModalFooter({
     </div>
   );
 }
-
