@@ -14,6 +14,7 @@ import { Project, Task } from '@/types';
 import { useProjectsStore } from '@/store/projects';
 import { KanbanCard } from './kanban-card';
 import { Button } from '@/components/ui/button';
+import { toast } from '@/components/ui/sonner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,18 +36,61 @@ export function KanbanBoard({ project, onTaskClick, onCreateTask }: KanbanBoardP
   const { tasks, moveTask, updateTask } = useProjectsStore();
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
 
+  const findSectionForQuickStatus = useCallback(
+    (next: 'open' | 'in_progress' | 'completed') => {
+      const sections = project.sections || [];
+      const byName = (pred: (n: string) => boolean) =>
+        sections.find(s => pred(s.name.toLowerCase()));
+
+      if (next === 'in_progress') {
+        return (
+          byName(n => n.includes('in progress') || n.includes('progress')) || sections[0]
+        );
+      }
+      if (next === 'completed') {
+        return (
+          byName(n => COMPLETED_SECTION_NAMES.includes(n) || n.includes('done')) ||
+          sections[sections.length - 1]
+        );
+      }
+      // open -> To Do
+      return byName(n => n.includes('to do') || n === 'todo' || n.includes('backlog')) || sections[0];
+    },
+    [project.sections]
+  );
+
+  const quickSetStatus = useCallback(
+    async (taskId: string, next: 'open' | 'in_progress' | 'completed') => {
+      const section = findSectionForQuickStatus(next);
+      if (!section) return;
+      try {
+        // move to the top of the target column
+        await moveTask(taskId, section._id, 0);
+        await updateTask(taskId, {
+          status: next,
+          isCompleted: next === 'completed',
+        });
+        toast.success('Task status updated');
+      } catch (error) {
+        console.error('Failed to update status:', error);
+        toast.error('Failed to update task status');
+      }
+    },
+    [findSectionForQuickStatus, moveTask, updateTask]
+  );
+
   const handleDragStart = useCallback((start: DragStart) => {
     setDraggingTaskId(start.draggableId);
   }, []);
 
   const handleDragEnd = useCallback(async (result: DropResult) => {
     setDraggingTaskId(null);
-    
+
     const { destination, source, draggableId } = result;
-    
+
     // If no destination, do nothing
     if (!destination) return;
-    
+
     // If dropped in the same place, do nothing
     if (
       destination.droppableId === source.droppableId &&
@@ -54,18 +98,18 @@ export function KanbanBoard({ project, onTaskClick, onCreateTask }: KanbanBoardP
     ) {
       return;
     }
-    
+
     const newSectionId = destination.droppableId;
     const newOrder = destination.index;
 
     // Find the destination section to check if it's a "completed" section
     const destinationSection = project.sections.find(s => s._id === newSectionId);
-    const isCompletedSection = destinationSection && 
+    const isCompletedSection = destinationSection &&
       COMPLETED_SECTION_NAMES.includes(destinationSection.name.toLowerCase());
 
     try {
       await moveTask(draggableId, newSectionId, newOrder);
-      
+
       // Auto-complete task if dropped in "Completed" section
       if (isCompletedSection) {
         await updateTask(draggableId, { isCompleted: true, status: 'completed' });
@@ -95,14 +139,14 @@ export function KanbanBoard({ project, onTaskClick, onCreateTask }: KanbanBoardP
           .map((section, index) => {
             const sectionTasks = getTasksForSection(section._id);
             const isCompletedSection = COMPLETED_SECTION_NAMES.includes(section.name.toLowerCase());
-            
+
             return (
               <motion.div
                 key={section._id}
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.05, duration: 0.2 }}
-                className="flex-shrink-0 w-80"
+                className="shrink-0 w-80"
               >
                 <div className="bg-card/50 border border-border rounded-xl p-3 h-full flex flex-col max-h-[calc(100vh-160px)]">
                   {/* Section Header */}
@@ -144,8 +188,8 @@ export function KanbanBoard({ project, onTaskClick, onCreateTask }: KanbanBoardP
                           'flex-1 space-y-2 rounded-lg p-1 overflow-y-auto transition-colors duration-200',
                           'min-h-[120px]',
                           snapshot.isDraggingOver && (
-                            isCompletedSection 
-                              ? 'bg-green-500/10 ring-2 ring-green-500/30' 
+                            isCompletedSection
+                              ? 'bg-green-500/10 ring-2 ring-green-500/30'
                               : 'bg-primary/10 ring-2 ring-primary/30'
                           )
                         )}
@@ -172,6 +216,7 @@ export function KanbanBoard({ project, onTaskClick, onCreateTask }: KanbanBoardP
                                 <KanbanCard
                                   task={task}
                                   onClick={() => !snapshot.isDragging && onTaskClick(task)}
+                                  onQuickStatusChange={(next) => void quickSetStatus(task._id, next)}
                                   isDragging={snapshot.isDragging}
                                 />
                               </div>
@@ -202,7 +247,7 @@ export function KanbanBoard({ project, onTaskClick, onCreateTask }: KanbanBoardP
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="flex-shrink-0 w-80"
+          className="shrink-0 w-80"
         >
           <Button
             variant="outline"

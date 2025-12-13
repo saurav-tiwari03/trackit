@@ -1,14 +1,22 @@
 'use client';
 
-import { Calendar, MessageSquare, CheckSquare } from 'lucide-react';
+import { Calendar, MessageSquare, CheckSquare, MoreHorizontal } from 'lucide-react';
 import { Task } from '@/types';
 import { cn, formatRelativeDate, getPriorityColor } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface KanbanCardProps {
   task: Task;
   onClick: () => void;
+  onQuickStatusChange?: (next: 'open' | 'in_progress' | 'completed') => void;
   isDragging?: boolean;
 }
 
@@ -21,7 +29,7 @@ const getInitials = (name: string) => {
     .slice(0, 2);
 };
 
-export function KanbanCard({ task, onClick, isDragging }: KanbanCardProps) {
+export function KanbanCard({ task, onClick, onQuickStatusChange, isDragging }: KanbanCardProps) {
   const completedSubtasks = task.subtasks.filter(s => s.isCompleted).length;
   const totalSubtasks = task.subtasks.length;
 
@@ -32,8 +40,8 @@ export function KanbanCard({ task, onClick, isDragging }: KanbanCardProps) {
         'bg-card rounded-lg p-3 cursor-pointer select-none',
         'border border-border',
         'transition-all duration-150',
-        isDragging 
-          ? 'shadow-2xl ring-2 ring-primary rotate-2 scale-105 opacity-90' 
+        isDragging
+          ? 'shadow-2xl ring-2 ring-primary rotate-2 scale-105 opacity-90'
           : 'hover:shadow-md hover:border-primary/50'
       )}
     >
@@ -107,16 +115,60 @@ export function KanbanCard({ task, onClick, isDragging }: KanbanCardProps) {
         </div>
 
         {/* Assignee */}
-        {task.assignee && (
-          <Avatar className="h-6 w-6">
-            {task.assignee.avatar && (
-              <AvatarImage src={task.assignee.avatar} alt={task.assignee.name} />
-            )}
-            <AvatarFallback className="text-xs">
-              {getInitials(task.assignee.name)}
-            </AvatarFallback>
-          </Avatar>
-        )}
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="h-7 w-7"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onQuickStatusChange?.('open');
+                }}
+              >
+                Move to To Do
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onQuickStatusChange?.('in_progress');
+                }}
+              >
+                Move to In Progress
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onQuickStatusChange?.('completed');
+                }}
+              >
+                Move to Completed
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {task.assignee && (
+            <Avatar className="h-6 w-6">
+              {task.assignee.avatar && (
+                <AvatarImage src={task.assignee.avatar} alt={task.assignee.name} />
+              )}
+              <AvatarFallback className="text-xs">
+                {getInitials(task.assignee.name)}
+              </AvatarFallback>
+            </Avatar>
+          )}
+        </div>
       </div>
     </div>
   );

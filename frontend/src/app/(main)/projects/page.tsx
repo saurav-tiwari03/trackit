@@ -25,6 +25,7 @@ import {
 import { toast } from '@/components/ui/sonner';
 import { useProjectsStore } from '@/store/projects';
 import { tasksAPI } from '@/lib/api';
+import { useAuthStore } from '@/store/auth';
 
 interface ProjectProgress {
   totalTasks: number;
@@ -35,6 +36,7 @@ interface ProjectProgress {
 
 export default function ProjectsPage() {
   const { projects, deleteProject, fetchProjects } = useProjectsStore();
+  const { user } = useAuthStore();
   const [projectProgress, setProjectProgress] = useState<Record<string, ProjectProgress>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -166,6 +168,8 @@ export default function ProjectsPage() {
             {projects.map((project, index) => {
               const progress = projectProgress[project._id];
               const percentage = getProgressPercentage(project._id);
+              const ownerId = (project.owner as any)?.id || (project.owner as any)?._id;
+              const isOwner = !!user?.id && String(user.id) === String(ownerId);
 
               return (
                 <motion.div
@@ -215,12 +219,14 @@ export default function ProjectsPage() {
                             <DropdownMenuItem
                               onClick={(e) => {
                                 e.preventDefault();
+                                if (!isOwner) return;
                                 openDeleteDialog(project._id, project.name);
                               }}
                               className="text-destructive"
+                              disabled={!isOwner}
                             >
                               <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
+                              {isOwner ? 'Delete' : 'Only owner can delete'}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

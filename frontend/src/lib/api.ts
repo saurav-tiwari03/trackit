@@ -61,6 +61,8 @@ export const projectsAPI = {
     api.put(`/projects/${id}/sections`, { sections }),
   invite: (id: string, data: { email: string }) =>
     api.post(`/projects/${id}/invite`, data),
+  acceptInvite: (id: string) => api.post(`/projects/${id}/invite/accept`),
+  rejectInvite: (id: string) => api.post(`/projects/${id}/invite/reject`),
 };
 
 // Tasks API
@@ -119,6 +121,16 @@ export const commentsAPI = {
   update: (id: string, data: { content: string }) =>
     api.put(`/comments/${id}`, data),
   delete: (id: string) => api.delete(`/comments/${id}`),
+};
+
+// Notifications API
+export const notificationsAPI = {
+  getAll: (params?: { unreadOnly?: boolean; limit?: number }) =>
+    api.get('/notifications', { params }),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
+  markRead: (id: string) => api.put(`/notifications/${id}/read`),
+  markAllRead: () => api.put('/notifications/read-all'),
+  clearAll: () => api.delete('/notifications/clear-all'),
 };
 
 export default api;

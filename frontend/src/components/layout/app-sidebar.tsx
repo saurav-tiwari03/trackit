@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -14,6 +14,7 @@ import {
   LogOut,
   PanelLeftClose,
   Inbox,
+  Bell,
 } from 'lucide-react';
 
 import {
@@ -49,6 +50,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuthStore } from '@/store/auth';
 import { useProjectsStore } from '@/store/projects';
+import { useNotificationsStore } from '@/store/notifications';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -56,6 +58,7 @@ const navItems = [
   { icon: Inbox, label: 'Inbox', href: '/inbox' },
   { icon: CheckSquare, label: 'All Tasks', href: '/tasks' },
   { icon: Calendar, label: 'Calendar', href: '/calendar' },
+  { icon: Bell, label: 'Notifications', href: '/notifications' },
   { icon: Settings, label: 'Settings', href: '/settings' },
 ];
 
@@ -64,8 +67,17 @@ export function AppSidebar() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const { projects } = useProjectsStore();
+  const { unreadCount, fetchUnreadCount } = useNotificationsStore();
   const { toggleSidebar } = useSidebar();
   const [projectsOpen, setProjectsOpen] = useState(true);
+
+  // Lightweight polling for unread count
+  // (no realtime infra yet; this gets you “right now” notifications)
+  useEffect(() => {
+    void fetchUnreadCount();
+    const t = window.setInterval(() => void fetchUnreadCount(), 15000);
+    return () => window.clearInterval(t);
+  }, [fetchUnreadCount]);
 
   const handleLogout = () => {
     logout();
@@ -121,6 +133,11 @@ export function AppSidebar() {
                     <Link href={item.href}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.label}</span>
+                      {item.href === '/notifications' && unreadCount > 0 && (
+                        <span className="ml-auto inline-flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] h-5 min-w-5 px-1.5 group-data-[collapsible=icon]:hidden">
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </span>
+                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

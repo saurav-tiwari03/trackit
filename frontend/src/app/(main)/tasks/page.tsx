@@ -17,6 +17,7 @@ import { useProjectsStore } from '@/store/projects';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { toast } from '@/components/ui/sonner';
 import {
   Select,
   SelectContent,
@@ -149,8 +150,10 @@ export default function TasksPage() {
             : t
         )
       );
+      toast.success('Task status updated');
     } catch (error) {
       console.error('Failed to update task status:', error);
+      toast.error('Failed to update task status');
     }
   };
 

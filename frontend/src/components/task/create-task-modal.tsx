@@ -87,6 +87,21 @@ export function CreateTaskModal({
   const [labels, setLabels] = useState<string[]>([]);
   const [labelInput, setLabelInput] = useState('');
   const [isDetailsOpen, setIsDetailsOpen] = useState(true);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  // Avoid rendering duplicate portalled popovers (mobile + desktop) at the same time.
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)'); // Tailwind `lg`
+    const apply = () => setIsDesktop(mq.matches);
+    apply();
+    // Safari <14 fallback
+    if (mq.addEventListener) mq.addEventListener('change', apply);
+    else mq.addListener(apply);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', apply);
+      else mq.removeListener(apply);
+    };
+  }, []);
 
   // Auto-select project if only one exists
   useEffect(() => {
@@ -181,12 +196,39 @@ export function CreateTaskModal({
           <ModalHeader onClose={handleClose}>Create Task</ModalHeader>
 
           <ModalContent className="flex-1 overflow-y-auto">
-            {/* Mobile: Collapsible Details Section (match TaskModal) */}
-            <div className="lg:hidden mb-4">
+            {/* Title (top on mobile) */}
+            <div className="mb-6 rounded-2xl border border-border/50 bg-card/40 p-4">
+              <div className="text-sm font-medium text-muted-foreground mb-2">Title</div>
+              <Input
+                placeholder="Task title"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                autoFocus
+                className="h-11"
+              />
+            </div>
+
+            {/* Description (top on mobile) */}
+            <div className="mb-6 rounded-2xl border border-border/50 bg-card/40 p-4">
+              <div className="text-sm font-medium text-muted-foreground mb-3">
+                Description
+              </div>
+              <TipTapEditor
+                content={description}
+                onChange={setDescription}
+                placeholder="Add more details..."
+                className="text-foreground min-h-[160px]"
+              />
+            </div>
+
+            {/* Mobile: Task Details AFTER title/description */}
+            <div className="lg:hidden mb-6">
               <Collapsible open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
                 <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-muted/50 rounded-xl">
                   <div className="flex items-center gap-3">
-                    <div className={cn('w-2 h-2 rounded-full', priorityColors[priority])} />
+                    <div
+                      className={cn('w-2 h-2 rounded-full', priorityColors[priority])}
+                    />
                     <span className="text-sm font-medium">Task Details</span>
                     {dueDate && (
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -205,7 +247,7 @@ export function CreateTaskModal({
                 <CollapsibleContent>
                   <div className="mt-3 p-4 bg-muted/30 rounded-xl space-y-4">
                     {/* Project (optional) */}
-                    {showProjectSelector && (
+                    {showProjectSelector && !isDesktop && (
                       <div className="rounded-xl border border-border/50 bg-card/30 p-3">
                         <div className="text-xs font-medium text-muted-foreground mb-2">
                           Project
@@ -449,64 +491,33 @@ export function CreateTaskModal({
                       </div>
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="flex-1"
-                        onClick={handleClose}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="button"
-                        className="flex-1"
-                        onClick={() => void handleCreate()}
-                        disabled={
-                          isLoading || !title.trim() || !selectedProjectId || !selectedSectionId
-                        }
-                      >
-                        {isLoading ? 'Creating…' : 'Create'}
-                      </Button>
-                    </div>
                   </div>
                 </CollapsibleContent>
               </Collapsible>
             </div>
-
-            {/* Title */}
-            <div className="mb-6 rounded-2xl border border-border/50 bg-card/40 p-4">
-              <div className="text-sm font-medium text-muted-foreground mb-2">Title</div>
-              <Input
-                placeholder="Task title"
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                autoFocus
-                className="h-11"
-              />
-            </div>
-
-            {/* Description */}
-            <div className="mb-6 rounded-2xl border border-border/50 bg-card/40 p-4">
-              <div className="text-sm font-medium text-muted-foreground mb-3">
-                Description
-              </div>
-              <TipTapEditor
-                content={description}
-                onChange={setDescription}
-                placeholder="Add more details..."
-                className="text-foreground min-h-[160px]"
-              />
-            </div>
           </ModalContent>
+
+          {/* Mobile sticky actions (always bottom) */}
+          <div className="lg:hidden border-t bg-background/95 backdrop-blur px-4 py-3 flex items-center gap-3">
+            <Button type="button" variant="ghost" className="flex-1" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="flex-1"
+              onClick={() => void handleCreate()}
+              disabled={isLoading || !title.trim() || !selectedProjectId || !selectedSectionId}
+            >
+              {isLoading ? 'Creating…' : 'Create'}
+            </Button>
+          </div>
         </div>
 
         {/* Desktop Sidebar (match TaskModal) */}
         <div className="hidden lg:block w-72 border-l p-4 bg-muted/30 overflow-hidden shrink-0">
           <div className="space-y-5">
             {/* Project (optional) */}
-            {showProjectSelector && (
+            {showProjectSelector && isDesktop && (
               <div className="rounded-xl border border-border/50 bg-card/30 p-3">
                 <div className="text-xs font-medium text-muted-foreground mb-2">Project</div>
                 <Popover open={projectOpen} onOpenChange={setProjectOpen} modal={true}>

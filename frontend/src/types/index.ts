@@ -79,6 +79,23 @@ export interface Comment {
   updatedAt: string;
 }
 
+export type NotificationType = 'project_invite' | 'mention';
+
+export interface Notification {
+  _id: string;
+  recipient: string;
+  actor?: User;
+  type: NotificationType;
+  title: string;
+  body?: string;
+  project?: { _id: string; name: string; color: string } | string;
+  task?: string;
+  comment?: string;
+  readAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TaskStats {
   open: number;
   overdue: number;

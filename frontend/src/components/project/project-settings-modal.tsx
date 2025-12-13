@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { TipTapEditor, TipTapViewer } from '@/components/ui/tiptap-editor';
 import { Project } from '@/types';
 import { useProjectsStore } from '@/store/projects';
+import { useAuthStore } from '@/store/auth';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui/sonner';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -29,6 +30,7 @@ const PROJECT_ICONS = ['📋', '🎯', '🚀', '💡', '📊', '🔧', '📝', '
 
 export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettingsModalProps) {
   const { updateProject, deleteProject, addSection, inviteToProject, fetchProject, currentProject } = useProjectsStore();
+  const { user } = useAuthStore();
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description || '');
   const [color, setColor] = useState(project.color || '#6366f1');
@@ -40,6 +42,8 @@ export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettin
   const [isInviting, setIsInviting] = useState(false);
 
   const liveProject = currentProject?._id === project._id ? currentProject : project;
+  const ownerId = (liveProject.owner as any)?.id || (liveProject.owner as any)?._id;
+  const isOwner = !!user?.id && String(user.id) === String(ownerId);
 
   useEffect(() => {
     if (project) {
@@ -77,6 +81,10 @@ export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettin
   };
 
   const handleDelete = async () => {
+    if (!isOwner) {
+      toast.error('Only the project owner can delete this project');
+      return;
+    }
     if (confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
       try {
         await deleteProject(project._id);
@@ -358,9 +366,9 @@ export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettin
 
       <ModalFooter>
         <div className="flex items-center justify-between w-full">
-          <Button variant="destructive" onClick={handleDelete}>
+          <Button variant="destructive" onClick={handleDelete} disabled={!isOwner}>
             <Trash2 className="w-4 h-4 mr-2" />
-            Delete Project
+            {isOwner ? 'Delete Project' : 'Only owner can delete'}
           </Button>
           <div className="flex gap-2">
             <Button variant="ghost" onClick={onClose}>

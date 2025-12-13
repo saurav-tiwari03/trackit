@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Circle,
   Trash2,
+  MoreHorizontal,
   Send,
   ChevronDown,
   ChevronUp,
@@ -16,6 +17,7 @@ import {
   Tag,
   Clock,
   Timer,
+  ListTodo,
   Paperclip,
   FileText,
   Image as ImageIcon,
@@ -72,6 +74,13 @@ import { cn } from '@/lib/utils';
 import { useProjectsStore } from '@/store/projects';
 import { tasksAPI, commentsAPI } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 // IMPORTANT: keep worker version in sync with the PDF.js API version used by react-pdf.
 // Using `pdfjs.version` avoids "API version does not match Worker version" errors.
@@ -125,6 +134,10 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
   const [pdfPageWidth, setPdfPageWidth] = useState<number>(0);
   const [attachmentToRemove, setAttachmentToRemove] = useState<Attachment | null>(null);
   const [isRemovingAttachment, setIsRemovingAttachment] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentValue, setEditingCommentValue] = useState('');
+  const [commentToDelete, setCommentToDelete] = useState<Comment | null>(null);
+  const [isDeletingComment, setIsDeletingComment] = useState(false);
 
   const updatePdfWidth = () => {
     const el = pdfContainerRef.current;
@@ -227,9 +240,30 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
     if (!editedTask) return;
     try {
       await updateTask(editedTask._id, { isCompleted: !editedTask.isCompleted });
-      setEditedTask({ ...editedTask, isCompleted: !editedTask.isCompleted });
+      const nextIsCompleted = !editedTask.isCompleted;
+      setEditedTask({
+        ...editedTask,
+        isCompleted: nextIsCompleted,
+        status: nextIsCompleted ? 'completed' : 'open',
+      });
     } catch (error) {
       console.error('Failed to update task:', error);
+    }
+  };
+
+  const handleStatusChange = async (next: Task['status']) => {
+    if (!editedTask) return;
+    const prev = editedTask.status;
+    try {
+      const isCompleted = next === 'completed';
+      // Optimistic UI (prevents “still showing To Do” while request is in-flight)
+      setEditedTask({ ...editedTask, status: next, isCompleted });
+      await updateTask(editedTask._id, { status: next, isCompleted });
+      toast.success('Task status updated');
+    } catch (error) {
+      console.error('Failed to update task status:', error);
+      setEditedTask({ ...editedTask, status: prev });
+      toast.error('Failed to update task status');
     }
   };
 
@@ -454,6 +488,51 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
       toast.error(message);
     } finally {
       setIsUploadingAttachments(false);
+    }
+  };
+
+  const startEditComment = (c: Comment) => {
+    setEditingCommentId(c._id);
+    setEditingCommentValue(c.content || '');
+  };
+
+  const cancelEditComment = () => {
+    setEditingCommentId(null);
+    setEditingCommentValue('');
+  };
+
+  const saveEditComment = async () => {
+    if (!editingCommentId) return;
+    const content = editingCommentValue.trim();
+    if (!content) return;
+    try {
+      const response = await commentsAPI.update(editingCommentId, { content });
+      const updated = response.data.data as Comment;
+      setComments(prev => prev.map(c => (c._id === updated._id ? { ...c, ...updated } : c)));
+      toast.success('Comment updated');
+      cancelEditComment();
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message || error?.message || 'Failed to update comment';
+      toast.error(message);
+    }
+  };
+
+  const confirmDeleteComment = async () => {
+    if (!commentToDelete) return;
+    setIsDeletingComment(true);
+    try {
+      await commentsAPI.delete(commentToDelete._id);
+      setComments(prev => prev.filter(c => c._id !== commentToDelete._id));
+      toast.success('Comment deleted');
+      setCommentToDelete(null);
+      cancelEditComment();
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message || error?.message || 'Failed to delete comment';
+      toast.error(message);
+    } finally {
+      setIsDeletingComment(false);
     }
   };
 
@@ -746,9 +825,9 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                       </div>
                     </div>
 
-                    {/* Section/Status */}
+                    {/* Section */}
                     <div className="rounded-xl border border-border/50 bg-card/30 p-3">
-                      <div className="text-xs font-medium text-muted-foreground mb-2">Status</div>
+                      <div className="text-xs font-medium text-muted-foreground mb-2">Section</div>
                       <Select
                         value={editedTask.section}
                         onValueChange={handleSectionChange}
@@ -770,6 +849,27 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                               </div>
                             </SelectItem>
                           ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Task Status */}
+                    <div className="rounded-xl border border-border/50 bg-card/30 p-3">
+                      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-2">
+                        <ListTodo className="w-3 h-3" />
+                        Task status
+                      </div>
+                      <Select
+                        value={editedTask.status}
+                        onValueChange={(v) => handleStatusChange(v as Task['status'])}
+                      >
+                        <SelectTrigger className="w-full h-8">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="open">To Do</SelectItem>
+                          <SelectItem value="in_progress">In Progress</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1203,7 +1303,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                         key={comment._id}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="flex items-start gap-3 rounded-2xl border border-border/50 bg-card/40 p-3"
+                        className="group flex items-start gap-3 rounded-2xl border border-border/50 bg-card/40 p-3"
                       >
                         <Avatar className="h-8 w-8 shrink-0">
                           <AvatarFallback className="text-xs">
@@ -1211,17 +1311,86 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <span className="text-sm font-medium">
-                              {comment.author.name}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {formatDateDisplay(comment.createdAt)}
-                            </span>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className="text-sm font-medium">
+                                {comment.author.name}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatDateDisplay(comment.createdAt)}
+                              </span>
+                            </div>
+
+                            {user?.id && comment.author?.id === user.id && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    className="shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      startEditComment(comment);
+                                    }}
+                                  >
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="text-destructive"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setCommentToDelete(comment);
+                                    }}
+                                  >
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
                           </div>
-                          <p className="text-sm wrap-break-word leading-relaxed">
-                            {renderCommentContent(comment)}
-                          </p>
+
+                          {editingCommentId === comment._id ? (
+                            <div className="mt-2">
+                              <textarea
+                                value={editingCommentValue}
+                                onChange={(e) => setEditingCommentValue(e.target.value)}
+                                className="w-full min-h-[88px] rounded-xl border border-border/50 bg-background/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                              />
+                              <div className="mt-2 flex items-center justify-end gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={cancelEditComment}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => void saveEditComment()}
+                                  disabled={!editingCommentValue.trim()}
+                                >
+                                  Save
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-sm wrap-break-word leading-relaxed">
+                              {renderCommentContent(comment)}
+                            </p>
+                          )}
                         </div>
                       </motion.div>
                     ))}
@@ -1485,10 +1654,10 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
               </div>
             </div>
 
-            {/* Section/Status */}
+            {/* Section */}
             <div className="rounded-xl border border-border/50 bg-card/30 p-3">
               <h4 className="text-xs font-medium text-muted-foreground mb-2">
-                Status
+                Section
               </h4>
               <Select
                 value={editedTask.section}
@@ -1511,6 +1680,27 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                       </div>
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Task Status */}
+            <div className="rounded-xl border border-border/50 bg-card/30 p-3">
+              <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                <ListTodo className="w-3 h-3" />
+                Task status
+              </h4>
+              <Select
+                value={editedTask.status}
+                onValueChange={(v) => handleStatusChange(v as Task['status'])}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="open">To Do</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1682,6 +1872,33 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Comment Dialog */}
+      <AlertDialog
+        open={!!commentToDelete}
+        onOpenChange={(open) => {
+          if (!open) setCommentToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete comment</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the comment. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingComment}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void confirmDeleteComment()}
+              disabled={isDeletingComment}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingComment ? 'Deleting…' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
