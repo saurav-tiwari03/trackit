@@ -243,6 +243,18 @@ export default function Home() {
               </Link>
             ) : (
               <>
+                <Link href="/features" className="hover:text-foreground transition-colors">
+                  Features
+                </Link>
+                <Link href="/task-management" className="hover:text-foreground transition-colors">
+                  Task Management
+                </Link>
+                <Link href="/privacy" className="hover:text-foreground transition-colors">
+                  Privacy
+                </Link>
+                <Link href="/terms" className="hover:text-foreground transition-colors">
+                  Terms
+                </Link>
                 <Link href="/login" className="hover:text-foreground transition-colors">
                   Login
                 </Link>
