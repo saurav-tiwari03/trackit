@@ -129,7 +129,7 @@ router.get('/me', protect, async (req: AuthRequest, res: Response) => {
         avatar: req.user?.avatar,
       },
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({
       success: false,
       message: 'Error fetching user',
@@ -148,4 +148,3 @@ router.post('/logout', protect, async (_req: AuthRequest, res: Response) => {
 });
 
 export default router;
-

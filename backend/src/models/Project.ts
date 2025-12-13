@@ -84,4 +84,3 @@ projectSchema.index({ owner: 1 });
 projectSchema.index({ members: 1 });
 
 export const Project = model<IProject>('Project', projectSchema);
-

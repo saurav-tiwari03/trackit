@@ -43,4 +43,3 @@ const commentSchema = new Schema<IComment>(
 commentSchema.index({ task: 1, createdAt: -1 });
 
 export const Comment = model<IComment>('Comment', commentSchema);
-

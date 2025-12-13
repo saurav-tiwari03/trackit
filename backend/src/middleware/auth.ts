@@ -20,7 +20,7 @@ export const protect = async (
       req.headers.authorization &&
       req.headers.authorization.startsWith('Bearer')
     ) {
-      token = req.headers.authorization.split(' ')[1];
+      [, token] = req.headers.authorization.split(' ');
     }
 
     // Check for token in cookies
@@ -52,7 +52,7 @@ export const protect = async (
 
     req.user = user;
     next();
-  } catch (error) {
+  } catch {
     res.status(401).json({
       success: false,
       message: 'Not authorized to access this route',
@@ -60,9 +60,7 @@ export const protect = async (
   }
 };
 
-export const generateToken = (userId: string): string => {
-  return jwt.sign({ id: userId }, SERVER.JWT_SECRET, {
+export const generateToken = (userId: string): string =>
+  jwt.sign({ id: userId }, SERVER.JWT_SECRET, {
     expiresIn: SERVER.JWT_EXPIRE as jwt.SignOptions['expiresIn'],
   });
-};
-

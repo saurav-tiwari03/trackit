@@ -134,4 +134,3 @@ taskSchema.pre('save', function () {
 });
 
 export const Task = model<ITask>('Task', taskSchema);
-

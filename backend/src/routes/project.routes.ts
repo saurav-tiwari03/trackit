@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
+import mongoose from 'mongoose';
 import { Project, Task } from '../models';
 import { protect, AuthRequest } from '../middleware/auth';
-import mongoose from 'mongoose';
 
 const router = Router();
 
@@ -25,7 +25,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       count: projects.length,
       data: projects,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({
       success: false,
       message: 'Error fetching projects',
@@ -98,7 +98,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
         tasks,
       },
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({
       success: false,
       message: 'Error fetching project',
@@ -134,7 +134,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
       success: true,
       data: project,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({
       success: false,
       message: 'Error updating project',
@@ -170,7 +170,7 @@ router.put('/:id/sections', async (req: AuthRequest, res: Response) => {
       success: true,
       data: project,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({
       success: false,
       message: 'Error updating sections',
@@ -213,7 +213,7 @@ router.post('/:id/sections', async (req: AuthRequest, res: Response) => {
       success: true,
       data: project,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({
       success: false,
       message: 'Error adding section',
@@ -246,7 +246,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
       success: true,
       message: 'Project deleted successfully',
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({
       success: false,
       message: 'Error deleting project',
@@ -255,4 +255,3 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
 });
 
 export default router;
-

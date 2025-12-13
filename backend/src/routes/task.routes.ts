@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
+import mongoose from 'mongoose';
 import { Task, Project, Comment } from '../models';
 import { protect, AuthRequest } from '../middleware/auth';
-import mongoose from 'mongoose';
 
 const router = Router();
 
@@ -47,7 +47,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       count: tasks.length,
       data: tasks,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({
       success: false,
       message: 'Error fetching tasks',
@@ -91,7 +91,7 @@ router.get('/stats', async (req: AuthRequest, res: Response) => {
         completed,
       },
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({
       success: false,
       message: 'Error fetching stats',
@@ -197,7 +197,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
         comments,
       },
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({
       success: false,
       message: 'Error fetching task',
@@ -255,7 +255,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
       success: true,
       data: task,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({
       success: false,
       message: 'Error updating task',
@@ -290,7 +290,7 @@ router.put('/:id/move', async (req: AuthRequest, res: Response) => {
       success: true,
       data: task,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({
       success: false,
       message: 'Error moving task',
@@ -330,7 +330,7 @@ router.post('/:id/subtasks', async (req: AuthRequest, res: Response) => {
       success: true,
       data: task,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({
       success: false,
       message: 'Error adding subtask',
@@ -378,7 +378,7 @@ router.put(
         success: true,
         data: task,
       });
-    } catch (error) {
+    } catch {
       res.status(500).json({
         success: false,
         message: 'Error updating subtask',
@@ -414,7 +414,7 @@ router.delete(
         success: true,
         data: task,
       });
-    } catch (error) {
+    } catch {
       res.status(500).json({
         success: false,
         message: 'Error deleting subtask',
@@ -445,7 +445,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
       success: true,
       message: 'Task deleted successfully',
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({
       success: false,
       message: 'Error deleting task',
@@ -454,4 +454,3 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
 });
 
 export default router;
-

@@ -21,7 +21,7 @@ router.get('/task/:taskId', async (req: AuthRequest, res: Response) => {
       count: comments.length,
       data: comments,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({
       success: false,
       message: 'Error fetching comments',
@@ -100,7 +100,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
       success: true,
       data: comment,
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({
       success: false,
       message: 'Error updating comment',
@@ -130,7 +130,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
       success: true,
       message: 'Comment deleted successfully',
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({
       success: false,
       message: 'Error deleting comment',
@@ -139,4 +139,3 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
 });
 
 export default router;
-
