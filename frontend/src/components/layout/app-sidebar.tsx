@@ -1,0 +1,225 @@
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import {
+  LayoutDashboard,
+  FolderKanban,
+  CheckSquare,
+  Calendar,
+  Settings,
+  Plus,
+  ChevronRight,
+  LogOut,
+  PanelLeftClose,
+} from 'lucide-react';
+
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarSeparator,
+  useSidebar,
+} from '@/components/ui/sidebar';
+import { Button } from '@/components/ui/button';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useAuthStore } from '@/store/auth';
+import { useProjectsStore } from '@/store/projects';
+import { cn } from '@/lib/utils';
+
+const navItems = [
+  { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
+  { icon: CheckSquare, label: 'All Tasks', href: '/tasks' },
+  { icon: Calendar, label: 'Calendar', href: '/calendar' },
+  { icon: Settings, label: 'Settings', href: '/settings' },
+];
+
+export function AppSidebar() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuthStore();
+  const { projects } = useProjectsStore();
+  const { toggleSidebar } = useSidebar();
+  const [projectsOpen, setProjectsOpen] = useState(true);
+
+  const handleLogout = () => {
+    logout();
+    router.push('/login');
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  return (
+    <Sidebar collapsible="icon" className="border-r overflow-hidden">
+      <SidebarHeader className="p-4">
+        <div className="flex items-center justify-between">
+          <Link href="/dashboard" className="flex items-center gap-2 group-data-[collapsible=icon]:hidden">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <span className="font-bold text-sm">T</span>
+            </div>
+            <span className="font-semibold text-lg">TrackIt</span>
+          </Link>
+          <Link href="/dashboard" className="hidden group-data-[collapsible=icon]:flex items-center justify-center">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <span className="font-bold text-sm">T</span>
+            </div>
+          </Link>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={toggleSidebar}
+            className="group-data-[collapsible=icon]:hidden"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </Button>
+        </div>
+      </SidebarHeader>
+
+      <SidebarContent className="overflow-x-hidden">
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {navItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === item.href}
+                    tooltip={item.label}
+                  >
+                    <Link href={item.href}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarSeparator />
+
+        <SidebarGroup>
+          <Collapsible open={projectsOpen} onOpenChange={setProjectsOpen}>
+            <SidebarGroupLabel asChild>
+              <CollapsibleTrigger className="flex w-full items-center justify-between cursor-pointer group-data-[collapsible=icon]:justify-center">
+                <div className="flex items-center gap-2">
+                  <FolderKanban className="h-4 w-4" />
+                  <span className="group-data-[collapsible=icon]:hidden">Projects</span>
+                </div>
+                <ChevronRight
+                  className={cn(
+                    'h-4 w-4 transition-transform duration-200 group-data-[collapsible=icon]:hidden',
+                    projectsOpen && 'rotate-90'
+                  )}
+                />
+              </CollapsibleTrigger>
+            </SidebarGroupLabel>
+            <CollapsibleContent className="group-data-[collapsible=icon]:hidden">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuSub>
+                    {projects.map((project) => (
+                      <SidebarMenuSubItem key={project._id}>
+                        <SidebarMenuSubButton
+                          asChild
+                          isActive={pathname === `/projects/${project._id}`}
+                        >
+                          <Link href={`/projects/${project._id}`}>
+                            <span
+                              className="h-2 w-2 rounded-full shrink-0"
+                              style={{ backgroundColor: project.color }}
+                            />
+                            <span className="truncate">{project.name}</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    ))}
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton asChild>
+                        <Link
+                          href="/projects/new"
+                          className="text-muted-foreground"
+                        >
+                          <Plus className="h-4 w-4" />
+                          <span>New Project</span>
+                        </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  </SidebarMenuSub>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </CollapsibleContent>
+          </Collapsible>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter className="p-2">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton className="w-full cursor-pointer">
+                  <Avatar className="h-6 w-6">
+                    <AvatarFallback className="text-xs">
+                      {user?.name ? getInitials(user.name) : 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 text-left group-data-[collapsible=icon]:hidden">
+                    <p className="text-sm font-medium truncate">{user?.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {user?.email}
+                    </p>
+                  </div>
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuItem asChild>
+                  <Link href="/settings">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+    </Sidebar>
+  );
+}
