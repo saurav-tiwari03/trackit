@@ -47,6 +47,13 @@ const priorityColors: Record<string, string> = {
   P4: 'bg-gray-400',
 };
 
+const statusLabels: Record<string, string> = {
+  open: 'To Do',
+  in_progress: 'In Progress',
+  completed: 'Completed',
+  overdue: 'Overdue',
+};
+
 // Debounce hook
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -124,6 +131,26 @@ export default function TasksPage() {
       );
     } catch (error) {
       console.error('Failed to update task:', error);
+    }
+  };
+
+  const updateStatus = async (task: Task, nextStatus: Task['status']) => {
+    try {
+      const isCompleted = nextStatus === 'completed';
+      await tasksAPI.update(task._id, { status: nextStatus, isCompleted });
+      setTasks(prev =>
+        prev.map(t =>
+          t._id === task._id
+            ? {
+              ...t,
+              status: nextStatus,
+              isCompleted,
+            }
+            : t
+        )
+      );
+    } catch (error) {
+      console.error('Failed to update task status:', error);
     }
   };
 
@@ -359,22 +386,34 @@ export default function TasksPage() {
                         )}
 
                         {/* Status Badge */}
-                        <Badge
-                          variant={
-                            task.status === 'completed'
-                              ? 'default'
-                              : task.status === 'in_progress'
-                                ? 'secondary'
-                                : 'outline'
-                          }
-                          className="text-xs h-5 px-1.5"
+                        <Select
+                          value={task.status}
+                          onValueChange={(v) => updateStatus(task, v as Task['status'])}
                         >
-                          {task.status === 'open'
-                            ? 'To Do'
-                            : task.status === 'in_progress'
-                              ? 'In Progress'
-                              : 'Completed'}
-                        </Badge>
+                          <SelectTrigger
+                            className={cn(
+                              'h-5 px-2 py-0 text-[11px] w-auto rounded-full',
+                              'bg-transparent',
+                              task.status === 'completed'
+                                ? 'border-primary text-primary'
+                                : task.status === 'in_progress'
+                                  ? 'border-border text-foreground'
+                                  : task.status === 'overdue'
+                                    ? 'border-destructive text-destructive'
+                                    : 'border-border text-muted-foreground'
+                            )}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <SelectValue>
+                              {statusLabels[task.status] || 'Status'}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent onClick={(e) => e.stopPropagation()}>
+                            <SelectItem value="open">To Do</SelectItem>
+                            <SelectItem value="in_progress">In Progress</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
 

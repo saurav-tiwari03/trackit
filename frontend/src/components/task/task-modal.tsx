@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import {
@@ -96,6 +96,16 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
   const [editedTask, setEditedTask] = useState<Task | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
+  const [commentMentions, setCommentMentions] = useState<Array<{ id: string; name: string }>>([]);
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionStart, setMentionStart] = useState<number | null>(null);
+  const [labelInput, setLabelInput] = useState('');
+  const [isUpdatingLabels, setIsUpdatingLabels] = useState(false);
+  const userLabelSuggestions = useMemo(() => {
+    const list = user?.labels || [];
+    return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b));
+  }, [user?.labels]);
   const [newSubtask, setNewSubtask] = useState('');
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
@@ -111,22 +121,47 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [pdfNumPages, setPdfNumPages] = useState(0);
-  const pdfScrollRef = useRef<HTMLDivElement | null>(null);
-  const [pdfPageWidth, setPdfPageWidth] = useState<number>(900);
+  const pdfContainerRef = useRef<HTMLDivElement | null>(null);
+  const [pdfPageWidth, setPdfPageWidth] = useState<number>(0);
   const [attachmentToRemove, setAttachmentToRemove] = useState<Attachment | null>(null);
   const [isRemovingAttachment, setIsRemovingAttachment] = useState(false);
 
-  useEffect(() => {
-    if (!pdfScrollRef.current) return;
-    const el = pdfScrollRef.current;
-    const ro = new ResizeObserver(() => {
-      // Keep a little padding so it doesn't touch the edges
-      const next = Math.max(320, Math.min(1100, el.clientWidth - 24));
-      setPdfPageWidth(next);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  const updatePdfWidth = () => {
+    const el = pdfContainerRef.current;
+    if (!el) return;
+    // Use container width (modal content width) so it works on mobile too
+    const next = Math.max(280, Math.min(1100, el.clientWidth - 24));
+    setPdfPageWidth(next);
+  };
+
+  // Keep PDF responsive as preview opens/resizes.
+  // NOTE: the preview dialog (and ref) mounts only when opened,
+  // so we must attach the observer when `previewUrl` is ready.
+  useLayoutEffect(() => {
+    const isPdf = !!previewAttachment?.mimeType?.includes('pdf');
+    if (!isPdf || !previewUrl) return;
+
+    let ro: ResizeObserver | null = null;
+    let raf = 0;
+
+    const attach = () => {
+      const el = pdfContainerRef.current;
+      if (!el) {
+        raf = requestAnimationFrame(attach);
+        return;
+      }
+      updatePdfWidth();
+      ro = new ResizeObserver(() => updatePdfWidth());
+      ro.observe(el);
+    };
+
+    attach();
+
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      ro?.disconnect();
+    };
+  }, [previewAttachment, previewUrl]);
 
   // Get sections from the task's project
   const getProjectSections = (): Section[] => {
@@ -140,6 +175,24 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
 
   const sections = getProjectSections();
 
+  const mentionableUsers = useMemo(() => {
+    if (!editedTask) return [];
+    const projectId =
+      typeof editedTask.project === 'string'
+        ? editedTask.project
+        : editedTask.project._id;
+    const project = projects.find(p => p._id === projectId);
+    const all = project ? [project.owner, ...(project.members || [])] : [];
+    const unique = new Map<string, { id: string; name: string; email: string }>();
+    all.forEach(u => {
+      const id = (u as any).id || (u as any)._id;
+      if (id && !unique.has(id)) {
+        unique.set(id, { id, name: u.name, email: u.email });
+      }
+    });
+    return Array.from(unique.values());
+  }, [editedTask, projects]);
+
   useEffect(() => {
     if (task) {
       setEditedTask({
@@ -150,6 +203,12 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
       setEditedDescription(task.description || '');
       setIsEditingDescription(false);
       setIsAddingSubtask(false);
+      setNewComment('');
+      setCommentMentions([]);
+      setMentionOpen(false);
+      setMentionQuery('');
+      setMentionStart(null);
+      setLabelInput('');
       fetchComments();
     }
   }, [task]);
@@ -244,12 +303,134 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
       const response = await commentsAPI.create({
         content: newComment,
         task: editedTask._id,
+        mentions: commentMentions.length > 0 ? commentMentions.map(m => m.id) : undefined,
       });
       setComments([response.data.data, ...comments]);
       setNewComment('');
+      setCommentMentions([]);
     } catch (error) {
       console.error('Failed to add comment:', error);
     }
+  };
+
+  const updateMentionState = (value: string, cursorPos: number) => {
+    const upto = value.slice(0, cursorPos);
+    const at = upto.lastIndexOf('@');
+    if (at === -1) {
+      setMentionOpen(false);
+      setMentionQuery('');
+      setMentionStart(null);
+      return;
+    }
+    const between = upto.slice(at + 1);
+    if (/\s/.test(between)) {
+      setMentionOpen(false);
+      setMentionQuery('');
+      setMentionStart(null);
+      return;
+    }
+    setMentionStart(at);
+    setMentionQuery(between);
+    setMentionOpen(true);
+  };
+
+  const insertMention = (u: { id: string; name: string }) => {
+    const input = document.getElementById('task-comment-input') as HTMLInputElement | null;
+    const cursor = input?.selectionStart ?? newComment.length;
+    const start = mentionStart ?? newComment.lastIndexOf('@', cursor);
+    if (start === -1) return;
+    const before = newComment.slice(0, start);
+    const after = newComment.slice(cursor);
+    const nextText = `${before}@${u.name} ${after}`;
+    setNewComment(nextText);
+    setCommentMentions(prev =>
+      prev.some(m => m.id === u.id) ? prev : [...prev, { id: u.id, name: u.name }]
+    );
+    setMentionOpen(false);
+    setMentionQuery('');
+    setMentionStart(null);
+    requestAnimationFrame(() => {
+      if (!input) return;
+      const pos = (before + `@${u.name} `).length;
+      input.focus();
+      input.setSelectionRange(pos, pos);
+    });
+  };
+
+  const renderCommentContent = (c: Comment) => {
+    if (!c.mentions || c.mentions.length === 0) return c.content;
+    const text = c.content || '';
+    const needles = c.mentions.map(m => `@${m.name}`).filter(Boolean);
+    if (needles.length === 0) return text;
+
+    const ranges: Array<{ start: number; end: number }> = [];
+    needles.forEach(label => {
+      let idx = 0;
+      while (idx < text.length) {
+        const found = text.indexOf(label, idx);
+        if (found === -1) break;
+        ranges.push({ start: found, end: found + label.length });
+        idx = found + label.length;
+      }
+    });
+    ranges.sort((a, b) => a.start - b.start);
+
+    const out: React.ReactNode[] = [];
+    let i = 0;
+    ranges.forEach((r, n) => {
+      if (r.start < i) return;
+      if (r.start > i) out.push(text.slice(i, r.start));
+      out.push(
+        <span
+          key={`m-${n}-${r.start}`}
+          className="bg-primary/15 text-primary font-medium px-1 rounded"
+        >
+          {text.slice(r.start, r.end)}
+        </span>
+      );
+      i = r.end;
+    });
+    if (i < text.length) out.push(text.slice(i));
+    return out;
+  };
+
+  const updateLabels = async (nextLabels: string[]) => {
+    if (!editedTask) return;
+    setIsUpdatingLabels(true);
+    try {
+      const response = await tasksAPI.update(editedTask._id, { labels: nextLabels });
+      const updatedTask = response.data.data as Task;
+      setEditedTask({
+        ...updatedTask,
+        subtasks: updatedTask.subtasks || [],
+        labels: updatedTask.labels || [],
+      });
+      toast.success('Labels updated');
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to update labels';
+      toast.error(message);
+    } finally {
+      setIsUpdatingLabels(false);
+    }
+  };
+
+  const handleAddLabel = async () => {
+    if (!editedTask) return;
+    const value = labelInput.trim().replace(/\s+/g, ' ');
+    if (!value) return;
+    const current = editedTask.labels || [];
+    const next = current.includes(value) ? current : [...current, value];
+    setLabelInput('');
+    await updateLabels(next);
+  };
+
+  const handleRemoveLabel = async (label: string) => {
+    if (!editedTask) return;
+    const next = (editedTask.labels || []).filter(l => l !== label);
+    await updateLabels(next);
   };
 
   const handleUploadAttachments = async (fileList: FileList | null) => {
@@ -288,6 +469,8 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
     setIsPreviewLoading(true);
     setPreviewUrl('');
     setPdfNumPages(0);
+    // Ensure width is computed when opening
+    requestAnimationFrame(() => updatePdfWidth());
     try {
       const response = await tasksAPI.getAttachmentUrl(editedTask._id, att._id);
       setPreviewUrl(response.data.data.url);
@@ -306,9 +489,10 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
     if (!editedTask || !attachmentToRemove) return;
     setIsRemovingAttachment(true);
     try {
+      const removedId = attachmentToRemove._id;
       const response = await tasksAPI.deleteAttachment(
         editedTask._id,
-        attachmentToRemove._id
+        removedId
       );
       const updatedTask = response.data.data as Task;
       setEditedTask({
@@ -318,6 +502,14 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
       });
       toast.success('Attachment removed');
       setAttachmentToRemove(null);
+
+      // If we deleted the currently previewed attachment, close the preview dialog.
+      if (previewAttachment?._id === removedId) {
+        setPreviewAttachment(null);
+        setPreviewUrl('');
+        setIsPreviewLoading(false);
+        setPdfNumPages(0);
+      }
     } catch (error: any) {
       const message =
         error?.response?.data?.message ||
@@ -481,7 +673,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="xl">
-      <div className="flex flex-col lg:flex-row h-[100dvh] sm:h-[85vh]">
+      <div className="flex flex-col lg:flex-row h-dvh sm:h-[85vh]">
         {/* Main Content */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           <ModalHeader onClose={onClose}>
@@ -609,14 +801,16 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                             variant="outline"
                             size="sm"
                             className={cn(
-                              'w-full justify-start text-left font-normal',
+                              'w-full justify-start text-left font-normal overflow-hidden',
                               !editedTask.dueDate && 'text-muted-foreground'
                             )}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
-                            {editedTask.dueDate
-                              ? format(new Date(editedTask.dueDate), 'PPP p')
-                              : 'Pick date & time'}
+                            <span className="truncate">
+                              {editedTask.dueDate
+                                ? format(new Date(editedTask.dueDate), 'PPP p')
+                                : 'Pick date & time'}
+                            </span>
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0 overflow-hidden" align="start">
@@ -668,14 +862,55 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                         <Tag className="w-3 h-3" />
                         Labels
                       </div>
-                      <div className="flex flex-wrap gap-1">
-                        {(editedTask.labels || []).map((label, i) => (
-                          <Badge key={i} variant="secondary" className="text-xs">
-                            {label}
-                          </Badge>
-                        ))}
-                        {(!editedTask.labels || editedTask.labels.length === 0) && (
+                      <div className="flex gap-2">
+                        <Input
+                          value={labelInput}
+                          onChange={(e) => setLabelInput(e.target.value)}
+                          placeholder="Add label…"
+                          className="h-8"
+                          list="user-label-suggestions"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              void handleAddLabel();
+                            }
+                          }}
+                        />
+                        <datalist id="user-label-suggestions">
+                          {userLabelSuggestions.map(l => (
+                            <option key={l} value={l} />
+                          ))}
+                        </datalist>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          disabled={!labelInput.trim() || isUpdatingLabels}
+                          onClick={() => void handleAddLabel()}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {(editedTask.labels || []).length === 0 ? (
                           <span className="text-xs text-muted-foreground">No labels</span>
+                        ) : (
+                          (editedTask.labels || []).map((label) => (
+                            <span
+                              key={label}
+                              className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs"
+                            >
+                              {label}
+                              <button
+                                type="button"
+                                onClick={() => void handleRemoveLabel(label)}
+                                className="text-muted-foreground hover:text-foreground"
+                                aria-label="Remove label"
+                              >
+                                <XIcon className="h-3 w-3" />
+                              </button>
+                            </span>
+                          ))
                         )}
                       </div>
                     </div>
@@ -696,14 +931,14 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
             </div>
 
             {/* Description */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
+            <div className="mb-6 rounded-2xl border border-border/50 bg-card/40 p-4">
+              <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-medium text-muted-foreground">
                   Description
                 </h3>
                 {!isEditingDescription && (
                   <Button
-                    variant="ghost"
+                    variant="secondary"
                     size="sm"
                     onClick={() => setIsEditingDescription(true)}
                   >
@@ -736,14 +971,14 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                 </div>
               ) : editedTask.description ? (
                 <div
-                  className="text-sm cursor-pointer hover:bg-muted/50 rounded-lg p-2 -m-2"
+                  className="text-sm cursor-pointer hover:bg-muted/40 rounded-xl p-3 bg-muted/10"
                   onClick={() => setIsEditingDescription(true)}
                 >
                   <TipTapViewer content={editedTask.description} />
                 </div>
               ) : (
                 <p
-                  className="text-sm text-muted-foreground cursor-pointer hover:bg-muted/50 rounded-lg p-2 -m-2"
+                  className="text-sm text-muted-foreground cursor-pointer hover:bg-muted/40 rounded-xl p-3 bg-muted/10"
                   onClick={() => setIsEditingDescription(true)}
                 >
                   Click to add description...
@@ -752,13 +987,13 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
             </div>
 
             {/* Subtasks */}
-            <div className="mb-6">
+            <div className="mb-6 rounded-2xl border border-border/50 bg-card/40 p-4">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-medium text-muted-foreground">
                   Subtasks ({completedSubtasks}/{totalSubtasks})
                 </h3>
                 <Button
-                  variant="ghost"
+                  variant="secondary"
                   size="sm"
                   onClick={() => setIsAddingSubtask(true)}
                 >
@@ -781,7 +1016,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
 
               <div className="space-y-1">
                 {isAddingSubtask && (
-                  <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-2 p-2 bg-muted/30 rounded-xl border border-border/40">
                     <Circle className="w-4 h-4 text-muted-foreground shrink-0" />
                     <Input
                       value={newSubtask}
@@ -825,7 +1060,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="flex items-center gap-2 group p-2 hover:bg-muted/30 rounded-lg"
+                      className="flex items-center gap-2 group p-2 hover:bg-muted/30 rounded-xl"
                     >
                       <button
                         onClick={() => handleToggleSubtask(subtask)}
@@ -864,8 +1099,8 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
             {/* Comments + Attachments Tabs (bottom) */}
             <div className="mt-2">
               <Tabs defaultValue="comments" className="w-full">
-                <div className="sticky bottom-0 z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 border-t bg-background/95 backdrop-blur">
-                  <TabsList className="w-full">
+                <div className="sticky bottom-0 z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 py-2 border-t bg-transparent">
+                  <TabsList className="w-full bg-muted/20 border border-border/40 rounded-xl p-1">
                     <TabsTrigger value="comments" className="flex-1">
                       Comments ({comments.length})
                     </TabsTrigger>
@@ -876,31 +1111,91 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                 </div>
 
                 <TabsContent value="comments" className="pt-4">
-                  <div className="flex items-start gap-3 mb-4">
-                    <Avatar className="h-8 w-8 shrink-0">
-                      <AvatarFallback className="text-xs">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Avatar className="h-9 w-9 shrink-0">
+                      <AvatarFallback className="text-xs leading-none">
                         {user?.name ? getInitials(user.name) : 'U'}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="flex-1 flex items-center gap-2 bg-muted rounded-xl px-3 py-2">
+                    <div className="flex-1 flex items-center gap-2 bg-muted/30 border border-border/40 rounded-2xl px-3 h-11 relative">
                       <Input
+                        id="task-comment-input"
                         value={newComment}
-                        onChange={e => setNewComment(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleAddComment()}
+                        onChange={e => {
+                          const value = e.target.value;
+                          setNewComment(value);
+                          updateMentionState(value, e.target.selectionStart ?? value.length);
+                        }}
+                        onKeyDown={(e) => {
+                          if (mentionOpen && e.key === 'Escape') {
+                            setMentionOpen(false);
+                            return;
+                          }
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddComment();
+                          }
+                        }}
                         placeholder="Write a comment..."
-                        className="flex-1 border-0 bg-transparent h-8 focus-visible:ring-0"
+                        className="flex-1 border-0 bg-transparent h-11 px-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                       />
                       <Button
                         variant="ghost"
                         size="icon-sm"
                         onClick={handleAddComment}
                         disabled={!newComment.trim()}
-                        className="shrink-0"
+                        className="shrink-0 h-9 w-9 rounded-xl"
                       >
                         <Send className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
+
+                  {mentionOpen && (
+                    <div className="mb-4">
+                      <div className="rounded-xl border border-border/50 bg-card/60 p-2">
+                        <div className="text-xs text-muted-foreground px-2 py-1">
+                          Mention a user
+                        </div>
+                        <div className="max-h-44 overflow-y-auto no-scrollbar">
+                          {mentionableUsers
+                            .filter(u => {
+                              const q = mentionQuery.trim().toLowerCase();
+                              if (!q) return true;
+                              return (
+                                u.name.toLowerCase().includes(q) ||
+                                u.email.toLowerCase().includes(q)
+                              );
+                            })
+                            .slice(0, 8)
+                            .map(u => (
+                              <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => insertMention(u)}
+                                className="w-full flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/40 text-left"
+                              >
+                                <Avatar className="h-7 w-7 shrink-0">
+                                  <AvatarFallback className="text-[10px]">
+                                    {getInitials(u.name)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-sm font-medium truncate">{u.name}</div>
+                                  <div className="text-xs text-muted-foreground truncate">{u.email}</div>
+                                </div>
+                                <span className="text-xs text-muted-foreground">@</span>
+                              </button>
+                            ))}
+                          {mentionableUsers.length === 0 && (
+                            <div className="text-xs text-muted-foreground px-2 py-2">
+                              No users to mention
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="space-y-3">
                     {comments.map(comment => (
@@ -908,7 +1203,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                         key={comment._id}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="flex items-start gap-3"
+                        className="flex items-start gap-3 rounded-2xl border border-border/50 bg-card/40 p-3"
                       >
                         <Avatar className="h-8 w-8 shrink-0">
                           <AvatarFallback className="text-xs">
@@ -924,7 +1219,9 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                               {formatDateDisplay(comment.createdAt)}
                             </span>
                           </div>
-                          <p className="text-sm wrap-break-word">{comment.content}</p>
+                          <p className="text-sm wrap-break-word leading-relaxed">
+                            {renderCommentContent(comment)}
+                          </p>
                         </div>
                       </motion.div>
                     ))}
@@ -964,11 +1261,18 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {(editedTask.attachments || []).map((att) => (
-                        <button
+                        <div
                           key={att._id}
-                          type="button"
                           onClick={() => openPreview(att)}
-                          className="text-left flex items-center gap-3 rounded-xl border border-border/50 bg-card/40 p-3 hover:bg-muted/30 transition-colors group"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              openPreview(att);
+                            }
+                          }}
+                          role="button"
+                          tabIndex={0}
+                          className="text-left flex items-center gap-3 rounded-xl border border-border/50 bg-card/40 p-3 hover:bg-muted/30 transition-colors group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                           <div className="h-10 w-10 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground shrink-0">
                             {getAttachmentIcon(att)}
@@ -986,14 +1290,14 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                                 e.stopPropagation();
                                 setAttachmentToRemove(att);
                               }}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity rounded-md p-2 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                              className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity rounded-md p-2 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
                               aria-label="Remove attachment"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
                             <span className="text-xs text-muted-foreground">Preview</span>
                           </div>
-                        </button>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -1013,7 +1317,10 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                 }
               }}
             >
-              <DialogContent showCloseButton={false} className="sm:max-w-5xl max-h-[85vh] overflow-hidden p-0">
+              <DialogContent
+                showCloseButton={false}
+                className="w-[calc(100%-2rem)] sm:max-w-5xl max-h-[85vh] overflow-hidden p-0"
+              >
                 <div className="p-4 border-b flex items-center gap-3">
                   <div className="h-10 w-10 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground">
                     {previewAttachment ? getAttachmentIcon(previewAttachment) : null}
@@ -1031,6 +1338,16 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    {previewAttachment && (
+                      <button
+                        type="button"
+                        onClick={() => setAttachmentToRemove(previewAttachment)}
+                        className="inline-flex items-center justify-center rounded-md border px-2 py-2 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                        aria-label="Delete attachment"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                     {previewUrl && (
                       <a
                         href={previewUrl}
@@ -1059,7 +1376,10 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                 </div>
 
                 {/* Scroll area for preview */}
-                <div className="p-4 overflow-y-auto overscroll-contain" style={{ maxHeight: '75vh' }}>
+                <div
+                  className="p-4 overflow-y-auto overflow-x-hidden overscroll-contain"
+                  style={{ maxHeight: '75vh' }}
+                >
                   {isPreviewLoading ? (
                     <div className="h-[50vh] flex items-center justify-center text-sm text-muted-foreground">
                       Loading preview…
@@ -1076,7 +1396,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                     />
                   ) : previewAttachment?.mimeType?.includes('pdf') ? (
                     <div className="rounded-lg border bg-black/10 p-3">
-                      <div ref={pdfScrollRef} className="w-full">
+                      <div ref={pdfContainerRef} className="w-full">
                         <Document
                           file={previewUrl}
                           onLoadSuccess={(info) => {
@@ -1085,7 +1405,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                           loading={<div className="h-[55vh] flex items-center justify-center text-sm text-muted-foreground">Loading PDF…</div>}
                           error={<div className="text-sm text-muted-foreground">Failed to load PDF</div>}
                         >
-                          {pdfNumPages > 0 &&
+                          {pdfNumPages > 0 && pdfPageWidth > 0 &&
                             Array.from({ length: pdfNumPages }, (_, idx) => (
                               <div key={`pdf-page-${idx + 1}`} className={idx === 0 ? '' : 'mt-4'}>
                                 <Page
@@ -1221,14 +1541,16 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                     variant="outline"
                     size="sm"
                     className={cn(
-                      'w-full justify-start text-left font-normal',
+                      'w-full justify-start text-left font-normal overflow-hidden',
                       !editedTask.dueDate && 'text-muted-foreground'
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {editedTask.dueDate
-                      ? format(new Date(editedTask.dueDate), 'PPP p')
-                      : 'Pick date & time'}
+                    <span className="truncate">
+                      {editedTask.dueDate
+                        ? format(new Date(editedTask.dueDate), 'PPP p')
+                        : 'Pick date & time'}
+                    </span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 overflow-hidden" align="start">
@@ -1280,14 +1602,50 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
                 <Tag className="w-3 h-3" />
                 Labels
               </h4>
-              <div className="flex flex-wrap gap-1">
-                {(editedTask.labels || []).map((label, i) => (
-                  <Badge key={i} variant="secondary" className="text-xs">
-                    {label}
-                  </Badge>
-                ))}
-                {(!editedTask.labels || editedTask.labels.length === 0) && (
+              <div className="flex gap-2">
+                <Input
+                  value={labelInput}
+                  onChange={(e) => setLabelInput(e.target.value)}
+                  placeholder="Add label…"
+                  className="h-8"
+                  list="user-label-suggestions"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void handleAddLabel();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={!labelInput.trim() || isUpdatingLabels}
+                  onClick={() => void handleAddLabel()}
+                >
+                  Add
+                </Button>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {(editedTask.labels || []).length === 0 ? (
                   <span className="text-xs text-muted-foreground">No labels</span>
+                ) : (
+                  (editedTask.labels || []).map((label) => (
+                    <span
+                      key={label}
+                      className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs"
+                    >
+                      {label}
+                      <button
+                        type="button"
+                        onClick={() => void handleRemoveLabel(label)}
+                        className="text-muted-foreground hover:text-foreground"
+                        aria-label="Remove label"
+                      >
+                        <XIcon className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))
                 )}
               </div>
             </div>

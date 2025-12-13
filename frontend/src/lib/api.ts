@@ -114,7 +114,7 @@ export const tasksAPI = {
 // Comments API
 export const commentsAPI = {
   getForTask: (taskId: string) => api.get(`/comments/task/${taskId}`),
-  create: (data: { content: string; task: string }) =>
+  create: (data: { content: string; task: string; mentions?: string[] }) =>
     api.post('/comments', data),
   update: (id: string, data: { content: string }) =>
     api.put(`/comments/${id}`, data),

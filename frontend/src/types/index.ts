@@ -3,6 +3,7 @@ export interface User {
   name: string;
   email: string;
   avatar?: string;
+  labels?: string[];
 }
 
 export interface Section {
@@ -73,6 +74,7 @@ export interface Comment {
   task: string;
   author: User;
   attachments: string[];
+  mentions?: User[];
   createdAt: string;
   updatedAt: string;
 }
