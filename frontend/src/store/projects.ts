@@ -15,6 +15,7 @@ interface ProjectsState {
   createProject: (data: { name: string; description?: string; color?: string }) => Promise<Project>;
   updateProject: (id: string, data: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
+  leaveProject: (id: string) => Promise<void>;
   addSection: (projectId: string, name: string, color?: string) => Promise<void>;
   inviteToProject: (projectId: string, email: string) => Promise<Project>;
   fetchStats: () => Promise<void>;
@@ -96,6 +97,15 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
       projects: state.projects.filter(p => p._id !== id),
       currentProject:
         state.currentProject?._id === id ? null : state.currentProject,
+    }));
+  },
+
+  leaveProject: async (id) => {
+    await projectsAPI.leave(id);
+    set(state => ({
+      projects: state.projects.filter(p => p._id !== id),
+      currentProject: state.currentProject?._id === id ? null : state.currentProject,
+      tasks: state.currentProject?._id === id ? [] : state.tasks,
     }));
   },
 

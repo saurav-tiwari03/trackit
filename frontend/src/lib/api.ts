@@ -63,6 +63,7 @@ export const projectsAPI = {
     api.post(`/projects/${id}/invite`, data),
   acceptInvite: (id: string) => api.post(`/projects/${id}/invite/accept`),
   rejectInvite: (id: string) => api.post(`/projects/${id}/invite/reject`),
+  leave: (id: string) => api.post(`/projects/${id}/leave`),
 };
 
 // Tasks API

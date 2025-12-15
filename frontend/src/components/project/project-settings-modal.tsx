@@ -13,6 +13,16 @@ import { useAuthStore } from '@/store/auth';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui/sonner';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface ProjectSettingsModalProps {
   project: Project;
@@ -29,7 +39,8 @@ const PROJECT_COLORS = [
 const PROJECT_ICONS = ['📋', '🎯', '🚀', '💡', '📊', '🔧', '📝', '🎨', '💼', '🏠', '🎮', '📚'];
 
 export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettingsModalProps) {
-  const { updateProject, deleteProject, addSection, inviteToProject, fetchProject, currentProject } = useProjectsStore();
+  const { updateProject, deleteProject, leaveProject, addSection, inviteToProject, fetchProject, currentProject } =
+    useProjectsStore();
   const { user } = useAuthStore();
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description || '');
@@ -40,6 +51,8 @@ export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettin
   const [activeTab, setActiveTab] = useState<'general' | 'sections' | 'members'>('general');
   const [inviteEmail, setInviteEmail] = useState('');
   const [isInviting, setIsInviting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
 
   const liveProject = currentProject?._id === project._id ? currentProject : project;
   const ownerId = (liveProject.owner as any)?.id || (liveProject.owner as any)?._id;
@@ -85,15 +98,42 @@ export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettin
       toast.error('Only the project owner can delete this project');
       return;
     }
-    if (confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
-      try {
-        await deleteProject(project._id);
-        toast.success('Project deleted');
-        onClose();
-      } catch (error) {
-        console.error('Failed to delete project:', error);
-        toast.error('Failed to delete project');
+    setDeleteOpen(true);
+  };
+
+  const handleLeave = async () => {
+    if (isOwner) {
+      toast.error('Owner cannot leave the project');
+      return;
+    }
+    setLeaveOpen(true);
+  };
+
+  const confirmLeave = async () => {
+    try {
+      await leaveProject(project._id);
+      toast.success('Left project');
+      onClose();
+      // Ensure we don't stay on a project route we no longer have access to.
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/projects/')) {
+        window.location.href = '/projects';
       }
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message || error?.message || 'Failed to leave project';
+      toast.error(message);
+    }
+  };
+
+  const confirmDelete = async () => {
+    try {
+      await deleteProject(project._id);
+      toast.success('Project deleted');
+      setDeleteOpen(false);
+      onClose();
+    } catch (error) {
+      console.error('Failed to delete project:', error);
+      toast.error('Failed to delete project');
     }
   };
 
@@ -366,10 +406,17 @@ export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettin
 
       <ModalFooter>
         <div className="flex items-center justify-between w-full">
-          <Button variant="destructive" onClick={handleDelete} disabled={!isOwner}>
-            <Trash2 className="w-4 h-4 mr-2" />
-            {isOwner ? 'Delete Project' : 'Only owner can delete'}
-          </Button>
+          {isOwner ? (
+            <Button variant="destructive" onClick={handleDelete}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete Project
+            </Button>
+          ) : (
+            <Button variant="destructive" onClick={handleLeave}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              Leave Project
+            </Button>
+          )}
           <div className="flex gap-2">
             <Button variant="ghost" onClick={onClose}>
               Cancel
@@ -380,6 +427,48 @@ export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettin
           </div>
         </div>
       </ModalFooter>
+
+      {/* Delete confirm (shadcn) */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete project</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete “{liveProject.name}”? This will permanently delete the project and its tasks.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Leave confirm (shadcn) */}
+      <AlertDialog open={leaveOpen} onOpenChange={setLeaveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave project</AlertDialogTitle>
+            <AlertDialogDescription>
+              Leave “{liveProject.name}”? You’ll immediately lose access to the project.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmLeave}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Modal>
   );
 }

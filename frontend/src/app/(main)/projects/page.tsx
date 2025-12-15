@@ -35,12 +35,14 @@ interface ProjectProgress {
 }
 
 export default function ProjectsPage() {
-  const { projects, deleteProject, fetchProjects } = useProjectsStore();
+  const { projects, deleteProject, leaveProject, fetchProjects } = useProjectsStore();
   const { user } = useAuthStore();
   const [projectProgress, setProjectProgress] = useState<Record<string, ProjectProgress>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  const [projectToLeave, setProjectToLeave] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     fetchProjectProgress();
@@ -115,9 +117,29 @@ export default function ProjectsPage() {
     }
   };
 
+  const confirmLeaveProject = async () => {
+    if (!projectToLeave) return;
+    try {
+      await leaveProject(projectToLeave.id);
+      await fetchProjects();
+      toast.success('Left project');
+      setLeaveDialogOpen(false);
+      setProjectToLeave(null);
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message || error?.message || 'Failed to leave project';
+      toast.error(message);
+    }
+  };
+
   const openDeleteDialog = (projectId: string, projectName: string) => {
     setProjectToDelete({ id: projectId, name: projectName });
     setDeleteDialogOpen(true);
+  };
+
+  const openLeaveDialog = (projectId: string, projectName: string) => {
+    setProjectToLeave({ id: projectId, name: projectName });
+    setLeaveDialogOpen(true);
   };
 
   const getProgressPercentage = (projectId: string) => {
@@ -216,18 +238,29 @@ export default function ProjectsPage() {
                                 Open Project
                               </Link>
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.preventDefault();
-                                if (!isOwner) return;
-                                openDeleteDialog(project._id, project.name);
-                              }}
-                              className="text-destructive"
-                              disabled={!isOwner}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              {isOwner ? 'Delete' : 'Only owner can delete'}
-                            </DropdownMenuItem>
+                            {isOwner ? (
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  openDeleteDialog(project._id, project.name);
+                                }}
+                                className="text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  openLeaveDialog(project._id, project.name);
+                                }}
+                                className="text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Leave project
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -290,6 +323,26 @@ export default function ProjectsPage() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave Project</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to leave &quot;{projectToLeave?.name}&quot;? You will lose access to this project.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setProjectToLeave(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmLeaveProject}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Leave
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
