@@ -30,6 +30,22 @@ export interface ITask extends Document {
     uploadedAt: Date;
   }>;
   subtasks: ISubtask[];
+  activities: Array<{
+    _id: Types.ObjectId;
+    type:
+      | 'field_update'
+      | 'subtask_added'
+      | 'subtask_removed'
+      | 'subtask_updated'
+      | 'attachment_added'
+      | 'attachment_removed'
+      | 'comment_added'
+      | 'comment_updated'
+      | 'comment_deleted';
+    actor?: Types.ObjectId;
+    message: string;
+    createdAt: Date;
+  }>;
   order: number;
   isCompleted: boolean;
   completedAt?: Date;
@@ -52,6 +68,31 @@ const subtaskSchema = new Schema<ISubtask>({
     default: 0,
   },
 });
+
+const activitySchema = new Schema(
+  {
+    _id: { type: Schema.Types.ObjectId, required: true },
+    type: {
+      type: String,
+      enum: [
+        'field_update',
+        'subtask_added',
+        'subtask_removed',
+        'subtask_updated',
+        'attachment_added',
+        'attachment_removed',
+        'comment_added',
+        'comment_updated',
+        'comment_deleted',
+      ],
+      required: true,
+    },
+    actor: { type: Schema.Types.ObjectId, ref: 'User' },
+    message: { type: String, required: true, trim: true, maxlength: 300 },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
 
 const taskSchema = new Schema<ITask>(
   {
@@ -115,6 +156,10 @@ const taskSchema = new Schema<ITask>(
     ],
     subtasks: {
       type: [subtaskSchema],
+      default: [],
+    },
+    activities: {
+      type: [activitySchema],
       default: [],
     },
     order: {

@@ -507,6 +507,56 @@ router.post('/:id/sections', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// @route   POST /api/projects/:id/leave
+// @desc    Leave a project (remove current user from members)
+// @access  Private (member only)
+router.post('/:id/leave', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?._id;
+    const project = await Project.findById(req.params.id);
+
+    if (!project) {
+      res.status(404).json({ success: false, message: 'Project not found' });
+      return;
+    }
+
+    if (String(project.owner) === String(userId)) {
+      res.status(400).json({
+        success: false,
+        message:
+          'Owner cannot leave the project. Transfer ownership or delete the project.',
+      });
+      return;
+    }
+
+    const isMember = (project.members || []).some(
+      m => String(m) === String(userId)
+    );
+    if (!isMember) {
+      res.status(403).json({
+        success: false,
+        message: 'You are not a member of this project',
+      });
+      return;
+    }
+
+    project.members = (project.members || []).filter(
+      m => String(m) !== String(userId)
+    );
+    // also remove any pending invite entry for this user (if present)
+    project.pendingInvites = (project.pendingInvites || []).filter(
+      inv => String(inv.user) !== String(userId)
+    );
+    await project.save();
+
+    res
+      .status(200)
+      .json({ success: true, message: 'Left project successfully' });
+  } catch {
+    res.status(500).json({ success: false, message: 'Error leaving project' });
+  }
+});
+
 // @route   DELETE /api/projects/:id
 // @desc    Delete a project
 // @access  Private

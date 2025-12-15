@@ -69,6 +69,24 @@ const normalizeLabels = (value: unknown): string[] => {
   return out;
 };
 
+const activity = (
+  req: AuthRequest,
+  type:
+    | 'field_update'
+    | 'subtask_added'
+    | 'subtask_removed'
+    | 'subtask_updated'
+    | 'attachment_added'
+    | 'attachment_removed',
+  message: string
+) => ({
+  _id: new mongoose.Types.ObjectId(),
+  type,
+  actor: req.user?._id,
+  message,
+  createdAt: new Date(),
+});
+
 // All routes require authentication
 router.use(protect);
 
@@ -298,6 +316,8 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
 
     const $set: Record<string, unknown> = {};
     const $unset: Record<string, unknown> = {};
+    const $push: Record<string, unknown> = {};
+    const activityItems: any[] = [];
 
     if (title !== undefined) $set.title = title;
     if (description !== undefined) $set.description = description;
@@ -308,12 +328,42 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     if (labels !== undefined) $set.labels = labels;
     if (order !== undefined) $set.order = order;
 
+    if (title !== undefined)
+      activityItems.push(activity(req, 'field_update', 'Updated title'));
+    if (description !== undefined)
+      activityItems.push(activity(req, 'field_update', 'Updated description'));
+    if (priority !== undefined) {
+      activityItems.push(
+        activity(req, 'field_update', `Updated priority to ${String(priority)}`)
+      );
+    }
+    if (section !== undefined)
+      activityItems.push(activity(req, 'field_update', 'Updated section'));
+    if (dueDate !== undefined) {
+      activityItems.push(
+        activity(
+          req,
+          'field_update',
+          dueDate ? `Updated due date` : 'Cleared due date'
+        )
+      );
+    }
+    if (labels !== undefined)
+      activityItems.push(activity(req, 'field_update', 'Updated labels'));
+
     // Keep `status`, `isCompleted`, `completedAt` consistent.
     // Rules:
     // - If `status` is provided, respect it (source of truth) except `completed` always forces `isCompleted=true`.
     // - If only `isCompleted` is provided, map true->completed, false->open.
     if (status !== undefined) {
       $set.status = status;
+      activityItems.push(
+        activity(
+          req,
+          'field_update',
+          `Updated task status to ${String(status)}`
+        )
+      );
       if (status === 'completed') {
         $set.isCompleted = true;
         $set.completedAt = new Date();
@@ -324,6 +374,13 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
       }
     } else if (isCompleted !== undefined) {
       $set.isCompleted = isCompleted;
+      activityItems.push(
+        activity(
+          req,
+          'field_update',
+          isCompleted ? 'Marked task as completed' : 'Marked task as incomplete'
+        )
+      );
       if (isCompleted) {
         $set.status = 'completed';
         $set.completedAt = new Date();
@@ -342,8 +399,13 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
       );
     }
 
+    if (activityItems.length > 0) {
+      $push.activities = { $each: activityItems, $position: 0 };
+    }
+
     const updateOps: Record<string, unknown> = { $set };
     if (Object.keys($unset).length > 0) updateOps.$unset = $unset;
+    if (Object.keys($push).length > 0) updateOps.$push = $push;
 
     const task = await Task.findByIdAndUpdate(req.params.id, updateOps, {
       new: true,
@@ -351,7 +413,8 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     })
       .populate('assignee', 'name email avatar')
       .populate('creator', 'name email avatar')
-      .populate('project', 'name color');
+      .populate('project', 'name color')
+      .populate('activities.actor', 'name email avatar');
 
     if (!task) {
       res.status(404).json({
