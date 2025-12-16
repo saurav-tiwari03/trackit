@@ -1,7 +1,10 @@
 import dotenv from 'dotenv';
+import http from 'http';
+import { Server } from 'socket.io';
 import { SERVER } from './config/config';
 import { connectDB } from './config/database';
 import app from './app';
+import { initSockets } from './sockets';
 
 // Load environment variables first
 dotenv.config({
@@ -9,8 +12,23 @@ dotenv.config({
   override: true,
 });
 
+// Create HTTP server
+const server = http.createServer(app);
+
+// Initialize Socket.IO
+const io = new Server(server, {
+  cors: {
+    origin: SERVER.CORS_ORIGIN || '*',
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+});
+
+// Initialize socket handlers
+initSockets(io);
+
 // Start server
-app.listen(SERVER.PORT, () => {
+server.listen(SERVER.PORT, () => {
   console.log(`Server is running on http://localhost:${SERVER.PORT}`);
   connectDB();
 });
