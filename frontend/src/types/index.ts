@@ -3,6 +3,8 @@ export interface User {
   name: string;
   email: string;
   avatar?: string;
+  // Optional presence indicator (used by chat UI / socket presence)
+  status?: 'online' | 'offline' | 'busy';
   labels?: string[];
 }
 
