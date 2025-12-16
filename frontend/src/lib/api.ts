@@ -134,5 +134,22 @@ export const notificationsAPI = {
   clearAll: () => api.delete('/notifications/clear-all'),
 };
 
+// Users API
+export const usersAPI = {
+  search: (query: string) => api.get('/users/search', { params: { query } }),
+  getOne: (id: string) => api.get(`/users/${id}`),
+};
+
+// Chats API (attachments are uploaded via HTTP; messages via sockets)
+export const chatsAPI = {
+  uploadAttachments: (chatId: string, files: File[]) => {
+    const formData = new FormData();
+    files.forEach((f) => formData.append('files', f));
+    return api.post(`/chats/${chatId}/attachments`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+};
+
 export default api;
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Bell, CheckCheck, Dot } from 'lucide-react';
+import { Bell, CheckCheck, Dot, Trash2 } from 'lucide-react';
 import { useNotificationsStore } from '@/store/notifications';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -99,7 +99,8 @@ export default function NotificationsPage() {
               disabled={items.length === 0}
               onClick={() => setClearDialogOpen(true)}
             >
-              Clear all
+              <Trash2 className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">Delete</span>
             </Button>
           </div>
         </div>
@@ -247,7 +248,7 @@ export default function NotificationsPage() {
       <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Clear all notifications</AlertDialogTitle>
+            <AlertDialogTitle>Delete all notifications</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete all notifications. This action cannot be undone.
             </AlertDialogDescription>
@@ -258,19 +259,19 @@ export default function NotificationsPage() {
               onClick={async () => {
                 try {
                   await clearAll();
-                  toast.success('Notifications cleared');
+                  toast.success('Notifications deleted');
                   setClearDialogOpen(false);
                 } catch (error: any) {
                   const message =
                     error?.response?.data?.message ||
                     error?.message ||
-                    'Failed to clear notifications';
+                    'Failed to delete notifications';
                   toast.error(message);
                 }
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Clear all
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

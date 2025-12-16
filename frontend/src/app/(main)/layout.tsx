@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { PanelLeft, Menu, Plus } from 'lucide-react';
 import { useAuthStore } from '@/store/auth';
 import { useProjectsStore } from '@/store/projects';
@@ -14,8 +14,8 @@ function SidebarToggle() {
   const { state, isMobile, toggleSidebar } = useSidebar();
 
   // On mobile, always show the hamburger menu
-  // On desktop, only show when sidebar is collapsed
-  if (!isMobile && state === 'expanded') return null;
+  // On desktop, hide this floating button (we'll show one inside the sidebar instead)
+  if (!isMobile) return null;
 
   return (
     <Button
@@ -32,9 +32,12 @@ function SidebarToggle() {
 function FloatingAddButton() {
   const { isMobile } = useSidebar();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const pathname = usePathname();
 
   // Only show on mobile/tablet
   if (!isMobile) return null;
+  // Hide on Slack page (we have a dedicated button in the header there)
+  if (pathname?.startsWith('/slack')) return null;
 
   return (
     <>

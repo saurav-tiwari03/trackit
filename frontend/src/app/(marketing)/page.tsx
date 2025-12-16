@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   Bell,
@@ -17,10 +16,10 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/components/ui/button';
+import DotBackgroundDemo from '@/components/ui/dot-background-demo';
 
 export default function Home() {
-  const router = useRouter();
-  const { isAuthenticated, isHydrated, checkAuth } = useAuthStore();
+  const { isHydrated, checkAuth } = useAuthStore();
   const [hasToken, setHasToken] = useState(false);
 
   useEffect(() => {
@@ -34,10 +33,6 @@ export default function Home() {
     // We intentionally avoid auto-redirect from landing.
     setHasToken(!!localStorage.getItem('token'));
   }, [isHydrated]);
-
-  useEffect(() => {
-    // if (isAuthenticated) router.push('/dashboard');
-  }, [isAuthenticated, router]);
 
   const primaryCta = hasToken ? (
     <Button asChild size="lg">
@@ -67,7 +62,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background">
       {/* JSON-LD structured data */}
       <script
         type="application/ld+json"
@@ -95,58 +90,35 @@ export default function Home() {
           ),
         }}
       />
-      {/* Top bar */}
-      <div className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-xl bg-foreground text-background flex items-center justify-center font-bold">
-              T
-            </div>
-            <div className="leading-tight">
-              <div className="font-semibold">TrackIt</div>
-              <div className="text-xs text-muted-foreground">Tasks. Projects. Calm.</div>
-            </div>
-          </Link>
-          <div className="flex items-center gap-2">
-            {hasToken ? (
-              <Button asChild>
-                <Link href="/dashboard">View Dashboard</Link>
-              </Button>
-            ) : (
-              <>
-                <Button asChild variant="ghost">
-                  <Link href="/login">Login</Link>
-                </Button>
-                <Button asChild>
-                  <Link href="/register">Get started</Link>
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
 
       {/* Hero */}
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-12 sm:py-16">
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="inline-flex items-center gap-2 rounded-full border bg-muted/20 px-3 py-1 text-xs text-muted-foreground">
-            <span className="h-2 w-2 rounded-full bg-primary" />
-            Minimal task manager with team features
+        <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-card/30 px-6 py-12 sm:px-10 sm:py-16">
+          <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+            <div className="h-full w-full translate-y-40 opacity-70">
+              <DotBackgroundDemo />
+            </div>
           </div>
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            <div className="inline-flex items-center gap-2 rounded-full border bg-muted/20 px-3 py-1 text-xs text-muted-foreground">
+              <span className="h-2 w-2 rounded-full bg-primary" />
+              Minimal task manager with team features
+            </div>
 
-          <h1 className="mt-4 text-3xl sm:text-5xl font-semibold tracking-tight">
-            A clean workspace for tasks that actually gets used.
-          </h1>
-          <p className="mt-4 max-w-2xl text-muted-foreground">
-            TrackIt combines a focused inbox, projects, calendar scheduling, attachments, mentions,
-            and notifications—without the noise.
-          </p>
+            <h1 className="mt-4 text-3xl sm:text-5xl font-semibold tracking-tight">
+              A clean workspace for tasks that actually gets used.
+            </h1>
+            <p className="mt-4 max-w-2xl text-muted-foreground">
+              TrackIt combines a focused inbox, projects, calendar scheduling, attachments, mentions,
+              and notifications—without the noise.
+            </p>
 
-          <div className="mt-6 flex flex-col sm:flex-row gap-3">
-            {primaryCta}
-            {secondaryCta}
-          </div>
-        </motion.div>
+            <div className="mt-6 flex flex-col sm:flex-row gap-3">
+              {primaryCta}
+              {secondaryCta}
+            </div>
+          </motion.div>
+        </div>
 
         {/* Product preview */}
         <div className="mt-10 sm:mt-12 grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -255,41 +227,6 @@ export default function Home() {
             <Upcoming title="Recurring tasks" desc="Daily/weekly/monthly routines." />
             <Upcoming title="Advanced search & filters" desc="Find anything in seconds." />
             <Upcoming title="Calendar integrations" desc="Sync with external calendars." />
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="mt-12 sm:mt-16 border-t pt-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} TrackIt. Built for speed and clarity.
-          </p>
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            {hasToken ? (
-              <Link href="/dashboard" className="hover:text-foreground transition-colors">
-                View Dashboard
-              </Link>
-            ) : (
-              <>
-                <Link href="/features" className="hover:text-foreground transition-colors">
-                  Features
-                </Link>
-                <Link href="/task-management" className="hover:text-foreground transition-colors">
-                  Task Management
-                </Link>
-                <Link href="/privacy" className="hover:text-foreground transition-colors">
-                  Privacy
-                </Link>
-                <Link href="/terms" className="hover:text-foreground transition-colors">
-                  Terms
-                </Link>
-                <Link href="/login" className="hover:text-foreground transition-colors">
-                  Login
-                </Link>
-                <Link href="/register" className="hover:text-foreground transition-colors">
-                  Create account
-                </Link>
-              </>
-            )}
           </div>
         </div>
       </div>

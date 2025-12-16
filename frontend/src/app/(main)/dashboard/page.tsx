@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   CheckCircle2,
@@ -13,6 +13,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import DotBackgroundDemo from '@/components/ui/dot-background-demo';
 import { useProjectsStore } from '@/store/projects';
 import { tasksAPI } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -62,12 +63,7 @@ export default function DashboardPage() {
   const { stats, projects, fetchStats } = useProjectsStore();
   const [projectProgress, setProjectProgress] = useState<Record<string, ProjectProgress>>({});
 
-  useEffect(() => {
-    fetchStats();
-    fetchProjectProgress();
-  }, [fetchStats]);
-
-  const fetchProjectProgress = async () => {
+  const fetchProjectProgress = useCallback(async () => {
     try {
       const response = await tasksAPI.getAll();
       const tasks = response.data.data;
@@ -76,27 +72,27 @@ export default function DashboardPage() {
       tasks.forEach((task: any) => {
         const projectId = typeof task.project === 'string' ? task.project : task.project._id;
         if (!progress[projectId]) {
-          progress[projectId] = { 
-            projectId, 
-            totalTasks: 0, 
-            completedTasks: 0, 
-            totalItems: 0, 
-            completedItems: 0, 
-            inProgress: 0 
+          progress[projectId] = {
+            projectId,
+            totalTasks: 0,
+            completedTasks: 0,
+            totalItems: 0,
+            completedItems: 0,
+            inProgress: 0
           };
         }
-        
+
         // Count the task
         progress[projectId].totalTasks++;
         progress[projectId].totalItems++;
-        
+
         if (task.isCompleted) {
           progress[projectId].completedTasks++;
           progress[projectId].completedItems++;
         } else if (task.status === 'in_progress') {
           progress[projectId].inProgress++;
         }
-        
+
         // Count subtasks
         const subtasks = task.subtasks || [];
         subtasks.forEach((subtask: any) => {
@@ -110,7 +106,12 @@ export default function DashboardPage() {
     } catch (error) {
       console.error('Failed to fetch project progress:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchStats();
+    void fetchProjectProgress();
+  }, [fetchStats, fetchProjectProgress]);
 
   const getProgressPercentage = (projectId: string) => {
     const progress = projectProgress[projectId];
@@ -121,18 +122,25 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="border-b px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold">Dashboard</h1>
-            <p className="text-sm text-muted-foreground">Welcome back! Here's your overview.</p>
+      <div className="relative z-0 overflow-hidden border-b">
+        <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden opacity-80">
+          <div className="h-full w-full translate-y-32">
+            <DotBackgroundDemo />
           </div>
-          <Button asChild>
-            <Link href="/projects/new">
-              <Plus className="w-4 h-4 mr-2" />
-              New Project
-            </Link>
-          </Button>
+        </div>
+        <div className="relative z-10 px-6 py-4 bg-background/40 backdrop-blur">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold">Dashboard</h1>
+              <p className="text-sm text-muted-foreground">Welcome back! Here's your overview.</p>
+            </div>
+            <Button asChild>
+              <Link href="/projects/new">
+                <Plus className="w-4 h-4 mr-2" />
+                New Project
+              </Link>
+            </Button>
+          </div>
         </div>
       </div>
 

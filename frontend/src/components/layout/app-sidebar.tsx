@@ -15,6 +15,7 @@ import {
   PanelLeftClose,
   Inbox,
   Bell,
+  MessageCircle,
 } from 'lucide-react';
 
 import {
@@ -58,6 +59,7 @@ const navItems = [
   { icon: Inbox, label: 'Inbox', href: '/inbox' },
   { icon: CheckSquare, label: 'All Tasks', href: '/tasks' },
   { icon: Calendar, label: 'Calendar', href: '/calendar' },
+  { icon: MessageCircle, label: 'Slack', href: '/slack' },
   { icon: Bell, label: 'Notifications', href: '/notifications' },
   { icon: Settings, label: 'Settings', href: '/settings' },
 ];
@@ -68,8 +70,11 @@ export function AppSidebar() {
   const { user, logout } = useAuthStore();
   const { projects } = useProjectsStore();
   const { unreadCount, fetchUnreadCount } = useNotificationsStore();
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, setOpen, isMobile } = useSidebar();
   const [projectsOpen, setProjectsOpen] = useState(true);
+
+  // Auto-collapse on Slack page and expand on hover
+  const isSlackPage = pathname === '/slack';
 
   // Lightweight polling for unread count
   // (no realtime infra yet; this gets you “right now” notifications)
@@ -94,29 +99,38 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar collapsible="icon" className="border-r overflow-hidden">
-      <SidebarHeader className="p-4">
-        <div className="flex items-center justify-between">
-          <Link href="/dashboard" className="flex items-center gap-2 group-data-[collapsible=icon]:hidden">
+    <Sidebar
+      collapsible="icon"
+      className="border-r overflow-hidden"
+      {...(isSlackPage ? {
+        onMouseEnter: () => setOpen(true),
+        onMouseLeave: () => setOpen(false)
+      } : {})}
+    >
+      <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2">
+        <div className="flex items-center justify-between h-8 group-data-[collapsible=icon]:hidden">
+          <Link href="/" className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <span className="font-bold text-sm">T</span>
             </div>
             <span className="font-semibold text-lg">TrackIt</span>
           </Link>
-          <Link href="/dashboard" className="hidden group-data-[collapsible=icon]:flex items-center justify-center">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <span className="font-bold text-sm">T</span>
-            </div>
-          </Link>
           <Button
             variant="ghost"
             size="icon-sm"
             onClick={toggleSidebar}
-            className="group-data-[collapsible=icon]:hidden"
           >
             <PanelLeftClose className="h-4 w-4" />
           </Button>
         </div>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={toggleSidebar}
+          className="hidden group-data-[collapsible=icon]:flex h-8 w-8 mx-auto"
+        >
+          <PanelLeftClose className="h-4 w-4 rotate-180" />
+        </Button>
       </SidebarHeader>
 
       <SidebarContent className="overflow-x-hidden">
@@ -130,7 +144,12 @@ export function AppSidebar() {
                     isActive={pathname === item.href}
                     tooltip={item.label}
                   >
-                    <Link href={item.href}>
+                    <Link
+                      href={item.href}
+                      onClick={() => {
+                        if (isMobile) setOpen(false);
+                      }}
+                    >
                       <item.icon className="h-4 w-4" />
                       <span>{item.label}</span>
                       {item.href === '/notifications' && unreadCount > 0 && (
@@ -158,17 +177,28 @@ export function AppSidebar() {
                     "flex items-center gap-2 hover:text-foreground transition-colors",
                     pathname === '/projects' && 'text-foreground'
                   )}
+                  onClick={() => {
+                    if (isMobile) setOpen(false);
+                  }}
                 >
                   <FolderKanban className="h-4 w-4" />
                   <span className="group-data-[collapsible=icon]:hidden">Projects</span>
                 </Link>
-                <CollapsibleTrigger className="cursor-pointer p-1 hover:bg-muted rounded group-data-[collapsible=icon]:hidden">
-                  <ChevronRight
-                    className={cn(
-                      'h-4 w-4 transition-transform duration-200',
-                      projectsOpen && 'rotate-90'
-                    )}
-                  />
+                <CollapsibleTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="group-data-[collapsible=icon]:hidden"
+                    aria-label={projectsOpen ? 'Collapse projects' : 'Expand projects'}
+                  >
+                    <ChevronRight
+                      className={cn(
+                        'h-4 w-4 transition-transform duration-200',
+                        projectsOpen && 'rotate-90'
+                      )}
+                    />
+                  </Button>
                 </CollapsibleTrigger>
               </div>
             </SidebarGroupLabel>
@@ -199,6 +229,9 @@ export function AppSidebar() {
                         <Link
                           href="/projects/new"
                           className="text-muted-foreground"
+                          onClick={() => {
+                            if (isMobile) setOpen(false);
+                          }}
                         >
                           <Plus className="h-4 w-4" />
                           <span>New Project</span>
