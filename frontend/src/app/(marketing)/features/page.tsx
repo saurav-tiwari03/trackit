@@ -15,6 +15,9 @@ export const metadata: Metadata = {
   title: 'Features',
   description:
     'Explore TrackIt features: inbox, projects, calendar scheduling, attachments, mentions, and notifications.',
+  alternates: {
+    canonical: '/features',
+  },
 };
 
 export default function FeaturesPage() {

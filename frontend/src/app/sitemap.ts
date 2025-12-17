@@ -15,7 +15,17 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = getBaseUrl();
   const now = new Date();
 
-  const routes = ['/', '/features', '/task-management', '/privacy', '/terms'];
+  const routes = [
+    '/',
+    '/features',
+    '/task-management',
+    '/privacy',
+    '/terms',
+    '/terms-and-conditions',
+    '/cancellation-refunds',
+    '/shipping',
+    '/contact-us',
+  ];
 
   return routes.map((url) => ({
     url: `${baseUrl}${url}`,

@@ -3,6 +3,9 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Cancellation & Refunds',
   description: 'Read TrackIt’s cancellation and refund policy.',
+  alternates: {
+    canonical: '/cancellation-refunds',
+  },
 };
 
 export default function CancellationRefundsPage() {

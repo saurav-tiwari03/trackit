@@ -5,6 +5,9 @@ export const metadata: Metadata = {
   title: 'Task Management Guide',
   description:
     'Learn how to use TrackIt efficiently: Inbox capture, projects, sections, labels, due dates, calendar, and collaboration.',
+  alternates: {
+    canonical: '/task-management',
+  },
 };
 
 export default function TaskManagementPage() {

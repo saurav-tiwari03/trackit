@@ -35,9 +35,6 @@ export const metadata: Metadata = {
     icon: '/logo.png',
     apple: '/logo.png',
   },
-  alternates: {
-    canonical: '/',
-  },
   robots: {
     index: true,
     follow: true,
@@ -48,6 +45,7 @@ export const metadata: Metadata = {
   manifest: '/manifest.webmanifest',
   openGraph: {
     type: 'website',
+    siteName: 'TrackIt',
     title: 'TrackIt',
     description:
       'A clean, minimalist task and project manager with inbox, calendar scheduling, attachments, mentions, and notifications.',

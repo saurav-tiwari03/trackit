@@ -4,6 +4,9 @@ export const metadata: Metadata = {
   title: 'Terms & Conditions',
   description:
     'Read TrackIt’s terms and conditions for using the TrackIt web application.',
+  alternates: {
+    canonical: '/terms',
+  },
 };
 
 export default function TermsPage() {

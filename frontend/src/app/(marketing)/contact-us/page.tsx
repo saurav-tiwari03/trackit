@@ -4,6 +4,9 @@ import Link from 'next/link';
 export const metadata: Metadata = {
   title: 'Contact Us',
   description: 'How to contact TrackIt support.',
+  alternates: {
+    canonical: '/contact-us',
+  },
 };
 
 export default function ContactUsPage() {

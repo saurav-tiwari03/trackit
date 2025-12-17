@@ -4,6 +4,9 @@ export const metadata: Metadata = {
   title: 'Privacy Policy',
   description:
     'Read TrackIt’s privacy policy: what we collect, how we use data, and your choices.',
+  alternates: {
+    canonical: '/privacy',
+  },
 };
 
 export default function PrivacyPolicyPage() {
