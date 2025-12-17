@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,17 +16,12 @@ const navLinks = [
   { href: '/features', label: 'Features' },
   { href: '/task-management', label: 'Task Management' },
   { href: '/privacy', label: 'Privacy Policy' },
-  { href: '/terms', label: 'Terms' },
+  { href: '/terms-and-conditions', label: 'Terms' },
+  { href: '/contact-us', label: 'Contact' },
 ];
 
 export function MarketingNavbar() {
-  const [hasToken, setHasToken] = useState(false);
-
-  useEffect(() => {
-    // Simple check for “logged in” state on marketing pages.
-    // Auth store hydration isn't required for navigation.
-    setHasToken(!!localStorage.getItem('token'));
-  }, []);
+  const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('token');
 
   return (
     <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">

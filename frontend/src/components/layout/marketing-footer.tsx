@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 
 const productLinks = [
   { href: '/features', label: 'Features' },
@@ -10,15 +9,14 @@ const productLinks = [
 
 const legalLinks = [
   { href: '/privacy', label: 'Privacy policy' },
-  { href: '/terms', label: 'Terms' },
+  { href: '/terms-and-conditions', label: 'Terms & conditions' },
+  { href: '/cancellation-refunds', label: 'Cancellation & refunds' },
+  { href: '/shipping', label: 'Shipping' },
+  { href: '/contact-us', label: 'Contact us' },
 ];
 
 export function MarketingFooter() {
-  const [hasToken, setHasToken] = useState(false);
-
-  useEffect(() => {
-    setHasToken(!!localStorage.getItem('token'));
-  }, []);
+  const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('token');
 
   return (
     <footer className="border-t bg-background">
@@ -99,7 +97,7 @@ export function MarketingFooter() {
             <Link href="/privacy" className="hover:text-foreground transition-colors">
               Privacy
             </Link>
-            <Link href="/terms" className="hover:text-foreground transition-colors">
+            <Link href="/terms-and-conditions" className="hover:text-foreground transition-colors">
               Terms
             </Link>
           </div>
