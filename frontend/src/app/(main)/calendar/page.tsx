@@ -60,6 +60,7 @@ export default function CalendarPage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createInitialDueDate, setCreateInitialDueDate] = useState<string | undefined>(undefined);
 
   // Set initial view mode based on screen size
   useEffect(() => {
@@ -288,7 +289,19 @@ export default function CalendarPage() {
 
   const handleCreateModalClose = () => {
     setIsCreateModalOpen(false);
+    setCreateInitialDueDate(undefined);
     fetchTasks();
+  };
+
+  const openCreateModalForCurrentView = () => {
+    if (viewMode === 'day') {
+      const d = new Date(currentDate);
+      d.setHours(9, 0, 0, 0);
+      setCreateInitialDueDate(d.toISOString());
+    } else {
+      setCreateInitialDueDate(undefined);
+    }
+    setIsCreateModalOpen(true);
   };
 
   const isOverdue = (task: Task) => {
@@ -362,7 +375,7 @@ export default function CalendarPage() {
 
             {/* Add Task Button */}
             <Button
-              onClick={() => setIsCreateModalOpen(true)}
+              onClick={openCreateModalForCurrentView}
               size="sm"
               className="rounded-xl gap-2"
             >
@@ -494,7 +507,7 @@ export default function CalendarPage() {
                           <Button
                             variant="link"
                             size="sm"
-                            onClick={() => setIsCreateModalOpen(true)}
+                            onClick={openCreateModalForCurrentView}
                             className="mt-2"
                           >
                             Add a task
@@ -751,6 +764,7 @@ export default function CalendarPage() {
         isOpen={isCreateModalOpen}
         onClose={handleCreateModalClose}
         showProjectSelector={true}
+        initialDueDate={createInitialDueDate}
       />
     </div>
   );

@@ -103,6 +103,12 @@ export function CreateTaskModal({
     };
   }, []);
 
+  // Close portalled popovers when layout mode changes (prevents “two calendars”).
+  useEffect(() => {
+    setProjectOpen(false);
+    setDateOpen(false);
+  }, [isDesktop]);
+
   // Auto-select project if only one exists
   useEffect(() => {
     if (showProjectSelector && projects.length === 1 && !selectedProjectId) {
@@ -123,12 +129,14 @@ export function CreateTaskModal({
     }
   }, [selectedProjectId, projects]);
 
-  // Update initial values when props change
+  // Update initial values when props change OR when opening.
+  // (If we reset form on close, props may be unchanged next time; still want defaults prefilled.)
   useEffect(() => {
+    if (!isOpen) return;
     if (initialProjectId) setSelectedProjectId(initialProjectId);
     if (initialSectionId) setSelectedSectionId(initialSectionId);
     if (initialDueDate) setDueDate(new Date(initialDueDate));
-  }, [initialProjectId, initialSectionId, initialDueDate]);
+  }, [isOpen, initialProjectId, initialSectionId, initialDueDate]);
 
   const selectedProject = projects.find(p => p._id === selectedProjectId);
 
@@ -363,80 +371,82 @@ export function CreateTaskModal({
                       </Select>
                     </div>
 
-                    {/* Due Date & Time */}
-                    <div className="rounded-xl border border-border/50 bg-card/30 p-3">
-                      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-2">
-                        <CalendarIcon className="w-3 h-3" />
-                        Due Date & Time
-                      </div>
-                      <Popover open={dateOpen} onOpenChange={setDateOpen} modal={true}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className={cn(
-                              'w-full justify-start text-left font-normal overflow-hidden',
-                              !dueDate && 'text-muted-foreground'
-                            )}
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            <span className="truncate">
-                              {dueDate ? format(dueDate, 'PPP p') : 'Pick date & time'}
-                            </span>
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 overflow-hidden" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={dueDate}
-                            onSelect={(date) => {
-                              if (date) {
-                                const hours = dueDate?.getHours() || 9;
-                                const minutes = dueDate?.getMinutes() || 0;
-                                date.setHours(hours, minutes, 0, 0);
-                                setDueDate(new Date(date));
-                              } else {
-                                setDueDate(undefined);
-                              }
-                            }}
-                            initialFocus
-                          />
-                          <div className="border-t p-3">
-                            <div className="flex items-center gap-2">
-                              <Timer className="h-4 w-4 text-muted-foreground" />
-                              <input
-                                type="time"
-                                value={dueDate ? format(dueDate, 'HH:mm') : '09:00'}
-                                onChange={(e) => {
-                                  const [hours, minutes] = e.target.value.split(':').map(Number);
-                                  const newDate = dueDate ? new Date(dueDate) : new Date();
-                                  newDate.setHours(hours, minutes, 0, 0);
-                                  setDueDate(newDate);
-                                }}
-                                className="flex-1 bg-transparent border rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                              />
-                            </div>
-                          </div>
-                          <div className="border-t p-2 flex justify-between">
+                    {/* Due Date & Time (mobile only; prevent duplicate portalled calendars) */}
+                    {!isDesktop && (
+                      <div className="rounded-xl border border-border/50 bg-card/30 p-3">
+                        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-2">
+                          <CalendarIcon className="w-3 h-3" />
+                          Due Date & Time
+                        </div>
+                        <Popover open={dateOpen} onOpenChange={setDateOpen} modal={true}>
+                          <PopoverTrigger asChild>
                             <Button
                               type="button"
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
-                              onClick={() => {
-                                setDueDate(undefined);
-                                setDateOpen(false);
-                              }}
+                              className={cn(
+                                'w-full justify-start text-left font-normal overflow-hidden',
+                                !dueDate && 'text-muted-foreground'
+                              )}
                             >
-                              Clear
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              <span className="truncate">
+                                {dueDate ? format(dueDate, 'PPP p') : 'Pick date & time'}
+                              </span>
                             </Button>
-                            <Button type="button" size="sm" onClick={() => setDateOpen(false)}>
-                              Done
-                            </Button>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0 overflow-hidden" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={dueDate}
+                              onSelect={(date) => {
+                                if (date) {
+                                  const hours = dueDate?.getHours() || 9;
+                                  const minutes = dueDate?.getMinutes() || 0;
+                                  date.setHours(hours, minutes, 0, 0);
+                                  setDueDate(new Date(date));
+                                } else {
+                                  setDueDate(undefined);
+                                }
+                              }}
+                              initialFocus
+                            />
+                            <div className="border-t p-3">
+                              <div className="flex items-center gap-2">
+                                <Timer className="h-4 w-4 text-muted-foreground" />
+                                <input
+                                  type="time"
+                                  value={dueDate ? format(dueDate, 'HH:mm') : '09:00'}
+                                  onChange={(e) => {
+                                    const [hours, minutes] = e.target.value.split(':').map(Number);
+                                    const newDate = dueDate ? new Date(dueDate) : new Date();
+                                    newDate.setHours(hours, minutes, 0, 0);
+                                    setDueDate(newDate);
+                                  }}
+                                  className="flex-1 bg-transparent border rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                                />
+                              </div>
+                            </div>
+                            <div className="border-t p-2 flex justify-between">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setDueDate(undefined);
+                                  setDateOpen(false);
+                                }}
+                              >
+                                Clear
+                              </Button>
+                              <Button type="button" size="sm" onClick={() => setDateOpen(false)}>
+                                Done
+                              </Button>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    )}
 
                     {/* Labels */}
                     <div className="rounded-xl border border-border/50 bg-card/30 p-3">
@@ -632,80 +642,82 @@ export function CreateTaskModal({
               </Select>
             </div>
 
-            {/* Due Date & Time */}
-            <div className="rounded-xl border border-border/50 bg-card/30 p-3">
-              <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                <CalendarIcon className="w-3 h-3" />
-                Due Date & Time
-              </h4>
-              <Popover open={dateOpen} onOpenChange={setDateOpen} modal={true}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className={cn(
-                      'w-full justify-start text-left font-normal overflow-hidden',
-                      !dueDate && 'text-muted-foreground'
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    <span className="truncate">
-                      {dueDate ? format(dueDate, 'PPP p') : 'Pick date & time'}
-                    </span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 overflow-hidden" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={dueDate}
-                    onSelect={(date) => {
-                      if (date) {
-                        const hours = dueDate?.getHours() || 9;
-                        const minutes = dueDate?.getMinutes() || 0;
-                        date.setHours(hours, minutes, 0, 0);
-                        setDueDate(new Date(date));
-                      } else {
-                        setDueDate(undefined);
-                      }
-                    }}
-                    initialFocus
-                  />
-                  <div className="border-t p-3">
-                    <div className="flex items-center gap-2">
-                      <Timer className="h-4 w-4 text-muted-foreground" />
-                      <input
-                        type="time"
-                        value={dueDate ? format(dueDate, 'HH:mm') : '09:00'}
-                        onChange={(e) => {
-                          const [hours, minutes] = e.target.value.split(':').map(Number);
-                          const newDate = dueDate ? new Date(dueDate) : new Date();
-                          newDate.setHours(hours, minutes, 0, 0);
-                          setDueDate(newDate);
-                        }}
-                        className="flex-1 bg-transparent border rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                      />
-                    </div>
-                  </div>
-                  <div className="border-t p-2 flex justify-between">
+            {/* Due Date & Time (desktop only; prevent duplicate portalled calendars) */}
+            {isDesktop && (
+              <div className="rounded-xl border border-border/50 bg-card/30 p-3">
+                <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                  <CalendarIcon className="w-3 h-3" />
+                  Due Date & Time
+                </h4>
+                <Popover open={dateOpen} onOpenChange={setDateOpen} modal={true}>
+                  <PopoverTrigger asChild>
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      onClick={() => {
-                        setDueDate(undefined);
-                        setDateOpen(false);
-                      }}
+                      className={cn(
+                        'w-full justify-start text-left font-normal overflow-hidden',
+                        !dueDate && 'text-muted-foreground'
+                      )}
                     >
-                      Clear
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      <span className="truncate">
+                        {dueDate ? format(dueDate, 'PPP p') : 'Pick date & time'}
+                      </span>
                     </Button>
-                    <Button type="button" size="sm" onClick={() => setDateOpen(false)}>
-                      Done
-                    </Button>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 overflow-hidden" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dueDate}
+                      onSelect={(date) => {
+                        if (date) {
+                          const hours = dueDate?.getHours() || 9;
+                          const minutes = dueDate?.getMinutes() || 0;
+                          date.setHours(hours, minutes, 0, 0);
+                          setDueDate(new Date(date));
+                        } else {
+                          setDueDate(undefined);
+                        }
+                      }}
+                      initialFocus
+                    />
+                    <div className="border-t p-3">
+                      <div className="flex items-center gap-2">
+                        <Timer className="h-4 w-4 text-muted-foreground" />
+                        <input
+                          type="time"
+                          value={dueDate ? format(dueDate, 'HH:mm') : '09:00'}
+                          onChange={(e) => {
+                            const [hours, minutes] = e.target.value.split(':').map(Number);
+                            const newDate = dueDate ? new Date(dueDate) : new Date();
+                            newDate.setHours(hours, minutes, 0, 0);
+                            setDueDate(newDate);
+                          }}
+                          className="flex-1 bg-transparent border rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                      </div>
+                    </div>
+                    <div className="border-t p-2 flex justify-between">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setDueDate(undefined);
+                          setDateOpen(false);
+                        }}
+                      >
+                        Clear
+                      </Button>
+                      <Button type="button" size="sm" onClick={() => setDateOpen(false)}>
+                        Done
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
 
             {/* Labels */}
             <div className="rounded-xl border border-border/50 bg-card/30 p-3">
