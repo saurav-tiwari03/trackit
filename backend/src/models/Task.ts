@@ -5,6 +5,8 @@ export interface ISubtask {
   title: string;
   isCompleted: boolean;
   order: number;
+  dueDate?: Date;
+  priority?: 'P1' | 'P2' | 'P3' | 'P4';
 }
 
 export interface ITask extends Document {
@@ -13,6 +15,7 @@ export interface ITask extends Document {
   description?: string;
   project: Types.ObjectId;
   section: Types.ObjectId;
+  parentTask?: Types.ObjectId | null;
   assignee?: Types.ObjectId;
   creator: Types.ObjectId;
   priority: 'P1' | 'P2' | 'P3' | 'P4';
@@ -67,6 +70,14 @@ const subtaskSchema = new Schema<ISubtask>({
     type: Number,
     default: 0,
   },
+  dueDate: {
+    type: Date,
+  },
+  priority: {
+    type: String,
+    enum: ['P1', 'P2', 'P3', 'P4'],
+    default: 'P4',
+  },
 });
 
 const activitySchema = new Schema(
@@ -114,6 +125,11 @@ const taskSchema = new Schema<ITask>(
     section: {
       type: Schema.Types.ObjectId,
       required: true,
+    },
+    parentTask: {
+      type: Schema.Types.ObjectId,
+      ref: 'Task',
+      default: null,
     },
     assignee: {
       type: Schema.Types.ObjectId,
@@ -181,6 +197,7 @@ const taskSchema = new Schema<ITask>(
 
 // Indexes for faster queries
 taskSchema.index({ project: 1, section: 1 });
+taskSchema.index({ parentTask: 1, order: 1 });
 taskSchema.index({ assignee: 1 });
 taskSchema.index({ creator: 1 });
 taskSchema.index({ status: 1 });

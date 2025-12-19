@@ -100,6 +100,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const query: Record<string, unknown> = {
       $or: [{ assignee: req.user?._id }, { creator: req.user?._id }],
     };
+    // Exclude child tasks (subtasks)
+    query.parentTask = null;
 
     if (status) query.status = status;
     if (priority) query.priority = priority;
@@ -147,19 +149,23 @@ router.get('/stats', async (req: AuthRequest, res: Response) => {
     const [open, overdue, inProgress, completed] = await Promise.all([
       Task.countDocuments({
         $or: [{ assignee: userId }, { creator: userId }],
+        parentTask: null,
         status: 'open',
       }),
       Task.countDocuments({
         $or: [{ assignee: userId }, { creator: userId }],
+        parentTask: null,
         dueDate: { $lt: new Date() },
         isCompleted: false,
       }),
       Task.countDocuments({
         $or: [{ assignee: userId }, { creator: userId }],
+        parentTask: null,
         status: 'in_progress',
       }),
       Task.countDocuments({
         $or: [{ assignee: userId }, { creator: userId }],
+        parentTask: null,
         isCompleted: true,
       }),
     ]);
@@ -715,127 +721,280 @@ router.put('/:id/move', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// --- Subtasks (implemented as child Tasks with `parentTask`) ---
+// NOTE: UI treats subtasks as full Tasks that open in the same TaskModal.
+
+// @route   GET /api/tasks/:id/subtasks
+// @desc    Get subtasks (child tasks) for a task
+// @access  Private
+router.get('/:id/subtasks', async (req: AuthRequest, res: Response) => {
+  try {
+    const parent = await Task.findById(req.params.id);
+    if (!parent) {
+      res.status(404).json({ success: false, message: 'Task not found' });
+      return;
+    }
+
+    const projectDoc = await Project.findOne({
+      _id: parent.project,
+      $or: [{ owner: req.user?._id }, { members: req.user?._id }],
+    });
+    if (!projectDoc) {
+      res.status(403).json({ success: false, message: 'Not authorized' });
+      return;
+    }
+
+    const subtasks = await Task.find({ parentTask: parent._id })
+      .populate('assignee', 'name email avatar')
+      .populate('creator', 'name email avatar')
+      .sort({ order: 1 });
+
+    res.status(200).json({ success: true, data: subtasks });
+  } catch {
+    res
+      .status(500)
+      .json({ success: false, message: 'Error fetching subtasks' });
+  }
+});
+
 // @route   POST /api/tasks/:id/subtasks
-// @desc    Add a subtask
+// @desc    Create a subtask (child task)
 // @access  Private
 router.post('/:id/subtasks', async (req: AuthRequest, res: Response) => {
   try {
-    const { title } = req.body;
+    const { title, description, dueDate, priority, labels } = req.body as {
+      title?: string;
+      description?: string;
+      dueDate?: string;
+      priority?: 'P1' | 'P2' | 'P3' | 'P4';
+      labels?: string[];
+    };
 
-    const task = await Task.findById(req.params.id);
+    if (!title || !title.trim()) {
+      res
+        .status(400)
+        .json({ success: false, message: 'Subtask title is required' });
+      return;
+    }
 
-    if (!task) {
-      res.status(404).json({
+    const parent = await Task.findById(req.params.id);
+    if (!parent) {
+      res.status(404).json({ success: false, message: 'Task not found' });
+      return;
+    }
+
+    const projectDoc = await Project.findOne({
+      _id: parent.project,
+      $or: [{ owner: req.user?._id }, { members: req.user?._id }],
+    });
+    if (!projectDoc) {
+      res.status(403).json({ success: false, message: 'Not authorized' });
+      return;
+    }
+
+    const maxOrderTask = await Task.findOne({ parentTask: parent._id }).sort({
+      order: -1,
+    });
+
+    const subtask = new Task({
+      title: title.trim(),
+      description,
+      project: parent.project,
+      section: parent.section,
+      parentTask: parent._id,
+      creator: req.user?._id,
+      priority: priority || 'P4',
+      dueDate: dueDate ? new Date(dueDate) : undefined,
+      labels: Array.isArray(labels) ? labels : [],
+      order: maxOrderTask ? maxOrderTask.order + 1 : 0,
+      status: 'open',
+      isCompleted: false,
+    });
+
+    await subtask.save();
+
+    const populated = await Task.findById(subtask._id)
+      .populate('assignee', 'name email avatar')
+      .populate('creator', 'name email avatar')
+      .populate('project', 'name color');
+
+    res.status(201).json({ success: true, data: populated });
+  } catch {
+    res.status(500).json({ success: false, message: 'Error adding subtask' });
+  }
+});
+
+// @route   PUT /api/tasks/:id/subtasks/reorder
+// @desc    Reorder subtasks (child tasks) by setting their `order`
+// @access  Private
+router.put('/:id/subtasks/reorder', async (req: AuthRequest, res: Response) => {
+  try {
+    const { orderedIds } = req.body as { orderedIds?: string[] };
+    if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
+      res.status(400).json({
         success: false,
-        message: 'Task not found',
+        message: 'orderedIds must be a non-empty array',
       });
       return;
     }
 
-    const maxOrder = Math.max(...task.subtasks.map(s => s.order), -1);
+    const parent = await Task.findById(req.params.id);
+    if (!parent) {
+      res.status(404).json({ success: false, message: 'Task not found' });
+      return;
+    }
 
-    task.subtasks.push({
-      _id: new mongoose.Types.ObjectId(),
-      title,
-      isCompleted: false,
-      order: maxOrder + 1,
+    const projectDoc = await Project.findOne({
+      _id: parent.project,
+      $or: [{ owner: req.user?._id }, { members: req.user?._id }],
     });
+    if (!projectDoc) {
+      res.status(403).json({ success: false, message: 'Not authorized' });
+      return;
+    }
 
-    await task.save();
+    const existing = await Task.find({ parentTask: parent._id }, { _id: 1 });
+    const existingSet = new Set(existing.map(t => t._id.toString()));
 
-    res.status(201).json({
-      success: true,
-      data: task,
-    });
+    const unknown = orderedIds.find(id => !existingSet.has(String(id)));
+    if (unknown) {
+      res
+        .status(400)
+        .json({ success: false, message: `Unknown subtask id: ${unknown}` });
+      return;
+    }
+
+    await Task.bulkWrite(
+      orderedIds.map((id, idx) => ({
+        updateOne: {
+          filter: {
+            _id: new mongoose.Types.ObjectId(id),
+            parentTask: parent._id,
+          },
+          update: { $set: { order: idx } },
+        },
+      }))
+    );
+
+    const subtasks = await Task.find({ parentTask: parent._id })
+      .populate('assignee', 'name email avatar')
+      .populate('creator', 'name email avatar')
+      .sort({ order: 1 });
+
+    res.status(200).json({ success: true, data: subtasks });
   } catch {
-    res.status(500).json({
-      success: false,
-      message: 'Error adding subtask',
-    });
+    res
+      .status(500)
+      .json({ success: false, message: 'Error reordering subtasks' });
   }
 });
 
 // @route   PUT /api/tasks/:id/subtasks/:subtaskId
-// @desc    Update a subtask
+// @desc    Update a subtask (child task)
 // @access  Private
 router.put(
   '/:id/subtasks/:subtaskId',
   async (req: AuthRequest, res: Response) => {
     try {
-      const { title, isCompleted } = req.body;
+      const { title, description, isCompleted, dueDate, priority, labels } =
+        req.body as {
+          title?: string;
+          description?: string;
+          isCompleted?: boolean;
+          dueDate?: string;
+          priority?: 'P1' | 'P2' | 'P3' | 'P4';
+          labels?: string[];
+        };
 
-      const task = await Task.findById(req.params.id);
-
-      if (!task) {
-        res.status(404).json({
-          success: false,
-          message: 'Task not found',
-        });
+      const parent = await Task.findById(req.params.id);
+      if (!parent) {
+        res.status(404).json({ success: false, message: 'Task not found' });
         return;
       }
 
-      const subtask = task.subtasks.find(
-        s => s._id.toString() === req.params.subtaskId
-      );
-
-      if (!subtask) {
-        res.status(404).json({
-          success: false,
-          message: 'Subtask not found',
-        });
-        return;
-      }
-
-      if (title !== undefined) subtask.title = title;
-      if (isCompleted !== undefined) subtask.isCompleted = isCompleted;
-
-      await task.save();
-
-      res.status(200).json({
-        success: true,
-        data: task,
+      const projectDoc = await Project.findOne({
+        _id: parent.project,
+        $or: [{ owner: req.user?._id }, { members: req.user?._id }],
       });
+      if (!projectDoc) {
+        res.status(403).json({ success: false, message: 'Not authorized' });
+        return;
+      }
+
+      const $set: Record<string, unknown> = {};
+      if (title !== undefined) $set.title = title;
+      if (description !== undefined) $set.description = description;
+      if (priority !== undefined) $set.priority = priority;
+      if (dueDate !== undefined)
+        $set.dueDate = dueDate ? new Date(dueDate) : undefined;
+      if (labels !== undefined)
+        $set.labels = Array.isArray(labels) ? labels : [];
+      if (isCompleted !== undefined) {
+        $set.isCompleted = isCompleted;
+        $set.status = isCompleted ? 'completed' : 'in_progress';
+      }
+
+      const updated = await Task.findOneAndUpdate(
+        { _id: req.params.subtaskId, parentTask: parent._id },
+        { $set },
+        { new: true, runValidators: true }
+      )
+        .populate('assignee', 'name email avatar')
+        .populate('creator', 'name email avatar')
+        .populate('project', 'name color');
+
+      if (!updated) {
+        res.status(404).json({ success: false, message: 'Subtask not found' });
+        return;
+      }
+
+      res.status(200).json({ success: true, data: updated });
     } catch {
-      res.status(500).json({
-        success: false,
-        message: 'Error updating subtask',
-      });
+      res
+        .status(500)
+        .json({ success: false, message: 'Error updating subtask' });
     }
   }
 );
 
 // @route   DELETE /api/tasks/:id/subtasks/:subtaskId
-// @desc    Delete a subtask
+// @desc    Delete a subtask (child task)
 // @access  Private
 router.delete(
   '/:id/subtasks/:subtaskId',
   async (req: AuthRequest, res: Response) => {
     try {
-      const task = await Task.findById(req.params.id);
-
-      if (!task) {
-        res.status(404).json({
-          success: false,
-          message: 'Task not found',
-        });
+      const parent = await Task.findById(req.params.id);
+      if (!parent) {
+        res.status(404).json({ success: false, message: 'Task not found' });
         return;
       }
 
-      task.subtasks = task.subtasks.filter(
-        s => s._id.toString() !== req.params.subtaskId
-      );
-
-      await task.save();
-
-      res.status(200).json({
-        success: true,
-        data: task,
+      const projectDoc = await Project.findOne({
+        _id: parent.project,
+        $or: [{ owner: req.user?._id }, { members: req.user?._id }],
       });
+      if (!projectDoc) {
+        res.status(403).json({ success: false, message: 'Not authorized' });
+        return;
+      }
+
+      const subtask = await Task.findOneAndDelete({
+        _id: req.params.subtaskId,
+        parentTask: parent._id,
+      });
+      if (!subtask) {
+        res.status(404).json({ success: false, message: 'Subtask not found' });
+        return;
+      }
+
+      await Comment.deleteMany({ task: subtask._id });
+
+      res.status(200).json({ success: true, message: 'Subtask deleted' });
     } catch {
-      res.status(500).json({
-        success: false,
-        message: 'Error deleting subtask',
-      });
+      res
+        .status(500)
+        .json({ success: false, message: 'Error deleting subtask' });
     }
   }
 );

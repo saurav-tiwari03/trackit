@@ -88,8 +88,8 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    // Get tasks for this project
-    const tasks = await Task.find({ project: project._id })
+    // Get tasks for this project (exclude child/subtasks)
+    const tasks = await Task.find({ project: project._id, parentTask: null })
       .populate('assignee', 'name email avatar')
       .populate('creator', 'name email avatar')
       .sort({ order: 1 });
