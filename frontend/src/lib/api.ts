@@ -72,6 +72,7 @@ export const tasksAPI = {
     api.get('/tasks', { params }),
   getStats: () => api.get('/tasks/stats'),
   getOne: (id: string) => api.get(`/tasks/${id}`),
+  getSubtasks: (id: string) => api.get(`/tasks/${id}/subtasks`),
   create: (data: {
     title: string;
     description?: string;
@@ -95,12 +96,20 @@ export const tasksAPI = {
   move: (id: string, data: { section: string; order: number; isCompleted?: boolean; status?: string }) =>
     api.put(`/tasks/${id}/move`, data),
   delete: (id: string) => api.delete(`/tasks/${id}`),
-  addSubtask: (id: string, data: { title: string }) =>
-    api.post(`/tasks/${id}/subtasks`, data),
-  updateSubtask: (taskId: string, subtaskId: string, data: { title?: string; isCompleted?: boolean }) =>
+  addSubtask: (
+    id: string,
+    data: { title: string; dueDate?: string; priority?: 'P1' | 'P2' | 'P3' | 'P4' }
+  ) => api.post(`/tasks/${id}/subtasks`, data),
+  updateSubtask: (
+    taskId: string,
+    subtaskId: string,
+    data: { title?: string; description?: string; isCompleted?: boolean; dueDate?: string; priority?: 'P1' | 'P2' | 'P3' | 'P4'; labels?: string[] }
+  ) =>
     api.put(`/tasks/${taskId}/subtasks/${subtaskId}`, data),
   deleteSubtask: (taskId: string, subtaskId: string) =>
     api.delete(`/tasks/${taskId}/subtasks/${subtaskId}`),
+  reorderSubtasks: (taskId: string, orderedIds: string[]) =>
+    api.put(`/tasks/${taskId}/subtasks/reorder`, { orderedIds }),
   uploadAttachments: (taskId: string, files: File[]) => {
     const formData = new FormData();
     files.forEach((f) => formData.append('files', f));

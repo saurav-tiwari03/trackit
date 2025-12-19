@@ -39,9 +39,9 @@ export function KanbanCard({ task, onClick, onQuickStatusChange, isDragging }: K
       className={cn(
         'bg-card rounded-lg p-3 cursor-pointer select-none',
         'border border-border',
-        'transition-all duration-150',
+        'transition-all duration-150 will-change-transform',
         isDragging
-          ? 'shadow-2xl ring-2 ring-primary rotate-2 scale-105 opacity-90'
+          ? 'shadow-2xl ring-2 ring-primary scale-[1.02] opacity-95'
           : 'hover:shadow-md hover:border-primary/50'
       )}
     >

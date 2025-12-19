@@ -35,6 +35,8 @@ export interface Subtask {
   title: string;
   isCompleted: boolean;
   order: number;
+  dueDate?: string;
+  priority?: 'P1' | 'P2' | 'P3' | 'P4';
 }
 
 export interface Attachment {
@@ -54,6 +56,7 @@ export interface Task {
   description?: string;
   project: Project | string;
   section: string;
+  parentTask?: string | null;
   assignee?: User;
   creator: User;
   priority: 'P1' | 'P2' | 'P3' | 'P4';

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   DragDropContext,
   Droppable,
@@ -34,7 +35,7 @@ const COMPLETED_SECTION_NAMES = ['completed', 'done', 'finished'];
 
 export function KanbanBoard({ project, onTaskClick, onCreateTask }: KanbanBoardProps) {
   const { tasks, moveTask, updateTask } = useProjectsStore();
-  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
+  const [, setDraggingTaskId] = useState<string | null>(null);
 
   const findSectionForQuickStatus = useCallback(
     (next: 'open' | 'in_progress' | 'completed') => {
@@ -83,7 +84,7 @@ export function KanbanBoard({ project, onTaskClick, onCreateTask }: KanbanBoardP
     setDraggingTaskId(start.draggableId);
   }, []);
 
-  const handleDragEnd = useCallback(async (result: DropResult) => {
+  const handleDragEnd = useCallback((result: DropResult) => {
     setDraggingTaskId(null);
 
     const { destination, source, draggableId } = result;
@@ -106,22 +107,37 @@ export function KanbanBoard({ project, onTaskClick, onCreateTask }: KanbanBoardP
     const destinationSection = project.sections.find(s => s._id === newSectionId);
     const isCompletedSection = destinationSection &&
       COMPLETED_SECTION_NAMES.includes(destinationSection.name.toLowerCase());
+    const sourceSection = project.sections.find(s => s._id === source.droppableId);
+    const isSourceCompletedSection = !!sourceSection &&
+      COMPLETED_SECTION_NAMES.includes(sourceSection.name.toLowerCase());
+    const task = tasks.find(t => t._id === draggableId);
+    const wasCompleted = !!task?.isCompleted;
 
-    try {
-      await moveTask(draggableId, newSectionId, newOrder);
+    // IMPORTANT: keep onDragEnd synchronous to avoid “settling/freeze” feeling.
+    // We already do optimistic updates inside moveTask.
+    void moveTask(draggableId, newSectionId, newOrder)
+      .then(async () => {
+        // Auto-complete task if dropped in "Completed" section
+        if (isCompletedSection) {
+          await updateTask(draggableId, { isCompleted: true, status: 'completed' });
+          return;
+        }
 
-      // Auto-complete task if dropped in "Completed" section
-      if (isCompletedSection) {
-        await updateTask(draggableId, { isCompleted: true, status: 'completed' });
-      }
-    } catch (error) {
-      console.error('Failed to move task:', error);
-    }
-  }, [moveTask, updateTask, project.sections]);
+        // If a completed task is moved OUT of the Completed section, mark it in progress.
+        // (User requirement: moving back from completed -> any other section => in_progress)
+        if (isSourceCompletedSection || wasCompleted) {
+          await updateTask(draggableId, { isCompleted: false, status: 'in_progress' });
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to move task:', error);
+        toast.error('Failed to move task');
+      });
+  }, [moveTask, updateTask, project.sections, tasks]);
 
   const getTasksForSection = useCallback((sectionId: string) => {
     return tasks
-      .filter(task => task.section === sectionId)
+      .filter(task => task.section === sectionId && !task.parentTask)
       .sort((a, b) => a.order - b.order);
   }, [tasks]);
 
@@ -201,25 +217,35 @@ export function KanbanBoard({ project, onTaskClick, onCreateTask }: KanbanBoardP
                             index={taskIndex}
                           >
                             {(provided, snapshot) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                {...provided.dragHandleProps}
-                                className={cn(
-                                  'transition-transform duration-150',
-                                  snapshot.isDragging && 'z-50'
-                                )}
-                                style={{
-                                  ...provided.draggableProps.style,
-                                }}
-                              >
-                                <KanbanCard
-                                  task={task}
-                                  onClick={() => !snapshot.isDragging && onTaskClick(task)}
-                                  onQuickStatusChange={(next) => void quickSetStatus(task._id, next)}
-                                  isDragging={snapshot.isDragging}
-                                />
-                              </div>
+                              (() => {
+                                const card = (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    {...provided.dragHandleProps}
+                                    className={cn(
+                                      'transition-transform duration-150',
+                                      snapshot.isDragging && 'z-50'
+                                    )}
+                                    style={{
+                                      ...provided.draggableProps.style,
+                                    }}
+                                  >
+                                    <KanbanCard
+                                      task={task}
+                                      onClick={() => !snapshot.isDragging && onTaskClick(task)}
+                                      onQuickStatusChange={(next) => void quickSetStatus(task._id, next)}
+                                      isDragging={snapshot.isDragging}
+                                    />
+                                  </div>
+                                );
+
+                                // Fix “lift/offset” issues when dragging inside containers with transforms
+                                // (e.g. motion/Modal). Portaling keeps the dragged element aligned.
+                                return snapshot.isDragging && typeof document !== 'undefined'
+                                  ? createPortal(card, document.body)
+                                  : card;
+                              })()
                             )}
                           </Draggable>
                         ))}

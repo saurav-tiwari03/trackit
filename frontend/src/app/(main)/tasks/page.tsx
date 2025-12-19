@@ -465,6 +465,7 @@ export default function TasksPage() {
       <TaskModal
         task={selectedTask}
         isOpen={!!selectedTask}
+        onOpenTask={setSelectedTask}
         onClose={() => {
           setSelectedTask(null);
           fetchTasks();

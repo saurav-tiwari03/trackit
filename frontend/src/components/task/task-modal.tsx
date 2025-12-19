@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import {
   Calendar as CalendarIcon,
@@ -23,8 +24,9 @@ import {
   Image as ImageIcon,
   Download,
   X as XIcon,
+  GripVertical,
 } from 'lucide-react';
-import { Task, Comment, Subtask, Section, Attachment } from '@/types';
+import { Task, Comment, Section, Attachment } from '@/types';
 import { Modal, ModalHeader, ModalContent } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -74,6 +76,7 @@ import { cn } from '@/lib/utils';
 import { useProjectsStore } from '@/store/projects';
 import { tasksAPI, commentsAPI } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
+import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -90,6 +93,7 @@ interface TaskModalProps {
   task: Task | null;
   isOpen: boolean;
   onClose: () => void;
+  onOpenTask?: (task: Task) => void;
 }
 
 const priorityConfig: Record<string, { color: string; bg: string; label: string }> = {
@@ -99,7 +103,7 @@ const priorityConfig: Record<string, { color: string; bg: string; label: string 
   P4: { color: 'text-gray-400', bg: 'bg-gray-400', label: 'Low' },
 };
 
-export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
+export function TaskModal({ task, isOpen, onClose, onOpenTask }: TaskModalProps) {
   const { user } = useAuthStore();
   const { updateTask, deleteTask, projects } = useProjectsStore();
   const [editedTask, setEditedTask] = useState<Task | null>(null);
@@ -115,8 +119,14 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
     const list = user?.labels || [];
     return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b));
   }, [user?.labels]);
+  const [subtasks, setSubtasks] = useState<Task[]>([]);
+  const [isLoadingSubtasks, setIsLoadingSubtasks] = useState(false);
   const [newSubtask, setNewSubtask] = useState('');
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
+  const [isSubtasksOpen, setIsSubtasksOpen] = useState(true);
+  const [subtaskPriority, setSubtaskPriority] = useState<'P1' | 'P2' | 'P3' | 'P4'>('P4');
+  const [subtaskDueDate, setSubtaskDueDate] = useState<Date | undefined>(undefined);
+  const [isSubtaskDateOpen, setIsSubtaskDateOpen] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [editedDescription, setEditedDescription] = useState('');
   const [isDateOpenMobile, setIsDateOpenMobile] = useState(false);
@@ -188,6 +198,16 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
 
   const sections = getProjectSections();
 
+  type AxiosErrorLike = {
+    response?: { data?: { message?: string } };
+    message?: string;
+  };
+
+  const getApiErrorMessage = (error: unknown, fallback: string) => {
+    const e = error as AxiosErrorLike;
+    return e?.response?.data?.message || e?.message || fallback;
+  };
+
   const mentionableUsers = useMemo(() => {
     if (!editedTask) return [];
     const projectId =
@@ -195,10 +215,13 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
         ? editedTask.project
         : editedTask.project._id;
     const project = projects.find(p => p._id === projectId);
-    const all = project ? [project.owner, ...(project.members || [])] : [];
+    type ProjectMember = (typeof project extends null ? never : NonNullable<typeof project>['owner']) & Partial<{ _id: string }>;
+    const all: ProjectMember[] = project
+      ? ([project.owner, ...(project.members || [])] as unknown as ProjectMember[])
+      : [];
     const unique = new Map<string, { id: string; name: string; email: string }>();
     all.forEach(u => {
-      const id = (u as any).id || (u as any)._id;
+      const id = u.id || u._id;
       if (id && !unique.has(id)) {
         unique.set(id, { id, name: u.name, email: u.email });
       }
@@ -206,11 +229,20 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
     return Array.from(unique.values());
   }, [editedTask, projects]);
 
+  const fetchComments = useCallback(async () => {
+    if (!task) return;
+    try {
+      const response = await commentsAPI.getForTask(task._id);
+      setComments(response.data.data);
+    } catch (error) {
+      console.error('Failed to fetch comments:', error);
+    }
+  }, [task]);
+
   useEffect(() => {
     if (task) {
       setEditedTask({
         ...task,
-        subtasks: task.subtasks || [],
         labels: task.labels || [],
       });
       setEditedDescription(task.description || '');
@@ -223,18 +255,22 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
       setMentionStart(null);
       setLabelInput('');
       fetchComments();
+      void (async () => {
+        try {
+          setIsLoadingSubtasks(true);
+          const response = await tasksAPI.getSubtasks(task._id);
+          setSubtasks(response.data.data || []);
+        } catch (e) {
+          console.error('Failed to fetch subtasks:', e);
+          setSubtasks([]);
+        } finally {
+          setIsLoadingSubtasks(false);
+        }
+      })();
+      return;
     }
-  }, [task]);
-
-  const fetchComments = async () => {
-    if (!task) return;
-    try {
-      const response = await commentsAPI.getForTask(task._id);
-      setComments(response.data.data);
-    } catch (error) {
-      console.error('Failed to fetch comments:', error);
-    }
-  };
+    setSubtasks([]);
+  }, [task, fetchComments]);
 
   const handleToggleComplete = async () => {
     if (!editedTask) return;
@@ -283,34 +319,32 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
     try {
       const response = await tasksAPI.addSubtask(editedTask._id, {
         title: newSubtask,
+        priority: subtaskPriority,
+        dueDate: subtaskDueDate ? subtaskDueDate.toISOString() : undefined,
       });
-      const updatedTask = response.data.data;
-      setEditedTask({
-        ...updatedTask,
-        subtasks: updatedTask.subtasks || [],
-        labels: updatedTask.labels || [],
-      });
+      const created = response.data.data as Task;
+      setSubtasks(prev => [...prev, created].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
       setNewSubtask('');
       setIsAddingSubtask(false);
+      setSubtaskPriority('P4');
+      setSubtaskDueDate(undefined);
     } catch (error) {
       console.error('Failed to add subtask:', error);
     }
   };
 
-  const handleToggleSubtask = async (subtask: Subtask) => {
+  const handleToggleSubtask = async (subtask: Task) => {
     if (!editedTask) return;
     try {
-      const response = await tasksAPI.updateSubtask(
-        editedTask._id,
-        subtask._id,
-        { isCompleted: !subtask.isCompleted }
+      const nextIsCompleted = !subtask.isCompleted;
+      setSubtasks(prev =>
+        prev.map(t =>
+          t._id === subtask._id
+            ? { ...t, isCompleted: nextIsCompleted, status: nextIsCompleted ? 'completed' : 'in_progress' }
+            : t
+        )
       );
-      const updatedTask = response.data.data;
-      setEditedTask({
-        ...updatedTask,
-        subtasks: updatedTask.subtasks || [],
-        labels: updatedTask.labels || [],
-      });
+      await tasksAPI.updateSubtask(editedTask._id, subtask._id, { isCompleted: nextIsCompleted });
     } catch (error) {
       console.error('Failed to update subtask:', error);
     }
@@ -319,13 +353,8 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
   const handleDeleteSubtask = async (subtaskId: string) => {
     if (!editedTask) return;
     try {
-      const response = await tasksAPI.deleteSubtask(editedTask._id, subtaskId);
-      const updatedTask = response.data.data;
-      setEditedTask({
-        ...updatedTask,
-        subtasks: updatedTask.subtasks || [],
-        labels: updatedTask.labels || [],
-      });
+      await tasksAPI.deleteSubtask(editedTask._id, subtaskId);
+      setSubtasks(prev => prev.filter(t => t._id !== subtaskId));
     } catch (error) {
       console.error('Failed to delete subtask:', error);
     }
@@ -440,12 +469,8 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
         labels: updatedTask.labels || [],
       });
       toast.success('Labels updated');
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.message ||
-        error?.message ||
-        'Failed to update labels';
-      toast.error(message);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, 'Failed to update labels'));
     } finally {
       setIsUpdatingLabels(false);
     }
@@ -480,12 +505,8 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
         labels: updatedTask.labels || [],
       });
       toast.success('Attachments uploaded');
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.message ||
-        error?.message ||
-        'Failed to upload attachments';
-      toast.error(message);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, 'Failed to upload attachments'));
     } finally {
       setIsUploadingAttachments(false);
     }
@@ -511,10 +532,8 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
       setComments(prev => prev.map(c => (c._id === updated._id ? { ...c, ...updated } : c)));
       toast.success('Comment updated');
       cancelEditComment();
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.message || error?.message || 'Failed to update comment';
-      toast.error(message);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, 'Failed to update comment'));
     }
   };
 
@@ -527,10 +546,8 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
       toast.success('Comment deleted');
       setCommentToDelete(null);
       cancelEditComment();
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.message || error?.message || 'Failed to delete comment';
-      toast.error(message);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, 'Failed to delete comment'));
     } finally {
       setIsDeletingComment(false);
     }
@@ -553,12 +570,8 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
     try {
       const response = await tasksAPI.getAttachmentUrl(editedTask._id, att._id);
       setPreviewUrl(response.data.data.url);
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.message ||
-        error?.message ||
-        'Failed to load preview';
-      toast.error(message);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, 'Failed to load preview'));
     } finally {
       setIsPreviewLoading(false);
     }
@@ -589,12 +602,8 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
         setIsPreviewLoading(false);
         setPdfNumPages(0);
       }
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.message ||
-        error?.message ||
-        'Failed to remove attachment';
-      toast.error(message);
+    } catch (error: unknown) {
+      toast.error(getApiErrorMessage(error, 'Failed to remove attachment'));
     } finally {
       setIsRemovingAttachment(false);
     }
@@ -671,6 +680,32 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
     return { hours, minutes };
   };
 
+  const handleSubtaskTimeChange = (timeString: string) => {
+    const parsed = parseTimeString(timeString);
+    if (!parsed) {
+      toast.error('Invalid time');
+      return;
+    }
+
+    const base = subtaskDueDate ? new Date(subtaskDueDate) : new Date();
+    if (!isValidDate(base)) {
+      toast.error('Invalid date/time');
+      return;
+    }
+
+    base.setHours(parsed.hours, parsed.minutes, 0, 0);
+    setSubtaskDueDate(base);
+  };
+
+  const handleSubtaskDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+    const hours = subtaskDueDate?.getHours() ?? 9;
+    const minutes = subtaskDueDate?.getMinutes() ?? 0;
+    const next = new Date(date);
+    next.setHours(hours, minutes, 0, 0);
+    setSubtaskDueDate(next);
+  };
+
   const initDraftDueDate = () => {
     const base = editedTask?.dueDate ? new Date(editedTask.dueDate) : undefined;
     setDraftDueDate(isValidDate(base) ? base : undefined);
@@ -745,10 +780,54 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
     });
   };
 
+  const handleReorderSubtasks = async (result: DropResult) => {
+    if (!editedTask) return;
+    if (!result.destination) return;
+
+    const sourceIndex = result.source.index;
+    const destIndex = result.destination.index;
+    if (sourceIndex === destIndex) return;
+
+    const prev = subtasks;
+    const current = [...subtasks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    const [moved] = current.splice(sourceIndex, 1);
+    current.splice(destIndex, 0, moved);
+
+    const optimistic = current.map((s, idx) => ({ ...s, order: idx }));
+    setSubtasks(optimistic);
+
+    try {
+      const response = await tasksAPI.reorderSubtasks(
+        editedTask._id,
+        optimistic.map(s => s._id)
+      );
+      setSubtasks(response.data.data || []);
+    } catch (error) {
+      console.error('Failed to reorder subtasks:', error);
+      setSubtasks(prev);
+      toast.error('Failed to reorder subtasks');
+    }
+  };
+
   if (!editedTask) return null;
 
-  const completedSubtasks = (editedTask.subtasks || []).filter(s => s.isCompleted).length;
-  const totalSubtasks = (editedTask.subtasks || []).length;
+  const completedSubtasks = subtasks.filter(s => s.isCompleted).length;
+  const totalSubtasks = subtasks.length;
+  const displaySubtasks = [...subtasks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  const currentProject = (() => {
+    const pid =
+      typeof editedTask.project === 'string' ? editedTask.project : editedTask.project?._id;
+    if (typeof editedTask.project !== 'string' && editedTask.project?.name) return editedTask.project;
+    return projects.find(p => p._id === pid) || null;
+  })();
+
+  const currentSectionName = (() => {
+    const sectionId = editedTask.section;
+    const section = (currentProject?.sections || []).find(s => s._id === sectionId);
+    return section?.name || 'Unknown';
+  })();
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="xl">
@@ -757,6 +836,29 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           <ModalHeader onClose={onClose}>
             <div className="flex items-center gap-3 min-w-0">
+              {editedTask.parentTask && onOpenTask && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="shrink-0"
+                  onClick={async () => {
+                    try {
+                      const pid = editedTask.parentTask;
+                      if (!pid) return;
+                      const response = await tasksAPI.getOne(pid);
+                      onOpenTask(response.data.data as Task);
+                    } catch (e) {
+                      console.error('Failed to open parent task:', e);
+                      toast.error('Failed to open parent task');
+                    }
+                  }}
+                  aria-label="Back to parent task"
+                  title="Back to parent task"
+                >
+                  <ChevronUp className="w-4 h-4 -rotate-90" />
+                </Button>
+              )}
               <button
                 onClick={handleToggleComplete}
                 className="cursor-pointer shrink-0"
@@ -778,7 +880,7 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
             </div>
           </ModalHeader>
 
-          <ModalContent className="flex-1 overflow-y-auto">
+          <ModalContent className="flex-1 overflow-y-auto overflow-x-hidden">
             {/* Mobile: Collapsible Details Section */}
             <div className="lg:hidden mb-4">
               <Collapsible open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
@@ -1086,114 +1188,305 @@ export function TaskModal({ task, isOpen, onClose }: TaskModalProps) {
               )}
             </div>
 
-            {/* Subtasks */}
-            <div className="mb-6 rounded-2xl border border-border/50 bg-card/40 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-medium text-muted-foreground">
-                  Subtasks ({completedSubtasks}/{totalSubtasks})
-                </h3>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setIsAddingSubtask(true)}
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  Add
-                </Button>
-              </div>
-
-              {/* Subtask Progress */}
-              {totalSubtasks > 0 && (
-                <div className="mb-3">
-                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-green-500 transition-all duration-300"
-                      style={{ width: `${(completedSubtasks / totalSubtasks) * 100}%` }}
+            {/* Sub-tasks (match requested UI style) */}
+            <div className="mb-6">
+              <Collapsible open={isSubtasksOpen} onOpenChange={setIsSubtasksOpen}>
+                <div className="flex items-center gap-2">
+                  <CollapsibleTrigger
+                    className="inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-muted/30"
+                    aria-label={isSubtasksOpen ? 'Collapse sub-tasks' : 'Expand sub-tasks'}
+                  >
+                    <ChevronDown
+                      className={cn(
+                        'h-5 w-5 transition-transform',
+                        isSubtasksOpen && 'rotate-180'
+                      )}
                     />
+                  </CollapsibleTrigger>
+                  <div className="flex items-baseline gap-2">
+                    <h3 className="text-base font-semibold">Sub-tasks</h3>
+                    <span className="text-sm text-muted-foreground">
+                      {completedSubtasks}/{totalSubtasks}
+                    </span>
                   </div>
                 </div>
-              )}
 
-              <div className="space-y-1">
-                {isAddingSubtask && (
-                  <div className="flex items-center gap-2 p-2 bg-muted/30 rounded-xl border border-border/40">
-                    <Circle className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <Input
-                      value={newSubtask}
-                      onChange={e => setNewSubtask(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddSubtask();
-                        }
-                        if (e.key === 'Escape') {
-                          setIsAddingSubtask(false);
-                          setNewSubtask('');
-                        }
-                      }}
-                      placeholder="Enter subtask title..."
-                      className="flex-1 h-8 text-sm border-0 bg-transparent focus-visible:ring-0"
-                      autoFocus
-                    />
-                    <div className="flex gap-1">
-                      <Button size="sm" onClick={handleAddSubtask} disabled={!newSubtask.trim()}>
-                        Add
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                <CollapsibleContent>
+                  <div className="mt-3 border-t border-border/40">
+                    <DragDropContext onDragEnd={handleReorderSubtasks}>
+                      <Droppable droppableId="subtasks">
+                        {(provided) => (
+                          <div ref={provided.innerRef} {...provided.droppableProps}>
+                            {displaySubtasks.map((subtask, index) => (
+                              <Draggable key={subtask._id} draggableId={subtask._id} index={index}>
+                                {(draggableProvided, snapshot) => (
+                                  (() => {
+                                    const row = (
+                                      <div
+                                        ref={draggableProvided.innerRef}
+                                        {...draggableProvided.draggableProps}
+                                        className={cn(
+                                          'group flex items-center gap-3 py-3 border-b border-border/40',
+                                          snapshot.isDragging && 'bg-muted/30'
+                                        )}
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={async () => {
+                                          try {
+                                            const response = await tasksAPI.getOne(subtask._id);
+                                            const next = response.data.data as Task;
+                                            if (onOpenTask) onOpenTask(next);
+                                          } catch (e) {
+                                            console.error('Failed to open subtask:', e);
+                                            toast.error('Failed to open subtask');
+                                          }
+                                        }}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            void (async () => {
+                                              try {
+                                                const response = await tasksAPI.getOne(subtask._id);
+                                                const next = response.data.data as Task;
+                                                if (onOpenTask) onOpenTask(next);
+                                              } catch {
+                                                toast.error('Failed to open subtask');
+                                              }
+                                            })();
+                                          }
+                                        }}
+                                      >
+                                        <span
+                                          {...draggableProvided.dragHandleProps}
+                                          className="shrink-0 text-muted-foreground/60 group-hover:text-muted-foreground cursor-grab active:cursor-grabbing"
+                                          aria-hidden="true"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <GripVertical className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </span>
+
+                                        <button
+                                          onClick={(e) => {
+                                            // Prevent accidental drag-start on click.
+                                            e.stopPropagation();
+                                            void handleToggleSubtask(subtask);
+                                          }}
+                                          className="cursor-pointer shrink-0"
+                                          aria-label={subtask.isCompleted ? 'Mark incomplete' : 'Mark complete'}
+                                        >
+                                          {subtask.isCompleted ? (
+                                            <CheckCircle2 className="w-6 h-6 text-green-500" />
+                                          ) : (
+                                            <Circle className="w-6 h-6 text-muted-foreground" />
+                                          )}
+                                        </button>
+
+                                        <span
+                                          className={cn(
+                                            'text-base flex-1 min-w-0 truncate',
+                                            subtask.isCompleted && 'line-through text-muted-foreground'
+                                          )}
+                                        >
+                                          {subtask.title}
+                                        </span>
+                                        {(subtask.dueDate || subtask.priority) && (
+                                          <span className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                                            {subtask.dueDate && (
+                                              <span className="inline-flex items-center gap-1">
+                                                <CalendarIcon className="h-3 w-3" />
+                                                {format(new Date(subtask.dueDate), 'MMM d')}
+                                              </span>
+                                            )}
+                                            {subtask.priority && (
+                                              <span className="inline-flex items-center gap-1">
+                                                <Flag className="h-3 w-3" />
+                                                {subtask.priority}
+                                              </span>
+                                            )}
+                                          </span>
+                                        )}
+
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            void handleDeleteSubtask(subtask._id);
+                                          }}
+                                          className="opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-2 hover:bg-destructive/10 rounded-md shrink-0"
+                                          aria-label="Delete sub-task"
+                                        >
+                                          <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" />
+                                        </button>
+                                      </div>
+                                    );
+
+                                    // Fix drag offset issues inside modals/containers with CSS transforms:
+                                    // render the dragged element in a portal to <body>.
+                                    return snapshot.isDragging && typeof document !== 'undefined'
+                                      ? createPortal(row, document.body)
+                                      : row;
+                                  })()
+                                )}
+                              </Draggable>
+                            ))}
+                            {provided.placeholder}
+                          </div>
+                        )}
+                      </Droppable>
+                    </DragDropContext>
+
+                    {displaySubtasks.length === 0 && !isAddingSubtask && (
+                      <p className="text-sm text-muted-foreground py-4">
+                        No sub-tasks yet
+                      </p>
+                    )}
+
+                    {/* "+ Add sub-task" row (matches screenshot). Input appears at bottom. */}
+                    {!isAddingSubtask && (
+                      <button
+                        type="button"
                         onClick={() => {
-                          setIsAddingSubtask(false);
-                          setNewSubtask('');
+                          setIsAddingSubtask(true);
+                          setSubtaskPriority('P4');
+                          // default to today @ 09:00 like task due date flow
+                          const next = new Date();
+                          next.setHours(9, 0, 0, 0);
+                          setSubtaskDueDate(next);
                         }}
+                        className="w-full mr-4 flex items-center gap-2 py-4 text-sm text-muted-foreground hover:text-foreground border-b border-border/40"
                       >
-                        Cancel
-                      </Button>
-                    </div>
+                        <Plus className="h-4 w-4 text-destructive" />
+                        <span>Add sub-task</span>
+                      </button>
+                    )}
+
+                    {isLoadingSubtasks && (
+                      <div className="py-3 text-xs text-muted-foreground">Loading subtasks…</div>
+                    )}
+
+                    {isAddingSubtask && (
+                      <div className="py-4 mr-4 border-b border-border/40 max-w-full overflow-hidden">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 min-w-0">
+                          <Circle className="w-6 h-6 text-muted-foreground shrink-0" />
+                          <Input
+                            value={newSubtask}
+                            onChange={e => setNewSubtask(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddSubtask();
+                              }
+                              if (e.key === 'Escape') {
+                                setIsAddingSubtask(false);
+                                setNewSubtask('');
+                                setSubtaskPriority('P4');
+                                setSubtaskDueDate(undefined);
+                              }
+                            }}
+                            placeholder="Add a sub-task…"
+                            className="flex-1 min-w-0 h-10 text-base border-0 bg-transparent focus-visible:ring-0 px-0"
+                            autoFocus
+                          />
+                          <div className="flex gap-2 shrink-0 sm:self-auto self-end">
+                            <Button size="sm" onClick={handleAddSubtask} disabled={!newSubtask.trim()}>
+                              Add
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setIsAddingSubtask(false);
+                                setNewSubtask('');
+                                setSubtaskPriority('P4');
+                                setSubtaskDueDate(undefined);
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Extra fields + path (like reference UI) */}
+                        <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2 min-w-0">
+                          <div className="flex flex-wrap items-center gap-4 min-w-0">
+                            <Popover open={isSubtaskDateOpen} onOpenChange={setIsSubtaskDateOpen} modal={true}>
+                              <PopoverTrigger asChild>
+                                <Button type="button" variant="ghost" size="sm" className="h-9 px-0">
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {subtaskDueDate ? format(subtaskDueDate, 'MMM d, HH:mm') : 'Date'}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0 overflow-hidden" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={subtaskDueDate}
+                                  onSelect={handleSubtaskDateSelect}
+                                  initialFocus
+                                />
+                                <div className="border-t p-3">
+                                  <div className="flex items-center gap-2">
+                                    <Timer className="h-4 w-4 text-muted-foreground" />
+                                    <input
+                                      type="time"
+                                      value={subtaskDueDate ? format(subtaskDueDate, 'HH:mm') : '09:00'}
+                                      onChange={(e) => handleSubtaskTimeChange(e.target.value)}
+                                      className="flex-1 bg-transparent border rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="border-t p-2 flex justify-between">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSubtaskDueDate(undefined);
+                                      setIsSubtaskDateOpen(false);
+                                    }}
+                                  >
+                                    Clear
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => setIsSubtaskDateOpen(false)}
+                                  >
+                                    Done
+                                  </Button>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+
+                            <Select
+                              value={subtaskPriority}
+                              onValueChange={(v) => setSubtaskPriority(v as 'P1' | 'P2' | 'P3' | 'P4')}
+                            >
+                              <SelectTrigger className="h-9 w-[140px] border-0 bg-transparent px-0">
+                                <SelectValue>
+                                  <div className="flex items-center gap-2">
+                                    <Flag className="h-4 w-4 text-muted-foreground" />
+                                    <span>{subtaskPriority}</span>
+                                  </div>
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(['P1', 'P2', 'P3', 'P4'] as const).map(p => (
+                                  <SelectItem key={p} value={p}>
+                                    {p} - {priorityConfig[p].label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="sm:ml-auto text-sm text-muted-foreground truncate max-w-full">
+                            {currentProject?.name || 'Project'} / {currentSectionName}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-
-                <AnimatePresence>
-                  {(editedTask.subtasks || []).map(subtask => (
-                    <motion.div
-                      key={subtask._id}
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="flex items-center gap-2 group p-2 hover:bg-muted/30 rounded-xl"
-                    >
-                      <button
-                        onClick={() => handleToggleSubtask(subtask)}
-                        className="cursor-pointer shrink-0"
-                      >
-                        {subtask.isCompleted ? (
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                        ) : (
-                          <Circle className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-                        )}
-                      </button>
-                      <span
-                        className={cn(
-                          'text-sm flex-1 min-w-0 truncate',
-                          subtask.isCompleted && 'line-through text-muted-foreground'
-                        )}
-                      >
-                        {subtask.title}
-                      </span>
-                      <button
-                        onClick={() => handleDeleteSubtask(subtask._id)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-1 hover:bg-destructive/10 rounded shrink-0"
-                      >
-                        <Trash2 className="w-3 h-3 text-muted-foreground hover:text-destructive" />
-                      </button>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-
-                {(editedTask.subtasks || []).length === 0 && !isAddingSubtask && (
-                  <p className="text-sm text-muted-foreground py-2">No subtasks yet</p>
-                )}
-              </div>
+                </CollapsibleContent>
+              </Collapsible>
             </div>
 
             {/* Comments + Attachments Tabs (bottom) */}

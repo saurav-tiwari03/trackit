@@ -739,6 +739,7 @@ export default function CalendarPage() {
       <TaskModal
         task={selectedTask}
         isOpen={!!selectedTask}
+        onOpenTask={setSelectedTask}
         onClose={() => {
           setSelectedTask(null);
           fetchTasks();

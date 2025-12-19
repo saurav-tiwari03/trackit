@@ -119,6 +119,7 @@ export default function ProjectPage() {
       <TaskModal
         task={selectedTask}
         isOpen={!!selectedTask}
+        onOpenTask={setSelectedTask}
         onClose={() => {
           setSelectedTask(null);
           if (projectId) {
