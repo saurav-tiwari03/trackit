@@ -7,6 +7,7 @@ import notificationRoutes from './notification.routes';
 import userRoutes from './user.routes';
 import chatRoutes from './chat.routes';
 import calendarRoutes from './calendar.routes';
+import notesRoutes from './notes.routes';
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use('/notifications', notificationRoutes);
 router.use('/users', userRoutes);
 router.use('/chats', chatRoutes);
 router.use('/calendar', calendarRoutes);
+router.use('/notes', notesRoutes);
 
 export default router;

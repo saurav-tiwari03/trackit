@@ -39,4 +39,16 @@ app.use((_req: Request, res: Response) => {
   });
 });
 
+// Global error handler
+app.use(
+  (err: Error, _req: Request, res: Response, _next: express.NextFunction) => {
+    console.error('Global error handler:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: err.message,
+    });
+  }
+);
+
 export default app;
