@@ -9,6 +9,9 @@ import {
   Paperclip,
   Tag,
   Users,
+  StickyNote,
+  Trophy,
+  MessageCircle,
 } from 'lucide-react';
 
 export const metadata: Metadata = {
@@ -84,6 +87,21 @@ export default function FeaturesPage() {
             icon={Tag}
             title="Personal labels"
             desc="Each user has their own label library—no messy shared label spam."
+          />
+          <FeatureCard
+            icon={StickyNote}
+            title="Notes"
+            desc="Beautiful rich text notes with Tiptap editor. Supports headings, lists, code blocks, and more."
+          />
+          <FeatureCard
+            icon={Trophy}
+            title="Achievements"
+            desc="Track and celebrate completed tasks. View your productivity history by project."
+          />
+          <FeatureCard
+            icon={MessageCircle}
+            title="Team Chat"
+            desc="Built-in Slack-like messaging for seamless team communication within projects."
           />
         </div>
 

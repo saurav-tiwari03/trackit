@@ -179,5 +179,43 @@ export const calendarAPI = {
   getGoogleCalendars: () => api.get('/calendar/google/calendars'),
 };
 
+// Notes API
+export const notesAPI = {
+  getAll: (params?: {
+    search?: string;
+    project?: string;
+    tag?: string;
+    isPinned?: boolean;
+    isFavorite?: boolean;
+    isArchived?: boolean;
+    sortBy?: string;
+    sortOrder?: string;
+  }) => api.get('/notes', { params }),
+  getOne: (id: string) => api.get(`/notes/${id}`),
+  create: (data: {
+    title?: string;
+    content?: string;
+    plainText?: string;
+    project?: string;
+    color?: string;
+    tags?: string[];
+  }) => api.post('/notes', data),
+  update: (
+    id: string,
+    data: {
+      title?: string;
+      content?: string;
+      plainText?: string;
+      project?: string;
+      color?: string;
+      tags?: string[];
+    }
+  ) => api.put(`/notes/${id}`, data),
+  delete: (id: string) => api.delete(`/notes/${id}`),
+  togglePin: (id: string) => api.patch(`/notes/${id}/pin`),
+  toggleFavorite: (id: string) => api.patch(`/notes/${id}/favorite`),
+  toggleArchive: (id: string) => api.patch(`/notes/${id}/archive`),
+};
+
 export default api;
 

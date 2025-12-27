@@ -13,6 +13,8 @@ import {
   Paperclip,
   Tag,
   Users,
+  StickyNote,
+  Trophy,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/components/ui/button';
@@ -211,6 +213,16 @@ export default function Home() {
               icon={Tag}
               title="Personal labels"
               desc="Your own label library, per user."
+            />
+            <Feature
+              icon={StickyNote}
+              title="Notes"
+              desc="Rich text notes with Tiptap editor."
+            />
+            <Feature
+              icon={Trophy}
+              title="Achievements"
+              desc="Track completed tasks and celebrate wins."
             />
           </div>
         </div>

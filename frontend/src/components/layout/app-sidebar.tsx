@@ -17,6 +17,7 @@ import {
   Bell,
   MessageCircle,
   Trophy,
+  StickyNote,
 } from 'lucide-react';
 
 import {
@@ -56,14 +57,15 @@ import { useNotificationsStore } from '@/store/notifications';
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
-  { icon: Inbox, label: 'Inbox', href: '/inbox' },
-  { icon: CheckSquare, label: 'All Tasks', href: '/tasks' },
-  { icon: Calendar, label: 'Calendar', href: '/calendar' },
-  { icon: Trophy, label: 'Achievements', href: '/achievements' },
-  { icon: MessageCircle, label: 'Slack', href: '/slack' },
-  { icon: Bell, label: 'Notifications', href: '/notifications' },
-  { icon: Settings, label: 'Settings', href: '/settings' },
+  { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard', color: 'text-blue-500' },
+  { icon: Inbox, label: 'Inbox', href: '/inbox', color: 'text-violet-500' },
+  { icon: CheckSquare, label: 'All Tasks', href: '/tasks', color: 'text-green-500' },
+  { icon: Calendar, label: 'Calendar', href: '/calendar', color: 'text-orange-500' },
+  { icon: StickyNote, label: 'Notes', href: '/notes', color: 'text-amber-500' },
+  { icon: Trophy, label: 'Achievements', href: '/achievements', color: 'text-yellow-500' },
+  { icon: MessageCircle, label: 'Slack', href: '/slack', color: 'text-pink-500' },
+  { icon: Bell, label: 'Notifications', href: '/notifications', color: 'text-red-500' },
+  { icon: Settings, label: 'Settings', href: '/settings', color: 'text-gray-500' },
 ];
 
 export function AppSidebar() {
@@ -152,7 +154,7 @@ export function AppSidebar() {
                         if (isMobile) setOpen(false);
                       }}
                     >
-                      <item.icon className="h-4 w-4" />
+                      <item.icon className={cn('h-4 w-4', item.color)} />
                       <span>{item.label}</span>
                       {item.href === '/notifications' && unreadCount > 0 && (
                         <span className="ml-auto inline-flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] h-5 min-w-5 px-1.5 group-data-[collapsible=icon]:hidden">
