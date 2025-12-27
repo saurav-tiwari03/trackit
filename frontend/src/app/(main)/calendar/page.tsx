@@ -13,12 +13,24 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { tasksAPI } from '@/lib/api';
+import { tasksAPI, calendarAPI } from '@/lib/api';
 import { Task } from '@/types';
 import { cn } from '@/lib/utils';
 import { useProjectsStore } from '@/store/projects';
 import { TaskModal } from '@/components/task/task-modal';
 import { CreateTaskModal } from '@/components/task/create-task-modal';
+
+// Google Calendar Event type
+interface GoogleCalendarEvent {
+  id: string;
+  title: string;
+  description?: string;
+  start: string;
+  end: string;
+  location?: string;
+  htmlLink?: string;
+  isAllDay: boolean;
+}
 
 const DAYS_SHORT = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DAYS_FULL = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -34,6 +46,7 @@ interface CalendarDay {
   isCurrentMonth: boolean;
   isToday: boolean;
   tasks: Task[];
+  googleEvents: GoogleCalendarEvent[];
 }
 
 const priorityColors: Record<string, { bg: string; text: string; dot: string }> = {
@@ -56,8 +69,11 @@ export default function CalendarPage() {
   const { projects } = useProjectsStore();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [googleEvents, setGoogleEvents] = useState<GoogleCalendarEvent[]>([]);
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedGoogleEvent, setSelectedGoogleEvent] = useState<GoogleCalendarEvent | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createInitialDueDate, setCreateInitialDueDate] = useState<string | undefined>(undefined);
@@ -68,8 +84,55 @@ export default function CalendarPage() {
   }, []);
 
   useEffect(() => {
-    fetchTasks();
+    fetchData();
   }, []);
+
+  // Fetch Google Calendar events when month changes
+  useEffect(() => {
+    if (isGoogleConnected) {
+      fetchGoogleEvents();
+    }
+  }, [currentDate, isGoogleConnected]);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch tasks and Google Calendar status in parallel
+      const [tasksResponse, statusResponse] = await Promise.all([
+        tasksAPI.getAll(),
+        calendarAPI.getGoogleStatus().catch(() => ({ data: { data: { connected: false } } })),
+      ]);
+
+      setTasks(tasksResponse.data.data);
+      setIsGoogleConnected(statusResponse.data.data.connected);
+
+      // If Google is connected, fetch events
+      if (statusResponse.data.data.connected) {
+        await fetchGoogleEvents();
+      }
+    } catch (error) {
+      console.error('Failed to fetch data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchGoogleEvents = async () => {
+    try {
+      // Get events for the current month (with some buffer)
+      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 2, 0);
+
+      const response = await calendarAPI.getGoogleEvents({
+        timeMin: startOfMonth.toISOString(),
+        timeMax: endOfMonth.toISOString(),
+      });
+
+      setGoogleEvents(response.data.data || []);
+    } catch (error) {
+      console.error('Failed to fetch Google Calendar events:', error);
+    }
+  };
 
   const fetchTasks = async () => {
     setIsLoading(true);
@@ -94,6 +157,24 @@ export default function CalendarPage() {
         taskDate.getFullYear() === date.getFullYear()
       );
     });
+  };
+
+  // Helper function to get Google events for a specific date
+  const getGoogleEventsForDate = (date: Date) => {
+    return googleEvents.filter(event => {
+      const eventStart = new Date(event.start);
+      return (
+        eventStart.getDate() === date.getDate() &&
+        eventStart.getMonth() === date.getMonth() &&
+        eventStart.getFullYear() === date.getFullYear()
+      );
+    });
+  };
+
+  // Format time for Google events
+  const formatEventTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   };
 
   const calendarDays = useMemo(() => {
@@ -121,6 +202,7 @@ export default function CalendarPage() {
         isCurrentMonth: false,
         isToday: date.getTime() === today.getTime(),
         tasks: getTasksForDate(date),
+        googleEvents: getGoogleEventsForDate(date),
       });
     }
 
@@ -131,6 +213,7 @@ export default function CalendarPage() {
         isCurrentMonth: true,
         isToday: date.getTime() === today.getTime(),
         tasks: getTasksForDate(date),
+        googleEvents: getGoogleEventsForDate(date),
       });
     }
 
@@ -141,11 +224,12 @@ export default function CalendarPage() {
         isCurrentMonth: false,
         isToday: date.getTime() === today.getTime(),
         tasks: getTasksForDate(date),
+        googleEvents: getGoogleEventsForDate(date),
       });
     }
 
     return days;
-  }, [currentDate, tasks]);
+  }, [currentDate, tasks, googleEvents]);
 
   // Get week days for the current week
   const weekDays = useMemo(() => {
@@ -164,11 +248,12 @@ export default function CalendarPage() {
         isCurrentMonth: date.getMonth() === currentDate.getMonth(),
         isToday: date.getTime() === today.getTime(),
         tasks: getTasksForDate(date),
+        googleEvents: getGoogleEventsForDate(date),
       });
     }
 
     return days;
-  }, [currentDate, tasks]);
+  }, [currentDate, tasks, googleEvents]);
 
   // Get current day for day view
   const dayData = useMemo(() => {
@@ -181,8 +266,9 @@ export default function CalendarPage() {
       date: currentDate,
       isToday: current.getTime() === today.getTime(),
       tasks: getTasksForDate(currentDate),
+      googleEvents: getGoogleEventsForDate(currentDate),
     };
-  }, [currentDate, tasks]);
+  }, [currentDate, tasks, googleEvents]);
 
   // Mini calendar for day view
   const miniCalendarDays = useMemo(() => {
@@ -194,7 +280,7 @@ export default function CalendarPage() {
     const daysInMonth = lastDayOfMonth.getDate();
     const startDayOfWeek = firstDayOfMonth.getDay();
 
-    const days: { date: Date; isCurrentMonth: boolean; isToday: boolean; isSelected: boolean; hasTasks: boolean }[] = [];
+    const days: { date: Date; isCurrentMonth: boolean; isToday: boolean; isSelected: boolean; hasTasks: boolean; hasGoogleEvents: boolean }[] = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const selected = new Date(currentDate);
@@ -213,6 +299,7 @@ export default function CalendarPage() {
         isToday: date.getTime() === today.getTime(),
         isSelected: date.getTime() === selected.getTime(),
         hasTasks: getTasksForDate(date).length > 0,
+        hasGoogleEvents: getGoogleEventsForDate(date).length > 0,
       });
     }
 
@@ -224,6 +311,7 @@ export default function CalendarPage() {
         isToday: date.getTime() === today.getTime(),
         isSelected: date.getTime() === selected.getTime(),
         hasTasks: getTasksForDate(date).length > 0,
+        hasGoogleEvents: getGoogleEventsForDate(date).length > 0,
       });
     }
 
@@ -235,11 +323,12 @@ export default function CalendarPage() {
         isToday: date.getTime() === today.getTime(),
         isSelected: date.getTime() === selected.getTime(),
         hasTasks: getTasksForDate(date).length > 0,
+        hasGoogleEvents: getGoogleEventsForDate(date).length > 0,
       });
     }
 
     return days;
-  }, [currentDate, tasks]);
+  }, [currentDate, tasks, googleEvents]);
 
   const navigate = (direction: 'prev' | 'next') => {
     const newDate = new Date(currentDate);
@@ -354,6 +443,19 @@ export default function CalendarPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Google Calendar Connected Indicator */}
+            {isGoogleConnected && (
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20">
+                <svg viewBox="0 0 24 24" className="w-4 h-4">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                </svg>
+                <span className="text-xs font-medium text-blue-600">Synced</span>
+              </div>
+            )}
+
             {/* View Mode Tabs */}
             <div className="flex items-center bg-muted/50 rounded-xl p-1">
               {(['day', 'week', 'month'] as ViewMode[]).map((mode) => (
@@ -437,8 +539,11 @@ export default function CalendarPage() {
                             )}
                           >
                             {day.date.getDate()}
-                            {day.hasTasks && !day.isToday && (
-                              <div className="absolute bottom-1 w-1 h-1 rounded-full bg-primary" />
+                            {(day.hasTasks || day.hasGoogleEvents) && !day.isToday && (
+                              <div className="absolute bottom-1 flex gap-0.5">
+                                {day.hasTasks && <div className="w-1 h-1 rounded-full bg-primary" />}
+                                {day.hasGoogleEvents && <div className="w-1 h-1 rounded-full bg-blue-500" />}
+                              </div>
                             )}
                           </button>
                         ))}
@@ -449,14 +554,14 @@ export default function CalendarPage() {
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                        <h3 className="font-semibold text-sm">Tasks for this day</h3>
+                        <h3 className="font-semibold text-sm">Tasks</h3>
                         <Badge variant="secondary" className="ml-auto">
                           {dayData.tasks.length}
                         </Badge>
                       </div>
 
                       {dayData.tasks.length > 0 ? (
-                        <div className="space-y-2 max-h-64 overflow-y-auto no-scrollbar">
+                        <div className="space-y-2 max-h-40 overflow-y-auto no-scrollbar">
                           {dayData.tasks.map((task) => (
                             <motion.div
                               key={task._id}
@@ -501,20 +606,71 @@ export default function CalendarPage() {
                           ))}
                         </div>
                       ) : (
-                        <div className="text-center py-8 text-muted-foreground">
-                          <CalendarDays className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                        <div className="text-center py-4 text-muted-foreground">
                           <p className="text-sm">No tasks scheduled</p>
                           <Button
                             variant="link"
                             size="sm"
                             onClick={openCreateModalForCurrentView}
-                            className="mt-2"
+                            className="mt-1"
                           >
                             Add a task
                           </Button>
                         </div>
                       )}
                     </div>
+
+                    {/* Google Calendar Events */}
+                    {isGoogleConnected && (
+                      <div className="mt-4 pt-4 border-t">
+                        <div className="flex items-center gap-2 mb-3">
+                          <svg viewBox="0 0 24 24" className="w-4 h-4">
+                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                          </svg>
+                          <h3 className="font-semibold text-sm">Google Calendar</h3>
+                          <Badge variant="secondary" className="ml-auto bg-blue-500/10 text-blue-600">
+                            {dayData.googleEvents.length}
+                          </Badge>
+                        </div>
+
+                        {dayData.googleEvents.length > 0 ? (
+                          <div className="space-y-2 max-h-40 overflow-y-auto no-scrollbar">
+                            {dayData.googleEvents.map((event) => (
+                              <motion.div
+                                key={event.id}
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                onClick={() => event.htmlLink && window.open(event.htmlLink, '_blank')}
+                                className={cn(
+                                  'p-3 rounded-xl cursor-pointer transition-all hover:scale-[1.02]',
+                                  'bg-blue-500/5 border border-blue-500/20 hover:border-blue-500/40'
+                                )}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div className="w-3 h-3 rounded-full shrink-0 mt-0.5 bg-blue-500 ring-2 ring-offset-2 ring-offset-background ring-blue-500/30" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{event.title}</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <Clock className="h-3 w-3 text-muted-foreground" />
+                                      <span className="text-xs text-muted-foreground">
+                                        {event.isAllDay ? 'All day' : formatEventTime(event.start)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-4 text-muted-foreground">
+                            <p className="text-sm">No events scheduled</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </Card>
 
                   {/* Day Timeline */}
@@ -594,7 +750,18 @@ export default function CalendarPage() {
                           'min-h-[60px] border-l border-b p-1',
                           day.isToday && 'bg-primary/5'
                         )}>
-                          {day.tasks.slice(0, 3).map((task) => (
+                          {/* Google Calendar Events */}
+                          {day.googleEvents.slice(0, 2).map((event) => (
+                            <div
+                              key={event.id}
+                              onClick={() => event.htmlLink && window.open(event.htmlLink, '_blank')}
+                              className="text-xs px-2 py-1 mb-1 rounded-lg truncate cursor-pointer transition-all hover:scale-[1.02] bg-blue-500/20 text-blue-600 border-l-[3px] border-blue-500"
+                            >
+                              {event.title}
+                            </div>
+                          ))}
+                          {/* Tasks */}
+                          {day.tasks.slice(0, day.googleEvents.length > 0 ? 1 : 3).map((task) => (
                             <div
                               key={task._id}
                               onClick={() => setSelectedTask(task)}
@@ -608,9 +775,9 @@ export default function CalendarPage() {
                               {task.title}
                             </div>
                           ))}
-                          {day.tasks.length > 3 && (
+                          {(day.tasks.length + day.googleEvents.length) > 3 && (
                             <div className="text-xs text-muted-foreground px-2">
-                              +{day.tasks.length - 3} more
+                              +{(day.tasks.length + day.googleEvents.length) - 3} more
                             </div>
                           )}
                         </div>
@@ -691,16 +858,41 @@ export default function CalendarPage() {
                           >
                             {day.date.getDate()}
                           </span>
-                          {day.tasks.length > 0 && (
-                            <Badge variant="secondary" className="text-[10px] h-4 px-1.5 hidden sm:flex">
-                              {day.tasks.length}
-                            </Badge>
+                          {(day.tasks.length > 0 || day.googleEvents.length > 0) && (
+                            <div className="hidden sm:flex gap-1">
+                              {day.tasks.length > 0 && (
+                                <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                                  {day.tasks.length}
+                                </Badge>
+                              )}
+                              {day.googleEvents.length > 0 && (
+                                <Badge variant="secondary" className="text-[10px] h-4 px-1.5 bg-blue-500/10 text-blue-600">
+                                  {day.googleEvents.length}
+                                </Badge>
+                              )}
+                            </div>
                           )}
                         </div>
 
-                        {/* Tasks */}
+                        {/* Tasks & Google Events */}
                         <div className="px-1 space-y-0.5 overflow-hidden pb-1">
-                          {day.tasks.slice(0, 3).map((task) => (
+                          {/* Google Calendar Events */}
+                          {day.googleEvents.slice(0, 2).map((event) => (
+                            <div
+                              key={event.id}
+                              onClick={() => event.htmlLink && window.open(event.htmlLink, '_blank')}
+                              className={cn(
+                                'flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] sm:text-xs cursor-pointer truncate',
+                                'hover:scale-[1.02] transition-all bg-blue-500/10 border-l-2 border-blue-500'
+                              )}
+                            >
+                              <span className="truncate text-blue-700 dark:text-blue-400 font-medium">
+                                {event.title}
+                              </span>
+                            </div>
+                          ))}
+                          {/* Tasks */}
+                          {day.tasks.slice(0, day.googleEvents.length > 0 ? 1 : 3).map((task) => (
                             <div
                               key={task._id}
                               onClick={() => setSelectedTask(task)}
@@ -719,19 +911,25 @@ export default function CalendarPage() {
                               </span>
                             </div>
                           ))}
-                          {day.tasks.length > 3 && (
+                          {(day.tasks.length + day.googleEvents.length) > 3 && (
                             <div className="text-[10px] text-muted-foreground px-1.5 sm:px-2 font-medium">
-                              +{day.tasks.length - 3} more
+                              +{(day.tasks.length + day.googleEvents.length) - 3} more
                             </div>
                           )}
                         </div>
 
-                        {/* Mobile task indicator dots */}
-                        {day.tasks.length > 0 && (
+                        {/* Mobile task/event indicator dots */}
+                        {(day.tasks.length > 0 || day.googleEvents.length > 0) && (
                           <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5 sm:hidden">
-                            {day.tasks.slice(0, 3).map((task, i) => (
+                            {day.googleEvents.slice(0, 2).map((_, i) => (
                               <div
-                                key={i}
+                                key={`g-${i}`}
+                                className="w-1.5 h-1.5 rounded-full bg-blue-500"
+                              />
+                            ))}
+                            {day.tasks.slice(0, 3 - day.googleEvents.length).map((task, i) => (
+                              <div
+                                key={`t-${i}`}
                                 className="w-1.5 h-1.5 rounded-full"
                                 style={{ backgroundColor: getProjectColor(task) }}
                               />

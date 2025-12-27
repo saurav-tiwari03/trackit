@@ -265,7 +265,7 @@ export function TaskModal({ task, isOpen, onClose, onOpenTask }: TaskModalProps)
           setSubtasks([]);
         } finally {
           setIsLoadingSubtasks(false);
-        }
+    }
       })();
       return;
     }
@@ -1209,7 +1209,7 @@ export function TaskModal({ task, isOpen, onClose, onOpenTask }: TaskModalProps)
                       {completedSubtasks}/{totalSubtasks}
                     </span>
                   </div>
-                </div>
+              </div>
 
                 <CollapsibleContent>
                   <div className="mt-3 border-t border-border/40">
@@ -1316,7 +1316,7 @@ export function TaskModal({ task, isOpen, onClose, onOpenTask }: TaskModalProps)
                                         >
                                           <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" />
                                         </button>
-                                      </div>
+                  </div>
                                     );
 
                                     // Fix drag offset issues inside modals/containers with CSS transforms:
@@ -1329,8 +1329,8 @@ export function TaskModal({ task, isOpen, onClose, onOpenTask }: TaskModalProps)
                               </Draggable>
                             ))}
                             {provided.placeholder}
-                          </div>
-                        )}
+                </div>
+              )}
                       </Droppable>
                     </DragDropContext>
 
@@ -1363,47 +1363,47 @@ export function TaskModal({ task, isOpen, onClose, onOpenTask }: TaskModalProps)
                       <div className="py-3 text-xs text-muted-foreground">Loading subtasks…</div>
                     )}
 
-                    {isAddingSubtask && (
+                {isAddingSubtask && (
                       <div className="py-4 mr-4 border-b border-border/40 max-w-full overflow-hidden">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-3 min-w-0">
                           <Circle className="w-6 h-6 text-muted-foreground shrink-0" />
-                          <Input
-                            value={newSubtask}
-                            onChange={e => setNewSubtask(e.target.value)}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                handleAddSubtask();
-                              }
-                              if (e.key === 'Escape') {
-                                setIsAddingSubtask(false);
-                                setNewSubtask('');
+                    <Input
+                      value={newSubtask}
+                      onChange={e => setNewSubtask(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddSubtask();
+                        }
+                        if (e.key === 'Escape') {
+                          setIsAddingSubtask(false);
+                          setNewSubtask('');
                                 setSubtaskPriority('P4');
                                 setSubtaskDueDate(undefined);
-                              }
-                            }}
+                        }
+                      }}
                             placeholder="Add a sub-task…"
                             className="flex-1 min-w-0 h-10 text-base border-0 bg-transparent focus-visible:ring-0 px-0"
-                            autoFocus
-                          />
+                      autoFocus
+                    />
                           <div className="flex gap-2 shrink-0 sm:self-auto self-end">
-                            <Button size="sm" onClick={handleAddSubtask} disabled={!newSubtask.trim()}>
-                              Add
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setIsAddingSubtask(false);
-                                setNewSubtask('');
+                      <Button size="sm" onClick={handleAddSubtask} disabled={!newSubtask.trim()}>
+                        Add
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setIsAddingSubtask(false);
+                          setNewSubtask('');
                                 setSubtaskPriority('P4');
                                 setSubtaskDueDate(undefined);
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
 
                         {/* Extra fields + path (like reference UI) */}
                         <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2 min-w-0">
@@ -1483,8 +1483,8 @@ export function TaskModal({ task, isOpen, onClose, onOpenTask }: TaskModalProps)
                           </div>
                         </div>
                       </div>
-                    )}
-                  </div>
+                )}
+              </div>
                 </CollapsibleContent>
               </Collapsible>
             </div>

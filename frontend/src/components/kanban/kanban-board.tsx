@@ -117,9 +117,9 @@ export function KanbanBoard({ project, onTaskClick, onCreateTask }: KanbanBoardP
     // We already do optimistic updates inside moveTask.
     void moveTask(draggableId, newSectionId, newOrder)
       .then(async () => {
-        // Auto-complete task if dropped in "Completed" section
-        if (isCompletedSection) {
-          await updateTask(draggableId, { isCompleted: true, status: 'completed' });
+      // Auto-complete task if dropped in "Completed" section
+      if (isCompletedSection) {
+        await updateTask(draggableId, { isCompleted: true, status: 'completed' });
           return;
         }
 
@@ -127,10 +127,10 @@ export function KanbanBoard({ project, onTaskClick, onCreateTask }: KanbanBoardP
         // (User requirement: moving back from completed -> any other section => in_progress)
         if (isSourceCompletedSection || wasCompleted) {
           await updateTask(draggableId, { isCompleted: false, status: 'in_progress' });
-        }
+      }
       })
       .catch((error) => {
-        console.error('Failed to move task:', error);
+      console.error('Failed to move task:', error);
         toast.error('Failed to move task');
       });
   }, [moveTask, updateTask, project.sections, tasks]);
@@ -219,25 +219,25 @@ export function KanbanBoard({ project, onTaskClick, onCreateTask }: KanbanBoardP
                             {(provided, snapshot) => (
                               (() => {
                                 const card = (
-                                  <div
-                                    ref={provided.innerRef}
-                                    {...provided.draggableProps}
-                                    {...provided.dragHandleProps}
-                                    className={cn(
-                                      'transition-transform duration-150',
-                                      snapshot.isDragging && 'z-50'
-                                    )}
-                                    style={{
-                                      ...provided.draggableProps.style,
-                                    }}
-                                  >
-                                    <KanbanCard
-                                      task={task}
-                                      onClick={() => !snapshot.isDragging && onTaskClick(task)}
-                                      onQuickStatusChange={(next) => void quickSetStatus(task._id, next)}
-                                      isDragging={snapshot.isDragging}
-                                    />
-                                  </div>
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                {...provided.dragHandleProps}
+                                className={cn(
+                                  'transition-transform duration-150',
+                                  snapshot.isDragging && 'z-50'
+                                )}
+                                style={{
+                                  ...provided.draggableProps.style,
+                                }}
+                              >
+                                <KanbanCard
+                                  task={task}
+                                  onClick={() => !snapshot.isDragging && onTaskClick(task)}
+                                  onQuickStatusChange={(next) => void quickSetStatus(task._id, next)}
+                                  isDragging={snapshot.isDragging}
+                                />
+                              </div>
                                 );
 
                                 // Fix “lift/offset” issues when dragging inside containers with transforms

@@ -16,6 +16,7 @@ import {
   Inbox,
   Bell,
   MessageCircle,
+  Trophy,
 } from 'lucide-react';
 
 import {
@@ -59,6 +60,7 @@ const navItems = [
   { icon: Inbox, label: 'Inbox', href: '/inbox' },
   { icon: CheckSquare, label: 'All Tasks', href: '/tasks' },
   { icon: Calendar, label: 'Calendar', href: '/calendar' },
+  { icon: Trophy, label: 'Achievements', href: '/achievements' },
   { icon: MessageCircle, label: 'Slack', href: '/slack' },
   { icon: Bell, label: 'Notifications', href: '/notifications' },
   { icon: Settings, label: 'Settings', href: '/settings' },
@@ -251,7 +253,7 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton className="w-full cursor-pointer">
+                <SidebarMenuButton className="w-full cursor-pointer py-4">
                   <Avatar className="h-6 w-6">
                     <AvatarFallback className="text-xs">
                       {user?.name ? getInitials(user.name) : 'U'}

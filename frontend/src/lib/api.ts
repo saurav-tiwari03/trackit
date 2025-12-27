@@ -160,5 +160,15 @@ export const chatsAPI = {
   },
 };
 
+// Calendar API
+export const calendarAPI = {
+  getGoogleAuthUrl: () => api.get('/calendar/google/auth'),
+  getGoogleStatus: () => api.get('/calendar/google/status'),
+  disconnectGoogle: () => api.delete('/calendar/google/disconnect'),
+  getGoogleEvents: (params?: { timeMin?: string; timeMax?: string }) =>
+    api.get('/calendar/google/events', { params }),
+  getGoogleCalendars: () => api.get('/calendar/google/calendars'),
+};
+
 export default api;
 
