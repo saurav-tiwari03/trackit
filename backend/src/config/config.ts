@@ -21,3 +21,11 @@ export const AWS_S3_CONFIG = {
   AWS_BUCKET_NAME: process.env.AWS_BUCKET_NAME || '',
   AWS_REGION: process.env.AWS_REGION || '',
 };
+
+export const GOOGLE_CONFIG = {
+  CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '',
+  CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || '',
+  REDIRECT_URI:
+    process.env.GOOGLE_REDIRECT_URI ||
+    'http://localhost:5000/api/calendar/google/callback',
+};

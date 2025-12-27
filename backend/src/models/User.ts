@@ -1,6 +1,13 @@
 import { Schema, model, Document, Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
+export interface IGoogleCalendarTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiryDate: number;
+  email?: string;
+}
+
 export interface IUser extends Document {
   _id: Types.ObjectId;
   name: string;
@@ -8,6 +15,7 @@ export interface IUser extends Document {
   password: string;
   avatar?: string;
   labels: string[];
+  googleCalendar?: IGoogleCalendarTokens;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -42,6 +50,12 @@ const userSchema = new Schema<IUser>(
     labels: {
       type: [String],
       default: [],
+    },
+    googleCalendar: {
+      accessToken: { type: String },
+      refreshToken: { type: String },
+      expiryDate: { type: Number },
+      email: { type: String },
     },
   },
   {

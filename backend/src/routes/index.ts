@@ -6,6 +6,7 @@ import commentRoutes from './comment.routes';
 import notificationRoutes from './notification.routes';
 import userRoutes from './user.routes';
 import chatRoutes from './chat.routes';
+import calendarRoutes from './calendar.routes';
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.use('/comments', commentRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/users', userRoutes);
 router.use('/chats', chatRoutes);
+router.use('/calendar', calendarRoutes);
 
 export default router;
