@@ -147,6 +147,15 @@ export const notificationsAPI = {
 export const usersAPI = {
   search: (query: string) => api.get('/users/search', { params: { query } }),
   getOne: (id: string) => api.get(`/users/${id}`),
+  updateProfile: (data: { name?: string }) => api.put('/users/profile', data),
+  uploadAvatar: (file: File) => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    return api.post('/users/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  removeAvatar: () => api.delete('/users/avatar'),
 };
 
 // Chats API (attachments are uploaded via HTTP; messages via sockets)

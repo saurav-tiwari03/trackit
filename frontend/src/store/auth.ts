@@ -15,6 +15,8 @@ interface AuthState {
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   checkAuth: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  updateUser: (userData: Partial<User>) => void;
   setHydrated: () => void;
 }
 
@@ -92,17 +94,17 @@ export const useAuthStore = create<AuthState>()(
 
       checkAuth: async () => {
         const { token, isAuthenticated, user } = get();
-        
+
         // If already authenticated with user data, skip API call
         if (isAuthenticated && user && token) {
           syncTokenToStorage(token);
           return;
         }
-        
+
         // Check localStorage as fallback
         const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
         const effectiveToken = token || storedToken;
-        
+
         if (!effectiveToken) {
           set({ isAuthenticated: false, user: null, token: null });
           return;
@@ -121,6 +123,37 @@ export const useAuthStore = create<AuthState>()(
         } catch {
           syncTokenToStorage(null);
           set({ isAuthenticated: false, user: null, token: null });
+        }
+      },
+
+      // Force refresh user data from server
+      refreshUser: async () => {
+        const { token } = get();
+        const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        const effectiveToken = token || storedToken;
+
+        if (!effectiveToken) {
+          return;
+        }
+
+        try {
+          const response = await authAPI.getMe();
+          set({
+            user: response.data.data,
+            isAuthenticated: true,
+          });
+        } catch (error) {
+          console.error('Failed to refresh user:', error);
+        }
+      },
+
+      // Update user data locally (without API call)
+      updateUser: (userData: Partial<User>) => {
+        const { user } = get();
+        if (user) {
+          set({
+            user: { ...user, ...userData },
+          });
         }
       },
     }),

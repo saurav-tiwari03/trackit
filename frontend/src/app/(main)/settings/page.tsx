@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { User, Bell, Palette, Shield, LogOut, Calendar, Check, Loader2, ExternalLink, Unlink } from 'lucide-react';
+import { User, Bell, Palette, Shield, LogOut, Calendar, Check, Loader2, ExternalLink, Unlink, Camera, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuthStore } from '@/store/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { calendarAPI } from '@/lib/api';
+import { calendarAPI, usersAPI } from '@/lib/api';
 import { toast } from 'sonner';
 
 interface GoogleCalendarStatus {
@@ -19,15 +20,31 @@ interface GoogleCalendarStatus {
 function SettingsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, logout } = useAuthStore();
+  const { user, logout, refreshUser, updateUser } = useAuthStore();
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
+  const [avatar, setAvatar] = useState(user?.avatar || '');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Profile update state
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isRemovingAvatar, setIsRemovingAvatar] = useState(false);
 
   // Google Calendar state
   const [googleCalendarStatus, setGoogleCalendarStatus] = useState<GoogleCalendarStatus | null>(null);
   const [isLoadingCalendarStatus, setIsLoadingCalendarStatus] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+
+  // Update local state when user changes
+  useEffect(() => {
+    if (user) {
+      setName(user.name || '');
+      setEmail(user.email || '');
+      setAvatar(user.avatar || '');
+    }
+  }, [user]);
 
   // Check for OAuth callback result
   useEffect(() => {
@@ -91,6 +108,87 @@ function SettingsContent() {
     }
   };
 
+  const handleSaveProfile = async () => {
+    try {
+      setIsSavingProfile(true);
+      const response = await usersAPI.updateProfile({ name });
+      // Update user state directly
+      updateUser(response.data.data);
+      toast.success('Profile updated successfully');
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      toast.error('Failed to update profile');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File too large. Maximum size is 5MB.');
+      return;
+    }
+
+    try {
+      setIsUploadingAvatar(true);
+      const response = await usersAPI.uploadAvatar(file);
+      const newAvatar = response.data.data.avatar;
+      setAvatar(newAvatar);
+      // Update user state directly
+      updateUser({ avatar: newAvatar });
+      toast.success('Profile picture updated');
+    } catch (error) {
+      console.error('Failed to upload avatar:', error);
+      toast.error('Failed to upload profile picture');
+    } finally {
+      setIsUploadingAvatar(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    try {
+      setIsRemovingAvatar(true);
+      await usersAPI.removeAvatar();
+      setAvatar('');
+      // Update user state directly
+      updateUser({ avatar: '' });
+      toast.success('Profile picture removed');
+    } catch (error) {
+      console.error('Failed to remove avatar:', error);
+      toast.error('Failed to remove profile picture');
+    } finally {
+      setIsRemovingAvatar(false);
+    }
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
   const handleLogout = () => {
     logout();
     router.push('/login');
@@ -144,7 +242,84 @@ function SettingsContent() {
                   Manage your personal information
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
+                {/* Avatar Section */}
+                <div className="flex items-center gap-6">
+                  <div className="relative group">
+                    <Avatar className="w-24 h-24 border-4 border-background shadow-lg">
+                      {avatar ? (
+                        <AvatarImage src={avatar} alt={name} />
+                      ) : null}
+                      <AvatarFallback
+                        className="text-2xl"
+                        style={{
+                          backgroundColor: name ? `hsl(${(name.charCodeAt(0) * 37) % 360}, 70%, 50%)` : undefined,
+                          color: 'white',
+                        }}
+                      >
+                        {name ? getInitials(name) : 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                    {/* Upload overlay */}
+                    <button
+                      onClick={handleAvatarClick}
+                      disabled={isUploadingAvatar}
+                      className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    >
+                      {isUploadingAvatar ? (
+                        <Loader2 className="w-6 h-6 text-white animate-spin" />
+                      ) : (
+                        <Camera className="w-6 h-6 text-white" />
+                      )}
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      onChange={handleAvatarChange}
+                      className="hidden"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="font-medium">Profile Picture</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Click on the avatar to upload a new picture
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAvatarClick}
+                        disabled={isUploadingAvatar}
+                      >
+                        {isUploadingAvatar ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Camera className="w-4 h-4 mr-2" />
+                        )}
+                        Upload
+                      </Button>
+                      {avatar && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleRemoveAvatar}
+                          disabled={isRemovingAvatar}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          {isRemovingAvatar ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4 mr-2" />
+                          )}
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Name & Email Section */}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Full Name</label>
@@ -159,12 +334,17 @@ function SettingsContent() {
                     <Input
                       type="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      disabled
+                      className="bg-muted"
                       placeholder="your@email.com"
                     />
+                    <p className="text-xs text-muted-foreground">Email cannot be changed</p>
                   </div>
                 </div>
-                <Button>Save Changes</Button>
+                <Button onClick={handleSaveProfile} disabled={isSavingProfile}>
+                  {isSavingProfile && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Save Changes
+                </Button>
               </CardContent>
             </Card>
           </motion.div>

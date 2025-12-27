@@ -44,9 +44,9 @@ export default function AchievementsPage() {
       const completedTasks = response.data.data.filter((task: Task) => task.isCompleted);
       setTasks(completedTasks);
       // Expand all projects by default
-      const projectIds = new Set(
+      const projectIds = new Set<string>(
         completedTasks.map((task: Task) =>
-          typeof task.project === 'string' ? task.project : task.project._id
+          typeof task.project === 'string' ? task.project : String(task.project._id)
         )
       );
       setExpandedProjects(projectIds);

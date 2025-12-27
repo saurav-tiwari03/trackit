@@ -49,7 +49,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuthStore } from '@/store/auth';
 import { useProjectsStore } from '@/store/projects';
 import { useNotificationsStore } from '@/store/notifications';
@@ -255,6 +255,7 @@ export function AppSidebar() {
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton className="w-full cursor-pointer py-4">
                   <Avatar className="h-6 w-6">
+                    {user?.avatar && <AvatarImage src={user.avatar} alt={user.name} />}
                     <AvatarFallback className="text-xs">
                       {user?.name ? getInitials(user.name) : 'U'}
                     </AvatarFallback>
