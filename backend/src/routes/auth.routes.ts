@@ -1,6 +1,22 @@
 import { Router, Response } from 'express';
 import { User } from '../models';
 import { protect, generateToken, AuthRequest } from '../middleware/auth';
+import { getSignedS3Url } from '../utils/fileUpload';
+
+// Helper to get avatar URL (signed if S3 key, or original if external URL)
+const getAvatarUrl = async (avatar?: string): Promise<string> => {
+  if (!avatar) return '';
+  // If it's an S3 key (starts with 'avatars/'), generate signed URL
+  if (avatar.startsWith('avatars/')) {
+    try {
+      return await getSignedS3Url(avatar, 7 * 24 * 60 * 60); // 7 days
+    } catch {
+      return '';
+    }
+  }
+  // Otherwise return as-is (external URL or legacy)
+  return avatar;
+};
 
 const router = Router();
 
@@ -32,6 +48,8 @@ router.post('/register', async (req: AuthRequest, res: Response) => {
     // Generate token
     const token = generateToken(user._id.toString());
 
+    const avatarUrl = await getAvatarUrl(user.avatar);
+
     res.status(201).json({
       success: true,
       data: {
@@ -39,7 +57,7 @@ router.post('/register', async (req: AuthRequest, res: Response) => {
           id: user._id,
           name: user.name,
           email: user.email,
-          avatar: user.avatar,
+          avatar: avatarUrl,
           labels: user.labels || [],
         },
         token,
@@ -94,6 +112,7 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
 
     // Generate token
     const token = generateToken(user._id.toString());
+    const avatarUrl = await getAvatarUrl(user.avatar);
 
     res.status(200).json({
       success: true,
@@ -102,7 +121,7 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
           id: user._id,
           name: user.name,
           email: user.email,
-          avatar: user.avatar,
+          avatar: avatarUrl,
           labels: user.labels || [],
         },
         token,
@@ -122,13 +141,15 @@ router.post('/login', async (req: AuthRequest, res: Response) => {
 // @access  Private
 router.get('/me', protect, async (req: AuthRequest, res: Response) => {
   try {
+    const avatarUrl = await getAvatarUrl(req.user?.avatar);
+
     res.status(200).json({
       success: true,
       data: {
         id: req.user?._id,
         name: req.user?.name,
         email: req.user?.email,
-        avatar: req.user?.avatar,
+        avatar: avatarUrl,
         labels: req.user?.labels || [],
       },
     });
