@@ -328,29 +328,29 @@ export default function NotesPage() {
             {getPreviewText(note.plainText)}
           </p>
 
-          <div className="flex items-center justify-between mt-auto pt-2 border-t border-border/50">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2 mt-auto pt-2 border-t border-border/50">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               {note.project && (
                 <Badge
                   variant="secondary"
-                  className="text-xs"
+                  className="text-xs shrink-0"
                   style={{
                     backgroundColor: `${note.project.color}20`,
                     color: note.project.color,
                   }}
                 >
                   <Folder className="h-3 w-3 mr-1" />
-                  {note.project.name}
+                  <span className="truncate max-w-[100px]">{note.project.name}</span>
                 </Badge>
               )}
               {note.isFavorite && (
-                <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 shrink-0" />
               )}
               {note.isPinned && (
-                <Pin className="h-4 w-4 text-primary" />
+                <Pin className="h-4 w-4 text-primary shrink-0" />
               )}
             </div>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
               {formatDistanceToNow(new Date(note.lastEditedAt), {
                 addSuffix: true,
               })}

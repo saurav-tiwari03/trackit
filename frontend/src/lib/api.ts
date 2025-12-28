@@ -217,5 +217,21 @@ export const notesAPI = {
   toggleArchive: (id: string) => api.patch(`/notes/${id}/archive`),
 };
 
+// Habits API
+export const habitsAPI = {
+  getAll: (params?: { includeArchived?: boolean }) =>
+    api.get('/habits', { params }),
+  getStats: () => api.get('/habits/stats'),
+  create: (data: { name: string; color?: string; icon?: string }) =>
+    api.post('/habits', data),
+  update: (
+    id: string,
+    data: { name?: string; color?: string; icon?: string; isArchived?: boolean; order?: number }
+  ) => api.put(`/habits/${id}`, data),
+  delete: (id: string) => api.delete(`/habits/${id}`),
+  toggle: (id: string, date: string) =>
+    api.post(`/habits/${id}/toggle`, { date }),
+};
+
 export default api;
 

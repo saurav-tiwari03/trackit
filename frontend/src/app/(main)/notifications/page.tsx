@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Bell, CheckCheck, Dot, Trash2 } from 'lucide-react';
+import { Bell, CheckCheck, Dot, Trash2, CheckCircle2, XCircle } from 'lucide-react';
 import { useNotificationsStore } from '@/store/notifications';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -151,28 +151,48 @@ export default function NotificationsPage() {
                     )}
 
                     {isInvite && (
-                      <div className="mt-3 flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setInviteDialog({ open: true, projectId, action: 'accept' });
-                          }}
-                        >
-                          Accept
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setInviteDialog({ open: true, projectId, action: 'reject' });
-                          }}
-                        >
-                          Reject
-                        </Button>
+                      <div className="mt-3">
+                        {n.inviteStatus === 'accepted' ? (
+                          <div className="flex items-center gap-2 text-green-600">
+                            <CheckCircle2 className="h-4 w-4" />
+                            <span className="text-sm font-medium">
+                              You accepted {n.actor?.name ? `${n.actor.name}'s` : 'the'} invite to{' '}
+                              {typeof n.project === 'object' ? n.project.name : 'this project'}
+                            </span>
+                          </div>
+                        ) : n.inviteStatus === 'rejected' ? (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <XCircle className="h-4 w-4" />
+                            <span className="text-sm font-medium">
+                              You declined {n.actor?.name ? `${n.actor.name}'s` : 'the'} invite to{' '}
+                              {typeof n.project === 'object' ? n.project.name : 'this project'}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setInviteDialog({ open: true, projectId, action: 'accept' });
+                              }}
+                            >
+                              Accept
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setInviteDialog({ open: true, projectId, action: 'reject' });
+                              }}
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

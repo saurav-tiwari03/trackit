@@ -69,6 +69,52 @@ const resolveAttachmentUrl = (a: any) => {
   return `${apiOrigin}/${candidate}`;
 };
 
+// WhatsApp-style typing indicator with bouncing dots
+const TypingIndicator = ({ userName }: { userName?: string }) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 5, scale: 0.95 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className="flex items-start gap-3 max-w-[85%]"
+    >
+      <Avatar className="h-8 w-8 mt-1">
+        <AvatarFallback>{userName?.substring(0, 2).toUpperCase() || '?'}</AvatarFallback>
+      </Avatar>
+      <div className="flex flex-col items-start">
+        <div className="flex items-baseline gap-2 mb-1 px-1">
+          <span className="text-xs font-semibold">{userName || 'User'}</span>
+        </div>
+        <motion.div
+          initial={{ scale: 0.9 }}
+          animate={{ scale: 1 }}
+          transition={{ duration: 0.15, ease: "easeOut" }}
+          className="bg-muted rounded-2xl rounded-tl-none px-4 py-3 shadow-sm"
+        >
+          <div className="flex items-center gap-1.5">
+            <motion.span
+              className="w-2 h-2 bg-muted-foreground/50 rounded-full"
+              animate={{ y: [0, -5, 0], opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut", delay: 0 }}
+            />
+            <motion.span
+              className="w-2 h-2 bg-muted-foreground/50 rounded-full"
+              animate={{ y: [0, -5, 0], opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
+            />
+            <motion.span
+              className="w-2 h-2 bg-muted-foreground/50 rounded-full"
+              animate={{ y: [0, -5, 0], opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+            />
+          </div>
+        </motion.div>
+      </div>
+    </motion.div>
+  );
+};
+
 const MinimalVideoPlayer = ({ src, className }: { src: string; className?: string }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -129,7 +175,11 @@ export default function SlackPage() {
     leaveRoom,
     acceptChat,
     isLoadingChats,
-    isLoadingMessages
+    isLoadingMessages,
+    onlineUsers,
+    typingUsers,
+    startTyping,
+    stopTyping,
   } = useChatStore();
 
   const [newMessage, setNewMessage] = useState('');
@@ -152,6 +202,9 @@ export default function SlackPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isTypingRef = useRef(false);
 
   const [pdfNumPages, setPdfNumPages] = useState(0);
   const [pdfCurrentPage, setPdfCurrentPage] = useState(1);
@@ -279,6 +332,13 @@ export default function SlackPage() {
     fetchChats();
 
     return () => {
+      // Clean up typing state on unmount
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      if (typingIntervalRef.current) {
+        clearInterval(typingIntervalRef.current);
+      }
       disconnect();
     };
   }, [setOpen, connect, disconnect, fetchChats]);
@@ -320,9 +380,53 @@ export default function SlackPage() {
     return () => clearTimeout(debounce);
   }, [userSearchQuery]);
 
+  const handleTyping = () => {
+    // Send typing event immediately
+    startTyping();
+
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      
+      // Keep sending typing events every 2 seconds while user is typing
+      typingIntervalRef.current = setInterval(() => {
+        startTyping();
+      }, 2000);
+    }
+
+    // Clear existing stop timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // Set timeout to stop typing after 2.5 seconds of inactivity
+    typingTimeoutRef.current = setTimeout(() => {
+      isTypingRef.current = false;
+      if (typingIntervalRef.current) {
+        clearInterval(typingIntervalRef.current);
+        typingIntervalRef.current = null;
+      }
+      stopTyping();
+    }, 2500);
+  };
+
   const handleSendMessage = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!newMessage.trim() && pendingAttachments.length === 0) return;
+
+    // Clear typing state
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    if (typingIntervalRef.current) {
+      clearInterval(typingIntervalRef.current);
+      typingIntervalRef.current = null;
+    }
+    if (isTypingRef.current) {
+      isTypingRef.current = false;
+      stopTyping();
+    }
+
     sendMessage(newMessage, pendingAttachments);
     setNewMessage('');
     setPendingAttachments([]);
@@ -395,13 +499,27 @@ export default function SlackPage() {
         Details
       </div>
       <div className="p-6 flex flex-col items-center text-center shrink-0">
-        <Avatar className="h-24 w-24 mb-4">
-          <AvatarFallback className="text-2xl">
-            {otherParticipant?.name?.substring(0, 2).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
+        <div className="relative mb-4">
+          <Avatar className="h-24 w-24">
+            <AvatarFallback className="text-2xl">
+              {otherParticipant?.name?.substring(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          {otherParticipant?._id && onlineUsers.includes(otherParticipant._id) && (
+            <span className="absolute bottom-1 right-1 h-5 w-5 rounded-full bg-green-500 border-3 border-sidebar" />
+          )}
+        </div>
         <h2 className="text-xl font-semibold">{otherParticipant?.name}</h2>
         <p className="text-sm text-muted-foreground">{otherParticipant?.email}</p>
+        <div className="flex items-center gap-1.5 mt-1">
+          <span className={cn(
+            "h-2 w-2 rounded-full",
+            otherParticipant?._id && onlineUsers.includes(otherParticipant._id) ? "bg-green-500" : "bg-gray-400"
+          )} />
+          <span className="text-xs text-muted-foreground">
+            {otherParticipant?._id && onlineUsers.includes(otherParticipant._id) ? "Online" : "Offline"}
+          </span>
+        </div>
 
         <div className="flex gap-3 mt-6 w-full">
           <Button variant="outline" className="flex-1 gap-2">
@@ -578,9 +696,14 @@ export default function SlackPage() {
                   isActive ? 'bg-accent text-accent-foreground' : 'hover:bg-muted'
                 )}
               >
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback>{other?.name?.substring(0, 2).toUpperCase()}</AvatarFallback>
-                </Avatar>
+                <div className="relative">
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback>{other?.name?.substring(0, 2).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  {other?._id && onlineUsers.includes(other._id) && (
+                    <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 border-2 border-sidebar" />
+                  )}
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-medium truncate">{other?.name}</span>
@@ -590,9 +713,33 @@ export default function SlackPage() {
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {chat.lastMessage?.content || 'Start a conversation'}
-                  </p>
+                  <div className="text-xs text-muted-foreground truncate h-4 overflow-hidden">
+                    <AnimatePresence mode="wait">
+                      {typingUsers[chat._id] ? (
+                        <motion.span
+                          key={`typing-${chat._id}`}
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          transition={{ duration: 0.15 }}
+                          className="text-green-600 font-medium block"
+                        >
+                          typing...
+                        </motion.span>
+                      ) : (
+                        <motion.span
+                          key={`msg-${chat._id}`}
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          transition={{ duration: 0.15 }}
+                          className="block"
+                        >
+                          {chat.lastMessage?.content || 'Start a conversation'}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
                 {chat.unreadCount ? (
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
@@ -667,20 +814,52 @@ export default function SlackPage() {
                     >
                       <ArrowLeft className="h-4 w-4" />
                     </Button>
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback>{otherParticipant?.name?.substring(0, 2).toUpperCase()}</AvatarFallback>
-                    </Avatar>
+                    <div className="relative">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback>{otherParticipant?.name?.substring(0, 2).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                      {otherParticipant?._id && onlineUsers.includes(otherParticipant._id) && (
+                        <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 border-2 border-background" />
+                      )}
+                    </div>
                     <div>
                       <h2 className="font-semibold text-sm">{otherParticipant?.name}</h2>
-                      {otherParticipant?.status && (
-                        <div className="flex items-center gap-1.5">
-                          <span className={cn(
-                            "h-2 w-2 rounded-full",
-                            otherParticipant.status === 'online' ? "bg-green-500" : "bg-gray-400"
-                          )} />
-                          <span className="text-xs text-muted-foreground capitalize">{otherParticipant.status}</span>
-                        </div>
-                      )}
+                      <AnimatePresence mode="wait">
+                        {activeChat && typingUsers[activeChat._id] ? (
+                          <motion.span
+                            key="typing"
+                            initial={{ opacity: 0, y: -2 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 2 }}
+                            transition={{ duration: 0.15 }}
+                            className="text-xs text-green-600 font-medium block"
+                          >
+                            typing...
+                          </motion.span>
+                        ) : otherParticipant?._id && onlineUsers.includes(otherParticipant._id) ? (
+                          <motion.span
+                            key="online"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.15 }}
+                            className="text-xs text-green-600 block"
+                          >
+                            Online
+                          </motion.span>
+                        ) : (
+                          <motion.span
+                            key="offline"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.15 }}
+                            className="text-xs text-muted-foreground block"
+                          >
+                            Offline
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -893,6 +1072,13 @@ export default function SlackPage() {
                     </div>
                   )}
 
+                  {/* Typing Indicator */}
+                  <AnimatePresence mode="wait">
+                    {activeChat && typingUsers[activeChat._id] && (
+                      <TypingIndicator key="typing-indicator" userName={typingUsers[activeChat._id].userName} />
+                    )}
+                  </AnimatePresence>
+
                   {/* Scroll anchor to keep latest message visible */}
                   <div ref={bottomRef} />
                 </div>
@@ -977,7 +1163,12 @@ export default function SlackPage() {
 
                   <Input
                     value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
+                    onChange={(e) => {
+                      setNewMessage(e.target.value);
+                      if (e.target.value.trim()) {
+                        handleTyping();
+                      }
+                    }}
                     placeholder={isPending && !isIncomingRequest ? "Waiting for acceptance..." : "Type a message..."}
                     className="pr-20 min-h-[44px] py-3"
                     disabled={isPending && !isIncomingRequest} // Logic for 72h timeout could be here

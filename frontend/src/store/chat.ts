@@ -44,6 +44,11 @@ export interface Chat {
   initiator?: string; // User ID who started the chat
 }
 
+interface TypingUser {
+  odName: string;
+  userName: string;
+}
+
 interface ChatState {
   socket: Socket | null;
   isConnected: boolean;
@@ -53,6 +58,7 @@ interface ChatState {
   isLoadingChats: boolean;
   isLoadingMessages: boolean;
   onlineUsers: string[];
+  typingUsers: Record<string, TypingUser>; // Map of chatId -> { odName }
 
   // Actions
   connect: () => void;
@@ -62,6 +68,8 @@ interface ChatState {
   sendMessage: (content: string, attachments?: Attachment[]) => void;
   acceptChat: (chatId: string) => void;
   leaveRoom: () => void;
+  startTyping: () => void;
+  stopTyping: () => void;
 }
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
@@ -75,6 +83,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isLoadingChats: false,
   isLoadingMessages: false,
   onlineUsers: [],
+  typingUsers: {},
 
   connect: () => {
     const { socket } = get();
@@ -239,6 +248,56 @@ export const useChatStore = create<ChatState>((set, get) => ({
       get().fetchChats();
     });
 
+    // Online/Offline presence events
+    newSocket.on('onlineUsers', (data: { users: string[] }) => {
+      set({ onlineUsers: data.users });
+    });
+
+    newSocket.on('userOnline', (data: { userId: string }) => {
+      const { onlineUsers } = get();
+      if (!onlineUsers.includes(data.userId)) {
+        set({ onlineUsers: [...onlineUsers, data.userId] });
+      }
+    });
+
+    newSocket.on('userOffline', (data: { userId: string }) => {
+      const { onlineUsers, typingUsers } = get();
+      set({
+        onlineUsers: onlineUsers.filter((id) => id !== data.userId),
+      });
+      // Also clear typing state for this user
+      const updatedTyping = { ...typingUsers };
+      Object.keys(updatedTyping).forEach((chatId) => {
+        if (updatedTyping[chatId]?.odName === data.userId) {
+          delete updatedTyping[chatId];
+        }
+      });
+      set({ typingUsers: updatedTyping });
+    });
+
+    // Typing indicator events
+    newSocket.on(
+      'userTyping',
+      (data: { chatId: string; userId: string; userName: string }) => {
+        const { typingUsers } = get();
+        set({
+          typingUsers: {
+            ...typingUsers,
+            [data.chatId]: { odName: data.userId, userName: data.userName },
+          },
+        });
+      }
+    );
+
+    newSocket.on('userStoppedTyping', (data: { chatId: string; userId: string }) => {
+      const { typingUsers } = get();
+      const updatedTyping = { ...typingUsers };
+      if (updatedTyping[data.chatId]?.odName === data.userId) {
+        delete updatedTyping[data.chatId];
+      }
+      set({ typingUsers: updatedTyping });
+    });
+
     set({ socket: newSocket });
   },
 
@@ -329,6 +388,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   leaveRoom: () => {
+    const { socket, activeChat } = get();
+    // Stop typing when leaving room
+    if (socket && activeChat) {
+      socket.emit('stopTyping', { chatId: activeChat._id });
+    }
     set({ activeChat: null, messages: [] });
-  }
+  },
+
+  startTyping: () => {
+    const { socket, activeChat } = get();
+    if (!socket || !activeChat) return;
+    socket.emit('typing', { chatId: activeChat._id });
+  },
+
+  stopTyping: () => {
+    const { socket, activeChat } = get();
+    if (!socket || !activeChat) return;
+    socket.emit('stopTyping', { chatId: activeChat._id });
+  },
 }));

@@ -85,6 +85,7 @@ export interface Comment {
 }
 
 export type NotificationType = 'project_invite' | 'mention';
+export type InviteStatus = 'pending' | 'accepted' | 'rejected';
 
 export interface Notification {
   _id: string;
@@ -97,6 +98,7 @@ export interface Notification {
   task?: string;
   comment?: string;
   readAt?: string | null;
+  inviteStatus?: InviteStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -106,5 +108,32 @@ export interface TaskStats {
   overdue: number;
   inProgress: number;
   completed: number;
+}
+
+export interface HabitCompletion {
+  date: string;
+  completed: boolean;
+}
+
+export interface Habit {
+  _id: string;
+  user: string;
+  name: string;
+  color: string;
+  icon?: string;
+  completions: HabitCompletion[];
+  currentStreak: number;
+  longestStreak: number;
+  isArchived: boolean;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HabitStats {
+  totalHabits: number;
+  totalCompletions: number;
+  longestStreak: number;
+  activeStreaks: number;
 }
 

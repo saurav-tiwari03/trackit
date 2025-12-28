@@ -43,9 +43,9 @@ function FloatingAddButton() {
     <>
       <button
         onClick={() => setIsCreateModalOpen(true)}
-        className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-foreground text-background shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center"
+        className="fixed bottom-6 right-6 z-50 h-11 w-11 rounded-full bg-foreground text-background shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center"
       >
-        <Plus className="h-6 w-6" strokeWidth={2} />
+        <Plus className="h-5 w-5" strokeWidth={2.5} />
       </button>
 
       <CreateTaskModal

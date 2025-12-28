@@ -18,6 +18,7 @@ import {
   MessageCircle,
   Trophy,
   StickyNote,
+  Flame,
 } from 'lucide-react';
 
 import {
@@ -59,10 +60,11 @@ import { cn } from '@/lib/utils';
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard', color: 'text-blue-500' },
   { icon: Inbox, label: 'Inbox', href: '/inbox', color: 'text-violet-500' },
+  { icon: Flame, label: 'Streaks', href: '/streaks', color: 'text-orange-500' },
   { icon: CheckSquare, label: 'All Tasks', href: '/tasks', color: 'text-green-500' },
-  { icon: Calendar, label: 'Calendar', href: '/calendar', color: 'text-orange-500' },
-  { icon: StickyNote, label: 'Notes', href: '/notes', color: 'text-amber-500' },
-  { icon: Trophy, label: 'Achievements', href: '/achievements', color: 'text-yellow-500' },
+  { icon: Calendar, label: 'Calendar', href: '/calendar', color: 'text-amber-500' },
+  { icon: StickyNote, label: 'Notes', href: '/notes', color: 'text-yellow-500' },
+  { icon: Trophy, label: 'Achievements', href: '/achievements', color: 'text-teal-500' },
   { icon: MessageCircle, label: 'Slack', href: '/slack', color: 'text-pink-500' },
   { icon: Bell, label: 'Notifications', href: '/notifications', color: 'text-red-500' },
   { icon: Settings, label: 'Settings', href: '/settings', color: 'text-gray-500' },
@@ -113,10 +115,18 @@ export function AppSidebar() {
     >
       <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-2">
         <div className="flex items-center justify-between h-8 group-data-[collapsible=icon]:hidden">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <span className="font-bold text-sm">T</span>
-            </div>
+          <Link
+            href="/"
+            className="flex items-center gap-2"
+            onClick={() => {
+              if (isMobile) setOpen(false);
+            }}
+          >
+            <img
+              src="/logo.png"
+              alt="TrackIt"
+              className="h-8 w-8 rounded-lg object-contain"
+            />
             <span className="font-semibold text-lg">TrackIt</span>
           </Link>
           <Button
@@ -218,7 +228,12 @@ export function AppSidebar() {
                             asChild
                             isActive={pathname === `/projects/${project._id}`}
                           >
-                            <Link href={`/projects/${project._id}`}>
+                            <Link
+                              href={`/projects/${project._id}`}
+                              onClick={() => {
+                                if (isMobile) setOpen(false);
+                              }}
+                            >
                               <span
                                 className="h-2 w-2 rounded-full shrink-0"
                                 style={{ backgroundColor: project.color }}
@@ -272,13 +287,21 @@ export function AppSidebar() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56">
                 <DropdownMenuItem asChild>
-                  <Link href="/settings">
+                  <Link
+                    href="/settings"
+                    onClick={() => {
+                      if (isMobile) setOpen(false);
+                    }}
+                  >
                     <Settings className="mr-2 h-4 w-4" />
                     Settings
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout}>
+                <DropdownMenuItem onClick={() => {
+                  if (isMobile) setOpen(false);
+                  handleLogout();
+                }}>
                   <LogOut className="mr-2 h-4 w-4" />
                   Logout
                 </DropdownMenuItem>
