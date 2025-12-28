@@ -21,6 +21,17 @@ const s3 = isS3Enabled
     })
   : null;
 
+// Track online users: Map<userId, Set<socketId>>
+const onlineUsers = new Map<string, Set<string>>();
+
+// Track typing status: Map<chatId, Set<userId>>
+const typingUsers = new Map<string, Set<string>>();
+
+// Typing timeout handles: Map<`${chatId}:${userId}`, NodeJS.Timeout>
+const typingTimeouts = new Map<string, NodeJS.Timeout>();
+
+const TYPING_TIMEOUT_MS = 4000;
+
 async function attachPreviewUrls(message: any) {
   if (!message?.attachments?.length) return message;
   const attachments = await Promise.all(
@@ -74,12 +85,30 @@ export const initSockets = (io: Server) => {
 
   io.on('connection', (socket: AuthSocket) => {
     const authedUser = socket.data.user;
+    const userId = authedUser?._id?.toString();
     console.log(
       `User connected: ${authedUser?.name ?? 'Unknown'} (${socket.id})`
     );
 
     // Join a personal room for notifications
-    if (authedUser?._id) socket.join(`user:${authedUser._id.toString()}`);
+    if (userId) {
+      socket.join(`user:${userId}`);
+
+      // Track online status
+      if (!onlineUsers.has(userId)) {
+        onlineUsers.set(userId, new Set());
+      }
+      onlineUsers.get(userId)!.add(socket.id);
+
+      // Broadcast user came online (only if first socket)
+      if (onlineUsers.get(userId)!.size === 1) {
+        io.emit('userOnline', { userId });
+      }
+
+      // Send current online users list to the newly connected socket
+      const onlineList = Array.from(onlineUsers.keys());
+      socket.emit('onlineUsers', { users: onlineList });
+    }
 
     socket.on('chatList', async ({ page = 1, limit = 20 }) => {
       try {
@@ -381,8 +410,96 @@ export const initSockets = (io: Server) => {
       }
     );
 
+    // Typing indicator events
+    socket.on('typing', (data: { chatId: string }) => {
+      if (!userId || !data.chatId) return;
+
+      const roomId = `chat:${data.chatId}`;
+      const timeoutKey = `${data.chatId}:${userId}`;
+
+      // Add to typing set
+      if (!typingUsers.has(data.chatId)) {
+        typingUsers.set(data.chatId, new Set());
+      }
+      typingUsers.get(data.chatId)!.add(userId);
+
+      // Broadcast to room (except sender)
+      socket.to(roomId).emit('userTyping', {
+        chatId: data.chatId,
+        userId,
+        userName: authedUser?.name,
+      });
+
+      // Clear existing timeout
+      const existingTimeout = typingTimeouts.get(timeoutKey);
+      if (existingTimeout) {
+        clearTimeout(existingTimeout);
+      }
+
+      // Auto stop typing after timeout
+      typingTimeouts.set(
+        timeoutKey,
+        setTimeout(() => {
+          typingUsers.get(data.chatId)?.delete(userId);
+          socket.to(roomId).emit('userStoppedTyping', {
+            chatId: data.chatId,
+            userId,
+          });
+          typingTimeouts.delete(timeoutKey);
+        }, TYPING_TIMEOUT_MS)
+      );
+    });
+
+    socket.on('stopTyping', (data: { chatId: string }) => {
+      if (!userId || !data.chatId) return;
+
+      const roomId = `chat:${data.chatId}`;
+      const timeoutKey = `${data.chatId}:${userId}`;
+
+      // Remove from typing set
+      typingUsers.get(data.chatId)?.delete(userId);
+
+      // Clear timeout
+      const existingTimeout = typingTimeouts.get(timeoutKey);
+      if (existingTimeout) {
+        clearTimeout(existingTimeout);
+        typingTimeouts.delete(timeoutKey);
+      }
+
+      // Broadcast to room
+      socket.to(roomId).emit('userStoppedTyping', {
+        chatId: data.chatId,
+        userId,
+      });
+    });
+
     socket.on('disconnect', () => {
       console.log('User disconnected');
+
+      // Handle offline status
+      if (userId) {
+        const userSockets = onlineUsers.get(userId);
+        if (userSockets) {
+          userSockets.delete(socket.id);
+
+          // If no more sockets, user is offline
+          if (userSockets.size === 0) {
+            onlineUsers.delete(userId);
+            io.emit('userOffline', { userId });
+
+            // Clean up any typing states for this user
+            typingUsers.forEach((users, chatId) => {
+              if (users.has(userId)) {
+                users.delete(userId);
+                io.to(`chat:${chatId}`).emit('userStoppedTyping', {
+                  chatId,
+                  userId,
+                });
+              }
+            });
+          }
+        }
+      }
     });
   });
 };

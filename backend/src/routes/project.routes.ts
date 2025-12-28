@@ -401,9 +401,8 @@ router.post('/:id/invite/accept', async (req: AuthRequest, res: Response) => {
         recipient: userId,
         type: 'project_invite',
         project: project._id,
-        readAt: null,
       },
-      { $set: { readAt: new Date() } }
+      { $set: { readAt: new Date(), inviteStatus: 'accepted' } }
     );
 
     const populated = await Project.findById(project._id)
@@ -449,9 +448,8 @@ router.post('/:id/invite/reject', async (req: AuthRequest, res: Response) => {
         recipient: userId,
         type: 'project_invite',
         project: project._id,
-        readAt: null,
       },
-      { $set: { readAt: new Date() } }
+      { $set: { readAt: new Date(), inviteStatus: 'rejected' } }
     );
 
     res.status(200).json({ success: true, message: 'Invite rejected' });

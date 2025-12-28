@@ -1,6 +1,7 @@
 import { Schema, model, Document, Types } from 'mongoose';
 
 export type NotificationType = 'project_invite' | 'mention';
+export type InviteStatus = 'pending' | 'accepted' | 'rejected';
 
 export interface INotification extends Document {
   _id: Types.ObjectId;
@@ -13,6 +14,7 @@ export interface INotification extends Document {
   task?: Types.ObjectId;
   comment?: Types.ObjectId;
   readAt?: Date;
+  inviteStatus?: InviteStatus;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -62,6 +64,11 @@ const notificationSchema = new Schema<INotification>(
       type: Date,
       default: null,
       index: true,
+    },
+    inviteStatus: {
+      type: String,
+      enum: ['pending', 'accepted', 'rejected'],
+      default: 'pending',
     },
   },
   { timestamps: true }
