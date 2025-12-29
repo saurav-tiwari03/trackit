@@ -4,6 +4,10 @@ import { protect, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
+// Helper to get today's date in YYYY-MM-DD format (UTC-safe)
+const getUTCDateString = (date: Date = new Date()): string =>
+  `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+
 // Helper to calculate streaks
 const calculateStreaks = (
   completions: { date: string; completed: boolean }[]
@@ -21,13 +25,12 @@ const calculateStreaks = (
   let longestStreak = 0;
   let tempStreak = 1;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStr = today.toISOString().split('T')[0];
+  // Use UTC date to avoid timezone issues
+  const todayStr = getUTCDateString();
 
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  const yesterday = new Date();
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const yesterdayStr = getUTCDateString(yesterday);
 
   // Check if current streak is active (completed today or yesterday)
   const latestDate = sorted[0]?.date;
@@ -216,6 +219,25 @@ router.post('/:id/toggle', async (req: AuthRequest, res: Response) => {
 
     if (!date) {
       res.status(400).json({ success: false, message: 'Date is required' });
+      return;
+    }
+
+    // Validate date format (YYYY-MM-DD)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid date format. Use YYYY-MM-DD',
+      });
+      return;
+    }
+
+    // Reject future dates
+    const todayStr = getUTCDateString();
+    if (date > todayStr) {
+      res.status(400).json({
+        success: false,
+        message: 'Cannot mark habits for future dates',
+      });
       return;
     }
 
