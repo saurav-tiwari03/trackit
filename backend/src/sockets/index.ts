@@ -4,6 +4,7 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { SERVER, AWS_S3_CONFIG } from '../config/config';
 import { User, Chat, Message } from '../models';
+import { sendPushToUser } from '../routes/push.routes';
 
 const isS3Enabled =
   !!AWS_S3_CONFIG.AWS_BUCKET_NAME &&
@@ -345,12 +346,49 @@ export const initSockets = (io: Server) => {
           socket.to(roomId).emit('newMessage', messageWithPreviews);
 
           // Also emit to participants' personal rooms to update chat lists if they aren't in the room
-          chat.participants.forEach(pId => {
-            if (pId.toString() !== authedUser._id.toString()) {
-              io.to(`user:${pId.toString()}`).emit(
+          // And send push notifications to offline users
+          chat.participants.forEach(async (pId: any) => {
+            const recipientId = pId._id?.toString() || pId.toString();
+            if (recipientId !== authedUser._id.toString()) {
+              io.to(`user:${recipientId}`).emit(
                 'newMessage',
                 messageWithPreviews
               );
+
+              // Send push notification if user is offline
+              const isRecipientOnline = onlineUsers.has(recipientId);
+              if (!isRecipientOnline) {
+                try {
+                  // Get recipient name for proper formatting
+                  const senderName = authedUser.name || 'Someone';
+                  const messagePreview =
+                    content.length > 50
+                      ? `${content.substring(0, 50)}...`
+                      : content ||
+                        (attachments.length > 0
+                          ? '📎 Sent an attachment'
+                          : 'New message');
+
+                  await sendPushToUser(recipientId, {
+                    title: `💬 ${senderName}`,
+                    body: messagePreview,
+                    icon: authedUser.avatar || '/icon-192x192.png',
+                    badge: '/favicon-48x48.png',
+                    tag: `chat-${chat._id.toString()}`, // Group notifications by chat
+                    data: {
+                      url: '/slack',
+                      chatId: chat._id.toString(),
+                      senderId: authedUser._id.toString(),
+                    },
+                    actions: [
+                      { action: 'view', title: 'Reply' },
+                      { action: 'dismiss', title: 'Dismiss' },
+                    ],
+                  });
+                } catch (pushError) {
+                  console.error('Failed to send push notification:', pushError);
+                }
+              }
             }
           });
         } catch (error) {

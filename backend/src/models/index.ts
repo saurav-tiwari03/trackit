@@ -7,3 +7,4 @@ export { default as Chat, IChat } from './Chat';
 export { default as Message, IMessage } from './Message';
 export { Note, INote } from './Note';
 export { Habit, IHabit, IHabitCompletion } from './Habit';
+export { PushSubscription, IPushSubscription } from './PushSubscription';

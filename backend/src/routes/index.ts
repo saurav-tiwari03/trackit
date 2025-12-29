@@ -9,6 +9,7 @@ import chatRoutes from './chat.routes';
 import calendarRoutes from './calendar.routes';
 import notesRoutes from './notes.routes';
 import habitRoutes from './habit.routes';
+import pushRoutes from './push.routes';
 
 const router = Router();
 
@@ -22,5 +23,6 @@ router.use('/chats', chatRoutes);
 router.use('/calendar', calendarRoutes);
 router.use('/notes', notesRoutes);
 router.use('/habits', habitRoutes);
+router.use('/push', pushRoutes);
 
 export default router;
