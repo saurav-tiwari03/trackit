@@ -43,6 +43,14 @@ router.post('/subscribe', async (req: AuthRequest, res: Response) => {
     const userId = req.user?._id;
     const { subscription, deviceName, userAgent } = req.body;
 
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+      });
+      return;
+    }
+
     if (!subscription || !subscription.endpoint || !subscription.keys) {
       res.status(400).json({
         success: false,
