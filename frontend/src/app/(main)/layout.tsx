@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { CreateTaskModal } from '@/components/task/create-task-modal';
 import { useLastVisitedPageTracker } from '@/hooks/use-last-visited-page';
 import { SplashScreen } from '@/components/ui/splash-screen';
+import { useServiceWorker } from '@/hooks/use-push-notifications';
+import { NotificationPrompt } from '@/components/notifications/notification-prompt';
 
 function SidebarToggle() {
   const { state, isMobile, toggleSidebar } = useSidebar();
@@ -62,6 +64,8 @@ function FloatingAddButton() {
 function MainContent({ children }: { children: React.ReactNode }) {
   // Track page visits for session restoration
   useLastVisitedPageTracker();
+  // Register service worker for push notifications
+  useServiceWorker();
 
   return (
     <>
@@ -122,6 +126,7 @@ export default function MainLayout({
     <SidebarProvider>
       <AppSidebar />
       <MainContent>{children}</MainContent>
+      <NotificationPrompt />
     </SidebarProvider>
   );
 }

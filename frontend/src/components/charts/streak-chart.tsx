@@ -9,9 +9,8 @@ import {
   YAxis,
   ResponsiveContainer,
   Tooltip,
-  Legend,
 } from 'recharts';
-import { format, subDays, startOfDay, eachDayOfInterval } from 'date-fns';
+// date-fns is no longer used here - using manual UTC date handling for backend compatibility
 import { motion } from 'framer-motion';
 import { Flame } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -50,13 +49,28 @@ export function StreakChart() {
 
   const { chartData, habitStats, totalStats } = useMemo(() => {
     const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : timeRange === '60d' ? 60 : 90;
-    const today = startOfDay(new Date());
-    const startDate = subDays(today, days - 1);
-    const dateRange = eachDayOfInterval({ start: startDate, end: today });
+    
+    // Use UTC dates to match backend
+    const getUTCDateString = (date: Date): string => {
+      return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+    };
+    
+    const getUTCDisplayDate = (date: Date): string => {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${months[date.getUTCMonth()]} ${date.getUTCDate()}`;
+    };
+    
+    const today = new Date();
+    const dateRange: Date[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date(today);
+      date.setUTCDate(date.getUTCDate() - i);
+      dateRange.push(date);
+    }
 
     // Build raw completion data
     const rawData: { date: string; displayDate: string; completions: Record<string, boolean> }[] = dateRange.map((date) => {
-      const dateStr = format(date, 'yyyy-MM-dd');
+      const dateStr = getUTCDateString(date);
       const completions: Record<string, boolean> = {};
       
       habits.forEach((habit) => {
@@ -66,70 +80,56 @@ export function StreakChart() {
 
       return {
         date: dateStr,
-        displayDate: format(date, 'MMM d'),
+        displayDate: getUTCDisplayDate(date),
         completions,
       };
     });
 
-    // Calculate rolling streak count for each habit
+    // Calculate actual streak for each day (consecutive days ending on that day)
     const data: ChartDataPoint[] = [];
-    const currentStreaks: Record<string, number> = {};
     
-    habits.forEach((habit) => {
-      currentStreaks[habit._id] = 0;
-    });
-
-    rawData.forEach((day) => {
+    rawData.forEach((day, dayIndex) => {
       const point: ChartDataPoint = {
         date: day.date,
         displayDate: day.displayDate,
       };
 
       habits.forEach((habit) => {
+        // Calculate streak ending on this day
+        let streak = 0;
         if (day.completions[habit._id]) {
-          currentStreaks[habit._id]++;
-        } else {
-          currentStreaks[habit._id] = Math.max(0, currentStreaks[habit._id] - 0.5);
+          streak = 1;
+          // Count backwards from previous day
+          for (let i = dayIndex - 1; i >= 0; i--) {
+            if (rawData[i].completions[habit._id]) {
+              streak++;
+            } else {
+              break;
+            }
+          }
         }
-        point[habit._id] = currentStreaks[habit._id];
+        point[habit._id] = streak;
       });
 
       data.push(point);
     });
 
-    // Calculate stats per habit
+    // Use backend-calculated streaks for accuracy, count completions from raw data
     const stats: Record<string, { currentStreak: number; totalCompletions: number; longestStreak: number }> = {};
     let totalCurrentStreak = 0;
     let totalLongestStreak = 0;
     let totalCompletionsAll = 0;
     
     habits.forEach((habit) => {
-      let currentStreak = 0;
-      let longestStreak = 0;
-      let tempStreak = 0;
+      // Use backend values for current and longest streak
+      const currentStreak = habit.currentStreak || 0;
+      const longestStreak = habit.longestStreak || 0;
+      
+      // Count total completions in the visible range
       let totalCompletions = 0;
-      let streakBroken = false;
-
-      const reversedRawData = [...rawData].reverse();
-      for (const day of reversedRawData) {
-        if (day.completions[habit._id]) {
-          totalCompletions++;
-          if (!streakBroken) {
-            currentStreak++;
-          }
-        } else {
-          if (!streakBroken) {
-            streakBroken = true;
-          }
-        }
-      }
-
       for (const day of rawData) {
         if (day.completions[habit._id]) {
-          tempStreak++;
-          longestStreak = Math.max(longestStreak, tempStreak);
-        } else {
-          tempStreak = 0;
+          totalCompletions++;
         }
       }
 

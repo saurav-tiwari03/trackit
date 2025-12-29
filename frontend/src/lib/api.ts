@@ -233,5 +233,19 @@ export const habitsAPI = {
     api.post(`/habits/${id}/toggle`, { date }),
 };
 
+// Push Notifications API
+export const pushAPI = {
+  getVapidPublicKey: () => api.get('/push/vapid-public-key'),
+  subscribe: (data: {
+    subscription: PushSubscriptionJSON;
+    deviceName?: string;
+    userAgent?: string;
+  }) => api.post('/push/subscribe', data),
+  unsubscribe: (endpoint?: string) =>
+    api.post('/push/unsubscribe', { endpoint }),
+  getSubscriptions: () => api.get('/push/subscriptions'),
+  sendTest: () => api.post('/push/test'),
+};
+
 export default api;
 

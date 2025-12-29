@@ -11,6 +11,7 @@ import { useAuthStore } from '@/store/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { calendarAPI, usersAPI } from '@/lib/api';
 import { toast } from 'sonner';
+import { PushNotificationSettings } from '@/components/settings/push-notification-settings';
 
 interface GoogleCalendarStatus {
   connected: boolean;
@@ -448,14 +449,23 @@ function SettingsContent() {
             </Card>
           </motion.div>
 
-          {/* Other Settings */}
+          {/* Push Notifications */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
+          >
+            <PushNotificationSettings />
+          </motion.div>
+
+          {/* Other Settings */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
             className="grid gap-4 sm:grid-cols-2"
           >
-            {settingsSections.slice(1).map((section, index) => (
+            {settingsSections.slice(2).map((section) => (
               <Card key={section.title} className="cursor-pointer hover:shadow-md transition-shadow">
                 <CardContent className="flex items-start gap-4 p-4">
                   <div className="p-2 rounded-lg bg-muted">
