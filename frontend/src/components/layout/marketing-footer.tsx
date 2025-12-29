@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 const productLinks = [
@@ -16,7 +17,12 @@ const legalLinks = [
 ];
 
 export function MarketingFooter() {
-  const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('token');
+  // Use state to avoid hydration mismatch - check token only after mount
+  const [hasToken, setHasToken] = useState(false);
+
+  useEffect(() => {
+    setHasToken(!!localStorage.getItem('token'));
+  }, []);
 
   return (
     <footer className="border-t bg-background">

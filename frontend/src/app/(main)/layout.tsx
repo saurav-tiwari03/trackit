@@ -9,6 +9,8 @@ import { AppSidebar } from '@/components/layout/app-sidebar';
 import { SidebarProvider, SidebarInset, useSidebar } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { CreateTaskModal } from '@/components/task/create-task-modal';
+import { useLastVisitedPageTracker } from '@/hooks/use-last-visited-page';
+import { SplashScreen } from '@/components/ui/splash-screen';
 
 function SidebarToggle() {
   const { state, isMobile, toggleSidebar } = useSidebar();
@@ -58,6 +60,9 @@ function FloatingAddButton() {
 }
 
 function MainContent({ children }: { children: React.ReactNode }) {
+  // Track page visits for session restoration
+  useLastVisitedPageTracker();
+
   return (
     <>
       <SidebarToggle />
@@ -106,11 +111,7 @@ export default function MainLayout({
   }, [isAuthenticated, isHydrated, isChecking, router, fetchProjects]);
 
   if (!isHydrated || isChecking) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <SplashScreen />;
   }
 
   if (!isAuthenticated) {

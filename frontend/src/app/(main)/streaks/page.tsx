@@ -55,11 +55,11 @@ type ViewMode = 'week' | 'month';
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTH_NAMES_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-// Get week number of the month (1-4/5)
+// Get week number of the month (1-4/5) using UTC
 const getWeekOfMonth = (date: Date) => {
-  const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
-  const dayOfMonth = date.getDate();
-  const firstDayOfWeek = firstDay.getDay();
+  const firstDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+  const dayOfMonth = date.getUTCDate();
+  const firstDayOfWeek = firstDay.getUTCDay();
   return Math.ceil((dayOfMonth + firstDayOfWeek) / 7);
 };
 
@@ -68,16 +68,27 @@ const getDaysInMonth = (year: number, month: number) => {
   return new Date(year, month + 1, 0).getDate();
 };
 
-// Generate dates for the board
-const generateDates = (daysToShow: number, startDate: Date = new Date()) => {
-  const dates: string[] = [];
-  const start = new Date(startDate);
-  start.setHours(0, 0, 0, 0);
+// Helper to get UTC date string in YYYY-MM-DD format
+const getUTCDateString = (date: Date): string => {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+};
 
-  for (let i = daysToShow - 1; i >= 0; i--) {
-    const date = new Date(start);
-    date.setDate(start.getDate() - i);
-    dates.push(date.toISOString().split('T')[0]);
+// Generate dates for the board (week view - shows Mon to Sun)
+const generateWeekDates = (weekOffset: number = 0) => {
+  const dates: string[] = [];
+  const today = new Date();
+  
+  // Find the Monday of the current week using UTC
+  const dayOfWeek = today.getUTCDay();
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Sunday = 0, so go back 6 days
+  const monday = new Date(today);
+  monday.setUTCDate(today.getUTCDate() - daysToMonday - (weekOffset * 7));
+  
+  // Generate Mon to Sun
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(monday);
+    date.setUTCDate(monday.getUTCDate() + i);
+    dates.push(getUTCDateString(date));
   }
 
   return dates;
@@ -89,35 +100,39 @@ const generateMonthDates = (year: number, month: number) => {
   const daysInMonth = getDaysInMonth(year, month);
 
   for (let day = 1; day <= daysInMonth; day++) {
-    const date = new Date(year, month, day);
-    dates.push(date.toISOString().split('T')[0]);
+    // Use UTC date to avoid timezone issues
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    dates.push(dateStr);
   }
 
   return dates;
 };
 
 const formatDateHeader = (dateStr: string, isMobile: boolean, isMonthView: boolean = false) => {
-  const date = new Date(dateStr);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const dateObj = new Date(dateStr);
-  dateObj.setHours(0, 0, 0, 0);
+  // Parse the date string (YYYY-MM-DD) to get components
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  
+  // Get today's date in UTC
+  const now = new Date();
+  const todayStr = getUTCDateString(now);
+  
+  const yesterday = new Date(now);
+  yesterday.setUTCDate(now.getUTCDate() - 1);
+  const yesterdayStr = getUTCDateString(yesterday);
 
-  const isToday = dateObj.getTime() === today.getTime();
-
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const isYesterday = dateObj.getTime() === yesterday.getTime();
+  const isToday = dateStr === todayStr;
+  const isYesterday = dateStr === yesterdayStr;
 
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const dayNameShort = isMobile || isMonthView ? dayNames[date.getDay()].charAt(0) : dayNames[date.getDay()];
+  const dayNameShort = isMobile || isMonthView ? dayNames[date.getUTCDay()].charAt(0) : dayNames[date.getUTCDay()];
 
-  if (isToday) return { day: isMonthView ? dayNameShort : 'Today', date: date.getDate(), isToday: true };
-  if (isYesterday && !isMonthView) return { day: 'Yest', date: date.getDate(), isToday: false };
+  if (isToday) return { day: isMonthView ? dayNameShort : 'Today', date: day, isToday: true };
+  if (isYesterday && !isMonthView) return { day: 'Yest', date: day, isToday: false };
 
   return {
     day: dayNameShort,
-    date: date.getDate(),
+    date: day,
     isToday: false,
   };
 };
@@ -135,9 +150,6 @@ export default function StreakBoardPage() {
   const [monthOffset, setMonthOffset] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Always show 7 days in week view
-  const daysToShow = 7;
-
   // Detect mobile for compact styling
   const [isMobile, setIsMobile] = useState(false);
 
@@ -154,13 +166,17 @@ export default function StreakBoardPage() {
   const currentMonthName = MONTH_NAMES_FULL[currentMonth.getMonth()];
   const currentYear = currentMonth.getFullYear();
   
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - weekOffset * 7);
-  const weekNumber = getWeekOfMonth(startDate);
-  const weekMonthName = MONTH_NAMES[startDate.getMonth()];
+  // For week view, calculate the Monday of the displayed week
+  const weekDates = generateWeekDates(weekOffset);
+  // Parse the Monday date string (YYYY-MM-DD)
+  const [weekYearNum, weekMonthNum] = weekDates[0].split('-').map(Number);
+  const weekStartDate = new Date(Date.UTC(weekYearNum, weekMonthNum - 1, parseInt(weekDates[0].split('-')[2])));
+  const weekNumber = getWeekOfMonth(weekStartDate);
+  const weekMonthName = MONTH_NAMES[weekMonthNum - 1];
+  const weekYear = weekYearNum;
 
   const dates = viewMode === 'week'
-    ? generateDates(daysToShow, startDate)
+    ? weekDates
     : generateMonthDates(currentMonth.getFullYear(), currentMonth.getMonth());
 
   const fetchHabits = useCallback(async () => {
@@ -278,7 +294,7 @@ export default function StreakBoardPage() {
   };
 
   const totalCompletionsToday = habits.reduce((sum, h) => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getUTCDateString(new Date());
     return sum + (isCompleted(h, todayStr) ? 1 : 0);
   }, 0);
 
@@ -417,7 +433,7 @@ export default function StreakBoardPage() {
                       </span>
                       <span className="text-muted-foreground">•</span>
                       <span className="text-sm text-muted-foreground">
-                        {weekMonthName} {startDate.getFullYear()}
+                        {weekMonthName} {weekYear}
                       </span>
                     </div>
                   ) : (
@@ -570,12 +586,16 @@ export default function StreakBoardPage() {
                         const completed = isCompleted(habit, date);
                         const cellKey = `${habit._id}-${date}`;
                         const isToggling = togglingCells.has(cellKey);
+                        
+                        // Check if date is in the future (compare date strings)
+                        const todayStr = getUTCDateString(new Date());
+                        const isFutureDate = date > todayStr;
 
                         return (
                           <motion.button
                             key={date}
-                            onClick={() => handleToggle(habit._id, date)}
-                            disabled={isToggling}
+                            onClick={() => !isFutureDate && handleToggle(habit._id, date)}
+                            disabled={isToggling || isFutureDate}
                             className={cn(
                               'rounded-lg border-2 flex items-center justify-center transition-all',
                               viewMode === 'month'
@@ -583,7 +603,8 @@ export default function StreakBoardPage() {
                                 : 'w-10 h-10 sm:w-12 sm:h-12',
                               completed
                                 ? 'border-transparent shadow-md'
-                                : 'border-border/50 hover:border-border bg-background hover:bg-muted/50'
+                                : 'border-border/50 hover:border-border bg-background hover:bg-muted/50',
+                              isFutureDate && 'opacity-30 cursor-not-allowed hover:bg-background hover:border-border/50'
                             )}
                             style={{
                               backgroundColor: completed ? habit.color : undefined,

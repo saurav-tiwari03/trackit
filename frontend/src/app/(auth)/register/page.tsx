@@ -9,10 +9,12 @@ import { Eye, EyeOff, User, Mail, Lock, CheckCircle2, Layers, Calendar, Sparkles
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useLoginRedirect } from '@/hooks/use-last-visited-page';
 
 export default function RegisterPage() {
   const router = useRouter();
   const { register, isLoading } = useAuthStore();
+  const { getRedirectPath } = useLoginRedirect();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -43,7 +45,8 @@ export default function RegisterPage() {
 
     try {
       await register(name, email, password);
-      router.push('/dashboard');
+      // Redirect to last visited page or dashboard
+      router.push(getRedirectPath());
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, 'Registration failed'));
     }

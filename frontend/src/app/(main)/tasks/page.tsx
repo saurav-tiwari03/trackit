@@ -10,6 +10,7 @@ import {
   MoreHorizontal,
   Loader2,
   ListTodo,
+  CheckSquare,
 } from 'lucide-react';
 import { Task } from '@/types';
 import { tasksAPI } from '@/lib/api';
@@ -356,9 +357,10 @@ export default function TasksPage() {
                       <div className="flex flex-wrap items-center gap-1.5 mt-2">
                         {/* Subtasks count */}
                         {task.subtasks && task.subtasks.length > 0 && (
-                          <Badge variant="outline" className="text-xs h-5 px-1.5">
-                            {task.subtasks.filter(s => s.isCompleted).length}/{task.subtasks.length}
-                          </Badge>
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <CheckSquare className="h-3 w-3" />
+                            <span>{task.subtasks.filter(s => s.isCompleted).length}/{task.subtasks.length}</span>
+                          </div>
                         )}
 
                         {/* Project */}

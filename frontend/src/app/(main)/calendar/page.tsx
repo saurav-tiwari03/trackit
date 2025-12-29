@@ -9,6 +9,7 @@ import {
   CalendarDays,
   Clock,
   AlertCircle,
+  CheckSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -765,14 +766,20 @@ export default function CalendarPage() {
                             <div
                               key={task._id}
                               onClick={() => setSelectedTask(task)}
-                              className="text-xs px-2 py-1 mb-1 rounded-lg truncate cursor-pointer transition-all hover:scale-[1.02]"
+                              className="text-xs px-2 py-1 mb-1 rounded-lg cursor-pointer transition-all hover:scale-[1.02]"
                               style={{
                                 backgroundColor: `${getProjectColor(task)}20`,
                                 color: getProjectColor(task),
                                 borderLeft: `3px solid ${getProjectColor(task)}`
                               }}
                             >
-                              {task.title}
+                              <span className="truncate block">{task.title}</span>
+                              {task.subtasks && task.subtasks.length > 0 && (
+                                <span className="flex items-center gap-0.5 text-[10px] opacity-70 mt-0.5">
+                                  <CheckSquare className="h-2.5 w-2.5" />
+                                  {task.subtasks.filter(s => s.isCompleted).length}/{task.subtasks.length}
+                                </span>
+                              )}
                             </div>
                           ))}
                           {(day.tasks.length + day.googleEvents.length) > 3 && (
@@ -897,7 +904,7 @@ export default function CalendarPage() {
                               key={task._id}
                               onClick={() => setSelectedTask(task)}
                               className={cn(
-                                'flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] sm:text-xs cursor-pointer truncate',
+                                'px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] sm:text-xs cursor-pointer',
                                 'hover:scale-[1.02] transition-all',
                                 task.isCompleted && 'opacity-50'
                               )}
@@ -906,9 +913,15 @@ export default function CalendarPage() {
                                 borderLeft: `2px solid ${getProjectColor(task)}`,
                               }}
                             >
-                              <span className="truncate text-foreground font-medium">
+                              <span className="truncate text-foreground font-medium block">
                                 {task.title}
                               </span>
+                              {task.subtasks && task.subtasks.length > 0 && (
+                                <span className="hidden sm:flex items-center gap-0.5 text-[9px] text-muted-foreground mt-0.5">
+                                  <CheckSquare className="h-2 w-2" />
+                                  {task.subtasks.filter(s => s.isCompleted).length}/{task.subtasks.length}
+                                </span>
+                              )}
                             </div>
                           ))}
                           {(day.tasks.length + day.googleEvents.length) > 3 && (

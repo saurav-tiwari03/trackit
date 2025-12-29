@@ -14,6 +14,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import DotBackgroundDemo from '@/components/ui/dot-background-demo';
+import { StreakChart } from '@/components/charts/streak-chart';
+import { RecentNotes } from '@/components/dashboard/recent-notes';
 import { useProjectsStore } from '@/store/projects';
 import { tasksAPI } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -84,23 +86,31 @@ export default function DashboardPage() {
 
         // Count the task
         progress[projectId].totalTasks++;
-        progress[projectId].totalItems++;
 
         if (task.isCompleted) {
           progress[projectId].completedTasks++;
-          progress[projectId].completedItems++;
         } else if (task.status === 'in_progress') {
           progress[projectId].inProgress++;
         }
 
-        // Count subtasks
         const subtasks = task.subtasks || [];
-        subtasks.forEach((subtask: any) => {
+        
+        // If task has subtasks, count only subtasks as units
+        // If task has no subtasks, count the task itself as 1 unit
+        if (subtasks.length > 0) {
+          subtasks.forEach((subtask: any) => {
+            progress[projectId].totalItems++;
+            if (subtask.isCompleted) {
+              progress[projectId].completedItems++;
+            }
+          });
+        } else {
+          // No subtasks - count task as 1 unit
           progress[projectId].totalItems++;
-          if (subtask.isCompleted) {
+          if (task.isCompleted) {
             progress[projectId].completedItems++;
           }
-        });
+        }
       });
       setProjectProgress(progress);
     } catch (error) {
@@ -194,6 +204,16 @@ export default function DashboardPage() {
             );
           })}
         </motion.div>
+
+        {/* Streak Chart */}
+        <div className="mb-8">
+          <StreakChart />
+        </div>
+
+        {/* Recent Notes */}
+        <div className="mb-8">
+          <RecentNotes />
+        </div>
 
         {/* Projects Grid */}
         <motion.div

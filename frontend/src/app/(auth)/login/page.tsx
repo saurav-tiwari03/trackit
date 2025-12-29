@@ -9,10 +9,12 @@ import { Eye, EyeOff, Mail, Lock, CheckCircle2, Layers, Calendar, Sparkles, Arro
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useLoginRedirect } from '@/hooks/use-last-visited-page';
 
 export default function LoginPage() {
   const router = useRouter();
   const { login, isLoading } = useAuthStore();
+  const { getRedirectPath } = useLoginRedirect();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -32,7 +34,8 @@ export default function LoginPage() {
     try {
       await login(email, password);
       void rememberMe;
-      router.push('/dashboard');
+      // Redirect to last visited page or dashboard
+      router.push(getRedirectPath());
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, 'Login failed'));
     }

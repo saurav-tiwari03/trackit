@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,12 @@ const navLinks = [
 ];
 
 export function MarketingNavbar() {
-  const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('token');
+  // Use state to avoid hydration mismatch - check token only after mount
+  const [hasToken, setHasToken] = useState(false);
+
+  useEffect(() => {
+    setHasToken(!!localStorage.getItem('token'));
+  }, []);
 
   return (
     <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">

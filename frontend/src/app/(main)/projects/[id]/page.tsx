@@ -123,33 +123,38 @@ export default function ProjectPage() {
               <TooltipProvider>
                 <div className="flex items-center gap-2">
                   <div className="flex -space-x-2">
-                    {allMembers.slice(0, 5).map((member, index) => (
-                      <Tooltip key={getIdFromMember(member)}>
-                        <TooltipTrigger asChild>
-                          <Avatar
-                            className="w-8 h-8 border-2 border-background cursor-pointer hover:z-10 hover:scale-110 transition-transform"
-                            style={{ zIndex: allMembers.length - index }}
-                          >
-                            <AvatarFallback
-                              className="text-xs"
-                              style={{
-                                backgroundColor: `hsl(${(member.name.charCodeAt(0) * 37) % 360}, 70%, 50%)`,
-                                color: 'white',
-                              }}
+                    {allMembers.slice(0, 5).map((member, index) => {
+                      const memberName = member.name || 'Unknown';
+                      const memberEmail = member.email || '';
+                      const memberId = getIdFromMember(member) || `member-${index}`;
+                      return (
+                        <Tooltip key={memberId}>
+                          <TooltipTrigger asChild>
+                            <Avatar
+                              className="w-8 h-8 border-2 border-background cursor-pointer hover:z-10 hover:scale-110 transition-transform"
+                              style={{ zIndex: allMembers.length - index }}
                             >
-                              {getInitials(member.name)}
-                            </AvatarFallback>
-                          </Avatar>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p className="font-medium">{member.name}</p>
-                          <p className="text-xs text-muted-foreground">{member.email}</p>
-                          {getIdFromMember(member) === getIdFromMember(currentProject.owner) && (
-                            <p className="text-xs text-primary mt-1">Owner</p>
-                          )}
-                        </TooltipContent>
-                      </Tooltip>
-                    ))}
+                              <AvatarFallback
+                                className="text-xs"
+                                style={{
+                                  backgroundColor: `hsl(${(memberName.charCodeAt(0) * 37) % 360}, 70%, 50%)`,
+                                  color: 'white',
+                                }}
+                              >
+                                {getInitials(memberName)}
+                              </AvatarFallback>
+                            </Avatar>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="font-medium">{memberName}</p>
+                            <p className="text-xs text-muted-foreground">{memberEmail}</p>
+                            {getIdFromMember(member) === getIdFromMember(currentProject.owner) && (
+                              <p className="text-xs text-primary mt-1">Owner</p>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    })}
                     {allMembers.length > 5 && (
                       <Tooltip>
                         <TooltipTrigger asChild>

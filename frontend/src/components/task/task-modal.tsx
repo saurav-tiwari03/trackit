@@ -148,6 +148,10 @@ export function TaskModal({ task, isOpen, onClose, onOpenTask }: TaskModalProps)
   const [editingCommentValue, setEditingCommentValue] = useState('');
   const [commentToDelete, setCommentToDelete] = useState<Comment | null>(null);
   const [isDeletingComment, setIsDeletingComment] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState('');
+  const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
+  const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('');
 
   const updatePdfWidth = () => {
     const el = pdfContainerRef.current;
@@ -311,6 +315,35 @@ export function TaskModal({ task, isOpen, onClose, onOpenTask }: TaskModalProps)
       setIsEditingDescription(false);
     } catch (error) {
       console.error('Failed to update description:', error);
+    }
+  };
+
+  const handleSaveTitle = async () => {
+    if (!editedTask || !editedTitle.trim()) return;
+    try {
+      await updateTask(editedTask._id, { title: editedTitle.trim() });
+      setEditedTask({ ...editedTask, title: editedTitle.trim() });
+      setIsEditingTitle(false);
+      toast.success('Title updated');
+    } catch (error) {
+      console.error('Failed to update title:', error);
+      toast.error('Failed to update title');
+    }
+  };
+
+  const handleSaveSubtaskTitle = async (subtaskId: string) => {
+    if (!editedTask || !editingSubtaskTitle.trim()) return;
+    try {
+      await tasksAPI.updateSubtask(editedTask._id, subtaskId, { title: editingSubtaskTitle.trim() });
+      setSubtasks(prev =>
+        prev.map(s => s._id === subtaskId ? { ...s, title: editingSubtaskTitle.trim() } : s)
+      );
+      setEditingSubtaskId(null);
+      setEditingSubtaskTitle('');
+      toast.success('Subtask title updated');
+    } catch (error) {
+      console.error('Failed to update subtask title:', error);
+      toast.error('Failed to update subtask title');
     }
   };
 
@@ -869,14 +902,39 @@ export function TaskModal({ task, isOpen, onClose, onOpenTask }: TaskModalProps)
                   <Circle className="w-6 h-6 text-muted-foreground hover:text-foreground transition-colors" />
                 )}
               </button>
-              <span
-                className={cn(
-                  'truncate',
-                  editedTask.isCompleted && 'line-through text-muted-foreground'
-                )}
-              >
-                {editedTask.title}
-              </span>
+              {isEditingTitle ? (
+                <Input
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  onBlur={handleSaveTitle}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSaveTitle();
+                    }
+                    if (e.key === 'Escape') {
+                      setIsEditingTitle(false);
+                      setEditedTitle(editedTask.title);
+                    }
+                  }}
+                  className="flex-1 h-8 text-base font-medium"
+                  autoFocus
+                />
+              ) : (
+                <span
+                  className={cn(
+                    'truncate cursor-pointer hover:bg-muted/50 px-2 py-1 rounded-md -mx-2',
+                    editedTask.isCompleted && 'line-through text-muted-foreground'
+                  )}
+                  onClick={() => {
+                    setEditedTitle(editedTask.title);
+                    setIsEditingTitle(true);
+                  }}
+                  title="Click to edit title"
+                >
+                  {editedTask.title}
+                </span>
+              )}
             </div>
           </ModalHeader>
 
@@ -1281,14 +1339,41 @@ export function TaskModal({ task, isOpen, onClose, onOpenTask }: TaskModalProps)
                                           )}
                                         </button>
 
-                                        <span
-                                          className={cn(
-                                            'text-base flex-1 min-w-0 truncate',
-                                            subtask.isCompleted && 'line-through text-muted-foreground'
-                                          )}
-                                        >
-                                          {subtask.title}
-                                        </span>
+                                        {editingSubtaskId === subtask._id ? (
+                                          <Input
+                                            value={editingSubtaskTitle}
+                                            onChange={(e) => setEditingSubtaskTitle(e.target.value)}
+                                            onBlur={() => handleSaveSubtaskTitle(subtask._id)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                handleSaveSubtaskTitle(subtask._id);
+                                              }
+                                              if (e.key === 'Escape') {
+                                                setEditingSubtaskId(null);
+                                                setEditingSubtaskTitle('');
+                                              }
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="flex-1 h-8 text-base min-w-0"
+                                            autoFocus
+                                          />
+                                        ) : (
+                                          <span
+                                            className={cn(
+                                              'text-base flex-1 min-w-0 truncate cursor-pointer hover:bg-muted/50 px-2 py-1 rounded-md -mx-2',
+                                              subtask.isCompleted && 'line-through text-muted-foreground'
+                                            )}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setEditingSubtaskId(subtask._id);
+                                              setEditingSubtaskTitle(subtask.title);
+                                            }}
+                                            title="Click to edit subtask title"
+                                          >
+                                            {subtask.title}
+                                          </span>
+                                        )}
                                         {(subtask.dueDate || subtask.priority) && (
                                           <span className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground shrink-0">
                                             {subtask.dueDate && (

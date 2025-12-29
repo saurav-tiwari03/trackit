@@ -10,6 +10,7 @@ import {
   Calendar,
   MoreHorizontal,
   Loader2,
+  CheckSquare,
 } from 'lucide-react';
 import { Task, Project } from '@/types';
 import { tasksAPI, projectsAPI } from '@/lib/api';
@@ -277,9 +278,10 @@ export default function InboxPage() {
                               </div>
                             )}
                             {task.subtasks && task.subtasks.length > 0 && (
-                              <Badge variant="outline" className="text-xs h-5 px-1.5">
-                                {task.subtasks.filter(s => s.isCompleted).length}/{task.subtasks.length}
-                              </Badge>
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <CheckSquare className="h-3 w-3" />
+                                <span>{task.subtasks.filter(s => s.isCompleted).length}/{task.subtasks.length}</span>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -353,6 +355,12 @@ export default function InboxPage() {
                           <p className="font-medium line-through text-muted-foreground">
                             {task.title}
                           </p>
+                          {task.subtasks && task.subtasks.length > 0 && (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                              <CheckSquare className="h-3 w-3" />
+                              <span>{task.subtasks.filter(s => s.isCompleted).length}/{task.subtasks.length}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </motion.div>

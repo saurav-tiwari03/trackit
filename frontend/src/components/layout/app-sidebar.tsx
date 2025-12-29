@@ -76,7 +76,7 @@ export function AppSidebar() {
   const { user, logout } = useAuthStore();
   const { projects } = useProjectsStore();
   const { unreadCount, fetchUnreadCount } = useNotificationsStore();
-  const { toggleSidebar, setOpen, isMobile } = useSidebar();
+  const { toggleSidebar, setOpen, setOpenMobile, isMobile } = useSidebar();
   const [projectsOpen, setProjectsOpen] = useState(true);
 
   // Auto-collapse on Slack page and expand on hover
@@ -119,7 +119,7 @@ export function AppSidebar() {
             href="/"
             className="flex items-center gap-2"
             onClick={() => {
-              if (isMobile) setOpen(false);
+              if (isMobile) setOpenMobile(false);
             }}
           >
             <img
@@ -161,7 +161,7 @@ export function AppSidebar() {
                     <Link
                       href={item.href}
                       onClick={() => {
-                        if (isMobile) setOpen(false);
+                        if (isMobile) setOpenMobile(false);
                       }}
                     >
                       <item.icon className={cn('h-4 w-4', item.color)} />
@@ -192,7 +192,7 @@ export function AppSidebar() {
                     pathname === '/projects' && 'text-foreground'
                   )}
                   onClick={() => {
-                    if (isMobile) setOpen(false);
+                    if (isMobile) setOpenMobile(false);
                   }}
                 >
                   <FolderKanban className="h-4 w-4" />
@@ -231,7 +231,7 @@ export function AppSidebar() {
                             <Link
                               href={`/projects/${project._id}`}
                               onClick={() => {
-                                if (isMobile) setOpen(false);
+                                if (isMobile) setOpenMobile(false);
                               }}
                             >
                               <span
@@ -249,7 +249,7 @@ export function AppSidebar() {
                           href="/projects/new"
                           className="text-muted-foreground"
                           onClick={() => {
-                            if (isMobile) setOpen(false);
+                            if (isMobile) setOpenMobile(false);
                           }}
                         >
                           <Plus className="h-4 w-4" />
@@ -290,7 +290,7 @@ export function AppSidebar() {
                   <Link
                     href="/settings"
                     onClick={() => {
-                      if (isMobile) setOpen(false);
+                      if (isMobile) setOpenMobile(false);
                     }}
                   >
                     <Settings className="mr-2 h-4 w-4" />
@@ -299,7 +299,7 @@ export function AppSidebar() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => {
-                  if (isMobile) setOpen(false);
+                  if (isMobile) setOpenMobile(false);
                   handleLogout();
                 }}>
                   <LogOut className="mr-2 h-4 w-4" />
