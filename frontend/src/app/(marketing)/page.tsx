@@ -65,7 +65,7 @@ export default function Home() {
 
   return (
     <div className="bg-background">
-      {/* JSON-LD structured data */}
+      {/* JSON-LD structured data for rich search results & sitelinks */}
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
@@ -76,14 +76,88 @@ export default function Home() {
               '@graph': [
                 {
                   '@type': 'Organization',
+                  '@id': `${process.env.NEXT_PUBLIC_SITE_URL || 'https://trackit.sauravgo.fun'}/#organization`,
                   name: 'TrackIt',
-                  url: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
-                  logo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/logo.png`,
+                  url: process.env.NEXT_PUBLIC_SITE_URL || 'https://trackit.sauravgo.fun',
+                  logo: {
+                    '@type': 'ImageObject',
+                    url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://trackit.sauravgo.fun'}/logo.png`,
+                    width: 512,
+                    height: 512,
+                  },
+                  sameAs: [],
                 },
                 {
                   '@type': 'WebSite',
+                  '@id': `${process.env.NEXT_PUBLIC_SITE_URL || 'https://trackit.sauravgo.fun'}/#website`,
                   name: 'TrackIt',
-                  url: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+                  url: process.env.NEXT_PUBLIC_SITE_URL || 'https://trackit.sauravgo.fun',
+                  description: 'A clean, minimalist task and project manager with inbox, calendar scheduling, attachments, mentions, and notifications.',
+                  publisher: {
+                    '@id': `${process.env.NEXT_PUBLIC_SITE_URL || 'https://trackit.sauravgo.fun'}/#organization`,
+                  },
+                },
+                {
+                  '@type': 'WebPage',
+                  '@id': `${process.env.NEXT_PUBLIC_SITE_URL || 'https://trackit.sauravgo.fun'}/#webpage`,
+                  url: process.env.NEXT_PUBLIC_SITE_URL || 'https://trackit.sauravgo.fun',
+                  name: 'TrackIt - Task & Project Management',
+                  isPartOf: {
+                    '@id': `${process.env.NEXT_PUBLIC_SITE_URL || 'https://trackit.sauravgo.fun'}/#website`,
+                  },
+                  about: {
+                    '@id': `${process.env.NEXT_PUBLIC_SITE_URL || 'https://trackit.sauravgo.fun'}/#organization`,
+                  },
+                  description: 'TrackIt combines a focused inbox, projects, calendar scheduling, attachments, mentions, and notifications—without the noise.',
+                },
+                {
+                  '@type': 'SiteNavigationElement',
+                  '@id': `${process.env.NEXT_PUBLIC_SITE_URL || 'https://trackit.sauravgo.fun'}/#navigation`,
+                  name: 'Main Navigation',
+                  hasPart: [
+                    {
+                      '@type': 'SiteNavigationElement',
+                      name: 'Features',
+                      url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://trackit.sauravgo.fun'}/features`,
+                    },
+                    {
+                      '@type': 'SiteNavigationElement',
+                      name: 'Task Management Guide',
+                      url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://trackit.sauravgo.fun'}/task-management`,
+                    },
+                    {
+                      '@type': 'SiteNavigationElement',
+                      name: 'Dashboard',
+                      url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://trackit.sauravgo.fun'}/dashboard`,
+                    },
+                    {
+                      '@type': 'SiteNavigationElement',
+                      name: 'Login',
+                      url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://trackit.sauravgo.fun'}/login`,
+                    },
+                    {
+                      '@type': 'SiteNavigationElement',
+                      name: 'Register',
+                      url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://trackit.sauravgo.fun'}/register`,
+                    },
+                    {
+                      '@type': 'SiteNavigationElement',
+                      name: 'Contact Us',
+                      url: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://trackit.sauravgo.fun'}/contact-us`,
+                    },
+                  ],
+                },
+                {
+                  '@type': 'SoftwareApplication',
+                  name: 'TrackIt',
+                  applicationCategory: 'ProductivityApplication',
+                  operatingSystem: 'Web',
+                  offers: {
+                    '@type': 'Offer',
+                    price: '0',
+                    priceCurrency: 'USD',
+                  },
+                  description: 'A clean, minimalist task and project manager with inbox, calendar scheduling, attachments, mentions, and notifications.',
                 },
               ],
             },
