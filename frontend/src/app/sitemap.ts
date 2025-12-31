@@ -23,8 +23,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
   }> = [
     // High priority - main pages (candidates for sitelinks)
     { path: '/', priority: 1.0, changeFreq: 'daily' },
+    { path: '/pricing', priority: 0.95, changeFreq: 'weekly' },
+    { path: '/habit-tracker', priority: 0.95, changeFreq: 'weekly' },
     { path: '/features', priority: 0.9, changeFreq: 'weekly' },
     { path: '/task-management', priority: 0.9, changeFreq: 'weekly' },
+    { path: '/release-notes', priority: 0.85, changeFreq: 'weekly' },
     { path: '/login', priority: 0.8, changeFreq: 'monthly' },
     { path: '/register', priority: 0.8, changeFreq: 'monthly' },
     { path: '/dashboard', priority: 0.8, changeFreq: 'daily' },

@@ -19,6 +19,9 @@ import {
   Trophy,
   StickyNote,
   Flame,
+  Zap,
+  Crown,
+  Sparkles,
 } from 'lucide-react';
 
 import {
@@ -266,6 +269,28 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-2">
+        {/* Upgrade Banner for Free Users */}
+        {(!user?.subscriptionPlan || user.subscriptionPlan === 'free') && (
+          <div className="mb-2 group-data-[collapsible=icon]:hidden">
+            <Link
+              href="/pricing"
+              onClick={() => {
+                if (isMobile) setOpenMobile(false);
+              }}
+              className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20 hover:border-violet-500/40 transition-all group/upgrade"
+            >
+              <div className="p-1.5 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shadow-violet-500/20">
+                <Zap className="h-4 w-4 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-violet-700 dark:text-violet-300">Upgrade to Plus</p>
+                <p className="text-xs text-muted-foreground">Unlock all features</p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-violet-500 group-hover/upgrade:translate-x-0.5 transition-transform" />
+            </Link>
+          </div>
+        )}
+
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
@@ -278,7 +303,22 @@ export function AppSidebar() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 text-left group-data-[collapsible=icon]:hidden">
-                    <p className="text-sm font-medium truncate">{user?.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium truncate">{user?.name}</p>
+                      {/* Subscription Badge */}
+                      {user?.subscriptionPlan === 'plus' && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300">
+                          <Zap className="h-2.5 w-2.5" />
+                          PLUS
+                        </span>
+                      )}
+                      {user?.subscriptionPlan === 'pro' && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+                          <Crown className="h-2.5 w-2.5" />
+                          PRO
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground truncate">
                       {user?.email}
                     </p>
@@ -286,6 +326,39 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56">
+                {/* Subscription Status in Dropdown */}
+                <div className="px-2 py-1.5 mb-1">
+                  <div className="flex items-center gap-2">
+                    {user?.subscriptionPlan === 'plus' ? (
+                      <>
+                        <Zap className="h-4 w-4 text-violet-500" />
+                        <span className="text-sm font-medium text-violet-600 dark:text-violet-400">Plus Member</span>
+                      </>
+                    ) : user?.subscriptionPlan === 'pro' ? (
+                      <>
+                        <Crown className="h-4 w-4 text-amber-500" />
+                        <span className="text-sm font-medium text-amber-600 dark:text-amber-400">Pro Member</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 text-slate-500" />
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Free Plan</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link
+                    href="/pricing"
+                    onClick={() => {
+                      if (isMobile) setOpenMobile(false);
+                    }}
+                  >
+                    <Zap className="mr-2 h-4 w-4" />
+                    {user?.subscriptionPlan === 'free' || !user?.subscriptionPlan ? 'Upgrade Plan' : 'Manage Plan'}
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link
                     href="/settings"

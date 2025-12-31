@@ -247,5 +247,22 @@ export const pushAPI = {
   sendTest: () => api.post('/push/test'),
 };
 
+// Payments API
+export const paymentsAPI = {
+  getPlans: () => api.get('/payments/plans'),
+  getKey: () => api.get('/payments/key'),
+  getSubscription: () => api.get('/payments/subscription'),
+  getTransactions: (params?: { limit?: number; skip?: number }) =>
+    api.get('/payments/transactions', { params }),
+  createSubscription: (plan: 'plus' | 'pro') =>
+    api.post('/payments/create-subscription', { plan }),
+  verifyPayment: (data: {
+    razorpay_subscription_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+  }) => api.post('/payments/verify', data),
+  cancelSubscription: () => api.post('/payments/cancel'),
+};
+
 export default api;
 

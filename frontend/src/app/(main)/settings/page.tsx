@@ -2,14 +2,16 @@
 
 import { useState, useEffect, Suspense, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { User, Bell, Palette, Shield, LogOut, Calendar, Check, Loader2, ExternalLink, Unlink, Camera, Trash2 } from 'lucide-react';
+import { User, Bell, Palette, Shield, LogOut, Calendar, Check, Loader2, ExternalLink, Unlink, Camera, Trash2, Zap, Crown, Sparkles, CreditCard, Receipt } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuthStore } from '@/store/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { calendarAPI, usersAPI } from '@/lib/api';
+import { calendarAPI, usersAPI, paymentsAPI } from '@/lib/api';
+import { Transaction } from '@/types';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { PushNotificationSettings } from '@/components/settings/push-notification-settings';
 
@@ -37,6 +39,10 @@ function SettingsContent() {
   const [isLoadingCalendarStatus, setIsLoadingCalendarStatus] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+
+  // Subscription state
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
 
   // Update local state when user changes
   useEffect(() => {
@@ -78,8 +84,36 @@ function SettingsContent() {
   };
 
   useEffect(() => {
+    // Refresh user data to get latest subscription status
+    refreshUser();
     fetchGoogleCalendarStatus();
+    fetchTransactions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const fetchTransactions = async () => {
+    try {
+      setIsLoadingTransactions(true);
+      const response = await paymentsAPI.getTransactions({ limit: 5 });
+      setTransactions(response.data.data.transactions);
+    } catch (error) {
+      console.error('Failed to fetch transactions:', error);
+    } finally {
+      setIsLoadingTransactions(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+
+  const formatAmount = (amount: number) => {
+    return `₹${(amount / 100).toFixed(0)}`;
+  };
 
   const handleConnectGoogleCalendar = async () => {
     try {
@@ -449,11 +483,130 @@ function SettingsContent() {
             </Card>
           </motion.div>
 
-          {/* Push Notifications */}
+          {/* Subscription Section */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="w-5 h-5" />
+                  Subscription
+                </CardTitle>
+                <CardDescription>
+                  Manage your subscription plan and billing
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Current Plan */}
+                <div className="flex items-center justify-between p-4 rounded-lg border bg-gradient-to-r from-muted/30 to-muted/10">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center shadow-sm ${
+                      user?.subscriptionPlan === 'pro' 
+                        ? 'bg-gradient-to-br from-amber-500 to-orange-600' 
+                        : user?.subscriptionPlan === 'plus' 
+                        ? 'bg-gradient-to-br from-violet-500 to-purple-600'
+                        : 'bg-gradient-to-br from-slate-400 to-slate-500'
+                    }`}>
+                      {user?.subscriptionPlan === 'pro' ? (
+                        <Crown className="w-6 h-6 text-white" />
+                      ) : user?.subscriptionPlan === 'plus' ? (
+                        <Zap className="w-6 h-6 text-white" />
+                      ) : (
+                        <Sparkles className="w-6 h-6 text-white" />
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">
+                        {user?.subscriptionPlan === 'pro' ? 'Pro Plan' : user?.subscriptionPlan === 'plus' ? 'Plus Plan' : 'Free Plan'}
+                      </h3>
+                      {user?.subscriptionExpiresAt && user?.subscriptionPlan !== 'free' ? (
+                        <p className="text-sm text-muted-foreground">
+                          Renews on {formatDate(user.subscriptionExpiresAt)}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          {user?.subscriptionPlan === 'free' || !user?.subscriptionPlan ? 'Upgrade to unlock all features' : 'Active subscription'}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <Button asChild variant={user?.subscriptionPlan === 'free' || !user?.subscriptionPlan ? 'default' : 'outline'}>
+                    <Link href="/pricing">
+                      {user?.subscriptionPlan === 'free' || !user?.subscriptionPlan ? (
+                        <>
+                          <Zap className="w-4 h-4 mr-2" />
+                          Upgrade
+                        </>
+                      ) : (
+                        'Manage Plan'
+                      )}
+                    </Link>
+                  </Button>
+                </div>
+
+                {/* Payment History */}
+                {transactions.length > 0 && (
+                  <div>
+                    <h4 className="font-medium flex items-center gap-2 mb-3">
+                      <Receipt className="w-4 h-4" />
+                      Recent Transactions
+                    </h4>
+                    <div className="space-y-2">
+                      {isLoadingTransactions ? (
+                        <div className="flex items-center justify-center py-4">
+                          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : (
+                        transactions.map((transaction) => (
+                          <div
+                            key={transaction._id}
+                            className="flex items-center justify-between p-3 rounded-lg border bg-muted/20"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-2 h-2 rounded-full ${
+                                transaction.status === 'completed' ? 'bg-green-500' :
+                                transaction.status === 'pending' ? 'bg-yellow-500' :
+                                transaction.status === 'failed' ? 'bg-red-500' : 'bg-gray-500'
+                              }`} />
+                              <div>
+                                <p className="text-sm font-medium">
+                                  {transaction.plan.charAt(0).toUpperCase() + transaction.plan.slice(1)} Plan
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {formatDate(transaction.createdAt)}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-semibold">
+                                {formatAmount(transaction.amount)}
+                              </p>
+                              <p className={`text-xs capitalize ${
+                                transaction.status === 'completed' ? 'text-green-600' :
+                                transaction.status === 'pending' ? 'text-yellow-600' :
+                                transaction.status === 'failed' ? 'text-red-600' : 'text-gray-600'
+                              }`}>
+                                {transaction.status}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Push Notifications */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
           >
             <PushNotificationSettings />
           </motion.div>
@@ -462,7 +615,7 @@ function SettingsContent() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={{ delay: 0.25 }}
             className="grid gap-4 sm:grid-cols-2"
           >
             {settingsSections.slice(2).map((section) => (
@@ -486,7 +639,7 @@ function SettingsContent() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
+            transition={{ delay: 0.3 }}
           >
             <Card className="border-destructive/50">
               <CardHeader>

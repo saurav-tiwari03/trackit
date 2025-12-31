@@ -1,3 +1,6 @@
+export type SubscriptionPlan = 'free' | 'plus' | 'pro';
+export type SubscriptionStatus = 'active' | 'cancelled' | 'expired' | 'pending';
+
 export interface User {
   id: string;
   name: string;
@@ -6,6 +9,32 @@ export interface User {
   // Optional presence indicator (used by chat UI / socket presence)
   status?: 'online' | 'offline' | 'busy';
   labels?: string[];
+  // Subscription fields
+  subscriptionPlan?: SubscriptionPlan;
+  subscriptionStatus?: SubscriptionStatus;
+  subscriptionExpiresAt?: string;
+}
+
+export interface SubscriptionPlanDetails {
+  name: string;
+  amount: number;
+  displayAmount: string;
+  currency: string;
+  description: string;
+  features: string[];
+}
+
+export interface Transaction {
+  _id: string;
+  razorpayOrderId: string;
+  razorpayPaymentId?: string;
+  amount: number;
+  currency: string;
+  plan: SubscriptionPlan;
+  status: 'pending' | 'completed' | 'failed' | 'refunded';
+  paymentMethod?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Section {

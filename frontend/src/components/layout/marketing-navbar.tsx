@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,10 +16,10 @@ import {
 
 const navLinks = [
   { href: '/features', label: 'Features' },
-  { href: '/task-management', label: 'Task Management' },
-  { href: '/privacy', label: 'Privacy Policy' },
-  { href: '/terms-and-conditions', label: 'Terms' },
-  { href: '/contact-us', label: 'Contact' },
+  { href: '/habit-tracker', label: 'Habit Tracker' },
+  { href: '/pricing', label: 'Pricing' },
+  { href: '/task-management', label: 'Task Management Guide' },
+  { href: '/release-notes', label: 'Release Notes' },
 ];
 
 export function MarketingNavbar() {
@@ -32,13 +33,19 @@ export function MarketingNavbar() {
   return (
     <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
-        <Link href="/" className="flex items-center gap-2 shrink-0">
-          <div className="h-9 w-9 rounded-xl bg-foreground text-background flex items-center justify-center font-bold">
-            T
+        <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
+          <div className="h-10 w-10 rounded-xl bg-foreground flex items-center justify-center overflow-hidden">
+            <Image
+              src="/logo.png"
+              alt="TrackIt"
+              width={32}
+              height={32}
+              className="object-contain"
+            />
           </div>
           <div className="leading-tight">
-            <div className="font-semibold">TrackIt</div>
-            <div className="text-xs text-muted-foreground">Tasks. Projects. Calm.</div>
+            <div className="font-bold text-lg">TrackIt</div>
+            <div className="text-[10px] text-muted-foreground tracking-wide">Tasks. Projects. Calm.</div>
           </div>
         </Link>
 
