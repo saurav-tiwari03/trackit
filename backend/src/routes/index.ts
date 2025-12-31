@@ -10,6 +10,7 @@ import calendarRoutes from './calendar.routes';
 import notesRoutes from './notes.routes';
 import habitRoutes from './habit.routes';
 import pushRoutes from './push.routes';
+import paymentRoutes from './payment.routes';
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use('/calendar', calendarRoutes);
 router.use('/notes', notesRoutes);
 router.use('/habits', habitRoutes);
 router.use('/push', pushRoutes);
+router.use('/payments', paymentRoutes);
 
 export default router;

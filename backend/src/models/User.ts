@@ -8,6 +8,8 @@ export interface IGoogleCalendarTokens {
   email?: string;
 }
 
+export type SubscriptionPlanType = 'free' | 'plus' | 'pro';
+
 export interface IUser extends Document {
   _id: Types.ObjectId;
   name: string;
@@ -16,6 +18,10 @@ export interface IUser extends Document {
   avatar?: string;
   labels: string[];
   googleCalendar?: IGoogleCalendarTokens;
+  // Subscription fields for quick access
+  subscriptionPlan: SubscriptionPlanType;
+  subscriptionStatus: 'active' | 'cancelled' | 'expired' | 'pending';
+  subscriptionExpiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -56,6 +62,19 @@ const userSchema = new Schema<IUser>(
       refreshToken: { type: String },
       expiryDate: { type: Number },
       email: { type: String },
+    },
+    subscriptionPlan: {
+      type: String,
+      enum: ['free', 'plus', 'pro'],
+      default: 'free',
+    },
+    subscriptionStatus: {
+      type: String,
+      enum: ['active', 'cancelled', 'expired', 'pending'],
+      default: 'active',
+    },
+    subscriptionExpiresAt: {
+      type: Date,
     },
   },
   {
