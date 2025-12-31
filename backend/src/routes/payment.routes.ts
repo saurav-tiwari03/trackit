@@ -10,12 +10,29 @@ const router = Router();
 // Razorpay API base URL (v2)
 const RAZORPAY_API = 'https://api.razorpay.com/v1';
 
+// Razorpay API response types
+interface RazorpaySubscription {
+  id: string;
+  plan_id: string;
+  status: string;
+  current_start?: number;
+  current_end?: number;
+  notes?: Record<string, string>;
+}
+
+interface RazorpayError {
+  error?: {
+    code?: string;
+    description?: string;
+  };
+}
+
 // Helper to make Razorpay API calls
 const razorpayRequest = async (
   endpoint: string,
-  method: 'GET' | 'POST' | 'PATCH' = 'GET',
-  body?: Record<string, unknown>
-) => {
+  body?: Record<string, unknown>,
+  method: 'GET' | 'POST' | 'PATCH' = 'GET'
+): Promise<RazorpaySubscription> => {
   const auth = Buffer.from(
     `${RAZORPAY_CONFIG.KEY_ID}:${RAZORPAY_CONFIG.KEY_SECRET}`
   ).toString('base64');
@@ -33,14 +50,17 @@ const razorpayRequest = async (
   }
 
   const response = await fetch(`${RAZORPAY_API}${endpoint}`, options);
-  const data = await response.json();
+  const data = (await response.json()) as RazorpaySubscription | RazorpayError;
 
   if (!response.ok) {
     console.error('Razorpay API error:', data);
-    throw new Error(data.error?.description || 'Razorpay API request failed');
+    const errorData = data as RazorpayError;
+    throw new Error(
+      errorData.error?.description || 'Razorpay API request failed'
+    );
   }
 
-  return data;
+  return data as RazorpaySubscription;
 };
 
 // Get subscription plans
@@ -197,17 +217,21 @@ router.post(
       }
 
       // Create Razorpay subscription
-      const subscription = await razorpayRequest('/subscriptions', 'POST', {
-        plan_id: planDetails.planId,
-        customer_notify: 1,
-        total_count: 12, // 12 billing cycles (1 year)
-        notes: {
-          userId: userId.toString(),
-          plan,
-          userEmail: user.email,
-          userName: user.name,
+      const subscription = await razorpayRequest(
+        '/subscriptions',
+        {
+          plan_id: planDetails.planId,
+          customer_notify: 1,
+          total_count: 12, // 12 billing cycles (1 year)
+          notes: {
+            userId: userId.toString(),
+            plan,
+            userEmail: user.email,
+            userName: user.name,
+          },
         },
-      });
+        'POST'
+      );
 
       // Create pending transaction record
       await Transaction.create({
@@ -258,17 +282,17 @@ router.post('/verify', protect, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!._id;
     const {
-      razorpay_subscription_id,
-      razorpay_payment_id,
-      razorpay_signature,
-    } = req.body;
+      razorpay_subscription_id: subscriptionId,
+      razorpay_payment_id: paymentId,
+      razorpay_signature: signature,
+    } = req.body as {
+      razorpay_subscription_id: string;
+      razorpay_payment_id: string;
+      razorpay_signature: string;
+    };
 
     // Validate required fields
-    if (
-      !razorpay_subscription_id ||
-      !razorpay_payment_id ||
-      !razorpay_signature
-    ) {
+    if (!subscriptionId || !paymentId || !signature) {
       res.status(400).json({
         success: false,
         message: 'Missing required payment details',
@@ -278,7 +302,7 @@ router.post('/verify', protect, async (req: AuthRequest, res: Response) => {
 
     // Find the transaction by subscription ID
     const transaction = await Transaction.findOne({
-      razorpayOrderId: razorpay_subscription_id,
+      razorpayOrderId: subscriptionId,
       user: userId,
     });
 
@@ -292,13 +316,13 @@ router.post('/verify', protect, async (req: AuthRequest, res: Response) => {
 
     // Verify signature for subscription
     // Signature = HMAC-SHA256(razorpay_payment_id + '|' + razorpay_subscription_id, secret)
-    const body = `${razorpay_payment_id}|${razorpay_subscription_id}`;
+    const body = `${paymentId}|${subscriptionId}`;
     const expectedSignature = crypto
       .createHmac('sha256', RAZORPAY_CONFIG.KEY_SECRET)
       .update(body)
       .digest('hex');
 
-    if (expectedSignature !== razorpay_signature) {
+    if (expectedSignature !== signature) {
       // Update transaction as failed
       await Transaction.findByIdAndUpdate(transaction._id, {
         status: 'failed',
@@ -315,7 +339,7 @@ router.post('/verify', protect, async (req: AuthRequest, res: Response) => {
 
     // Get subscription details from Razorpay
     const subscriptionDetails = await razorpayRequest(
-      `/subscriptions/${razorpay_subscription_id}`
+      `/subscriptions/${subscriptionId}`
     );
 
     // Calculate subscription period
@@ -333,14 +357,14 @@ router.post('/verify', protect, async (req: AuthRequest, res: Response) => {
     }
 
     console.log('Subscription details:', {
-      current_end: subscriptionDetails.current_end,
+      currentEnd: subscriptionDetails.current_end,
       periodEnd: periodEnd.toISOString(),
     });
 
     // Update transaction
     await Transaction.findByIdAndUpdate(transaction._id, {
-      razorpayPaymentId: razorpay_payment_id,
-      razorpaySignature: razorpay_signature,
+      razorpayPaymentId: paymentId,
+      razorpaySignature: signature,
       status: 'completed',
     });
 
@@ -351,7 +375,7 @@ router.post('/verify', protect, async (req: AuthRequest, res: Response) => {
         user: userId,
         plan: transaction.plan as SubscriptionPlan,
         status: 'active',
-        razorpaySubscriptionId: razorpay_subscription_id,
+        razorpaySubscriptionId: subscriptionId,
         currentPeriodStart: now,
         currentPeriodEnd: periodEnd,
       },
@@ -407,8 +431,8 @@ router.post('/cancel', protect, async (req: AuthRequest, res: Response) => {
     // Cancel subscription in Razorpay
     await razorpayRequest(
       `/subscriptions/${subscription.razorpaySubscriptionId}/cancel`,
-      'POST',
-      { cancel_at_cycle_end: 1 } // Cancel at end of current billing cycle
+      { cancel_at_cycle_end: 1 }, // Cancel at end of current billing cycle
+      'POST'
     );
 
     // Update subscription status
