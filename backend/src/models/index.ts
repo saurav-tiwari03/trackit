@@ -6,6 +6,7 @@ export { Notification, INotification } from './Notification';
 export { default as Chat, IChat } from './Chat';
 export { default as Message, IMessage } from './Message';
 export { Note, INote } from './Note';
+export { Folder, IFolder } from './Folder';
 export { Habit, IHabit, IHabitCompletion } from './Habit';
 export { PushSubscription, IPushSubscription } from './PushSubscription';
 export {

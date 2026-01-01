@@ -16,10 +16,12 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
     const {
       search,
       project,
+      folder,
       tag,
       isPinned,
       isFavorite,
       isArchived,
+      noFolder,
       sortBy = 'lastEditedAt',
       sortOrder = 'desc',
     } = req.query;
@@ -28,6 +30,8 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
     const query: Record<string, unknown> = { user: userId };
 
     if (project) query.project = project;
+    if (folder) query.folder = folder;
+    if (noFolder === 'true') query.folder = { $exists: false };
     if (tag) query.tags = tag;
     if (isPinned === 'true') query.isPinned = true;
     if (isFavorite === 'true') query.isFavorite = true;
@@ -54,6 +58,7 @@ router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
 
     const notes = await Note.find(query)
       .populate('project', 'name color')
+      .populate('folder', 'name color icon')
       .sort(sort)
       .lean();
 
@@ -80,6 +85,7 @@ router.get('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
 
     const note = await Note.findOne({ _id: id, user: userId })
       .populate('project', 'name color')
+      .populate('folder', 'name color icon')
       .lean();
 
     if (!note) {
@@ -118,7 +124,8 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
       return;
     }
 
-    const { title, content, plainText, project, color, tags } = req.body;
+    const { title, content, plainText, project, folder, color, tags } =
+      req.body;
 
     const note = await Note.create({
       title: title || 'Untitled',
@@ -126,12 +133,14 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
       plainText: plainText || '',
       user: userId,
       project: project || undefined,
+      folder: folder || undefined,
       color: color || '',
       tags: tags || [],
     });
 
     const populatedNote = await Note.findById(note._id)
       .populate('project', 'name color')
+      .populate('folder', 'name color icon')
       .lean();
 
     res.status(201).json({
@@ -155,7 +164,8 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?._id;
     const { id } = req.params;
-    const { title, content, plainText, project, color, tags } = req.body;
+    const { title, content, plainText, project, folder, color, tags } =
+      req.body;
 
     // Find and verify ownership
     const existingNote = await Note.findOne({ _id: id, user: userId });
@@ -173,6 +183,7 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
     if (content !== undefined) existingNote.content = content;
     if (plainText !== undefined) existingNote.plainText = plainText;
     if (project !== undefined) existingNote.project = project || undefined;
+    if (folder !== undefined) existingNote.folder = folder || undefined;
     if (color !== undefined) existingNote.color = color;
     if (tags !== undefined) existingNote.tags = tags;
 
@@ -180,6 +191,7 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
 
     const updatedNote = await Note.findById(id)
       .populate('project', 'name color')
+      .populate('folder', 'name color icon')
       .lean();
 
     res.json({
@@ -324,6 +336,98 @@ router.patch(
       res.status(500).json({
         success: false,
         message: 'Failed to toggle archive',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+);
+
+// @route   PATCH /api/notes/:id/move
+// @desc    Move a note to a folder
+// @access  Private
+router.patch(
+  '/:id/move',
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?._id;
+      const { id } = req.params;
+      const { folder } = req.body;
+
+      const note = await Note.findOne({ _id: id, user: userId });
+
+      if (!note) {
+        res.status(404).json({
+          success: false,
+          message: 'Note not found',
+        });
+        return;
+      }
+
+      // Update folder (null/undefined removes from folder)
+      if (folder === null || folder === undefined || folder === '') {
+        note.folder = undefined;
+      } else {
+        note.folder = folder;
+      }
+
+      await note.save();
+
+      const updatedNote = await Note.findById(id)
+        .populate('project', 'name color')
+        .populate('folder', 'name color icon')
+        .lean();
+
+      res.json({
+        success: true,
+        data: updatedNote,
+      });
+    } catch (error) {
+      console.error('Move note error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to move note',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+);
+
+// @route   GET /api/notes/:id/download
+// @desc    Download a note as .txt file
+// @access  Private
+router.get(
+  '/:id/download',
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?._id;
+      const { id } = req.params;
+
+      const note = await Note.findOne({ _id: id, user: userId }).lean();
+
+      if (!note) {
+        res.status(404).json({
+          success: false,
+          message: 'Note not found',
+        });
+        return;
+      }
+
+      // Create text content
+      const content = `${note.title}\n${'='.repeat(note.title.length)}\n\n${note.plainText || 'No content'}\n\n---\nCreated: ${new Date(note.createdAt).toLocaleString()}\nLast edited: ${new Date(note.lastEditedAt).toLocaleString()}`;
+
+      // Create safe filename
+      const filename = `${note.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50)}.txt`;
+
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${filename}"`
+      );
+      res.send(content);
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to download note',
         error: error instanceof Error ? error.message : 'Unknown error',
       });
     }

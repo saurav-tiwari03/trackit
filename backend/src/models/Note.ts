@@ -7,6 +7,7 @@ export interface INote extends Document {
   plainText: string; // Plain text for search
   user: Types.ObjectId;
   project?: Types.ObjectId;
+  folder?: Types.ObjectId; // Folder for file-like organization
   color?: string;
   isPinned: boolean;
   isFavorite: boolean;
@@ -41,6 +42,11 @@ const noteSchema = new Schema<INote>(
     project: {
       type: Schema.Types.ObjectId,
       ref: 'Project',
+      index: true,
+    },
+    folder: {
+      type: Schema.Types.ObjectId,
+      ref: 'Folder',
       index: true,
     },
     color: {
