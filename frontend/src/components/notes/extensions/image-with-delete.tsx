@@ -10,7 +10,7 @@ export function ImageNodeView({ node, deleteNode, selected }: NodeViewProps) {
         {/* Delete button - glass morphism style */}
         <button
           onClick={deleteNode}
-          className="absolute -top-2 -right-2 z-10 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg backdrop-blur-md bg-white/20 border border-white/30 hover:bg-white/30 hover:scale-110"
+          className="absolute -top-2 -right-2 z-10 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg backdrop-blur-md bg-white/20 border border-white/30 hover:bg-white/30 hover:scale-110 cursor-pointer"
           title="Remove image"
           type="button"
         >
