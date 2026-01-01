@@ -12,6 +12,7 @@ import foldersRoutes from './folders.routes';
 import habitRoutes from './habit.routes';
 import pushRoutes from './push.routes';
 import paymentRoutes from './payment.routes';
+import uploadRoutes from './upload.routes';
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use('/folders', foldersRoutes);
 router.use('/habits', habitRoutes);
 router.use('/push', pushRoutes);
 router.use('/payments', paymentRoutes);
+router.use('/upload', uploadRoutes);
 
 export default router;
