@@ -13,8 +13,9 @@ import Color from '@tiptap/extension-color';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import Image from '@tiptap/extension-image';
 import { common, createLowlight } from 'lowlight';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import {
   Bold,
   Italic,
@@ -37,7 +38,10 @@ import {
   Undo,
   Redo,
   CodeSquare,
+  ImageIcon,
+  ListTree,
 } from 'lucide-react';
+import { DescriptionListKit } from './extensions/description-list';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -150,6 +154,14 @@ export function TiptapEditor({
             'bg-muted rounded-lg p-4 font-mono text-sm overflow-x-auto my-4',
         },
       }),
+      Image.configure({
+        inline: false,
+        allowBase64: true,
+        HTMLAttributes: {
+          class: 'rounded-lg max-w-full h-auto my-4 mx-auto block',
+        },
+      }),
+      ...DescriptionListKit,
     ],
     content,
     editable,
@@ -158,6 +170,64 @@ export function TiptapEditor({
       attributes: {
         class:
           'prose prose-invert prose-sm sm:prose-base max-w-none focus:outline-none min-h-[400px] h-full px-5 py-4',
+      },
+      handlePaste(view, event) {
+        const items = event.clipboardData?.items;
+        if (!items) return false;
+
+        for (const item of items) {
+          if (item.type.startsWith('image/')) {
+            event.preventDefault();
+            const file = item.getAsFile();
+            if (!file) return false;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const base64 = e.target?.result as string;
+              if (base64) {
+                view.dispatch(
+                  view.state.tr.replaceSelectionWith(
+                    view.state.schema.nodes.image.create({ src: base64 })
+                  )
+                );
+              }
+            };
+            reader.readAsDataURL(file);
+            return true;
+          }
+        }
+        return false;
+      },
+      handleDrop(view, event) {
+        const files = event.dataTransfer?.files;
+        if (!files || files.length === 0) return false;
+
+        for (const file of files) {
+          if (file.type.startsWith('image/')) {
+            event.preventDefault();
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const base64 = e.target?.result as string;
+              if (base64) {
+                const coordinates = view.posAtCoords({
+                  left: event.clientX,
+                  top: event.clientY,
+                });
+                if (coordinates) {
+                  view.dispatch(
+                    view.state.tr.insert(
+                      coordinates.pos,
+                      view.state.schema.nodes.image.create({ src: base64 })
+                    )
+                  );
+                }
+              }
+            };
+            reader.readAsDataURL(file);
+            return true;
+          }
+        }
+        return false;
       },
     },
     onUpdate: ({ editor }) => {
@@ -174,6 +244,8 @@ export function TiptapEditor({
     }
   }, [content, editor]);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const setLink = useCallback(() => {
     if (!editor) return;
 
@@ -188,6 +260,52 @@ export function TiptapEditor({
     }
 
     editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+  }, [editor]);
+
+  const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editor) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      if (base64) {
+        editor.chain().focus().setImage({ src: base64 }).run();
+      }
+    };
+    reader.readAsDataURL(file);
+
+    // Reset input so the same file can be selected again
+    e.target.value = '';
+  }, [editor]);
+
+  const insertDescriptionList = useCallback(() => {
+    if (!editor) return;
+
+    // If already in description list, lift out of it
+    if (editor.isActive('descriptionList')) {
+      editor.chain().focus().lift('descriptionList').run();
+      return;
+    }
+
+    // Insert a new description list with one term/details pair
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: 'descriptionList',
+        content: [
+          {
+            type: 'descriptionTerm',
+            content: [{ type: 'text', text: 'Term' }],
+          },
+          {
+            type: 'descriptionDetails',
+            content: [{ type: 'text', text: 'Description' }],
+          },
+        ],
+      })
+      .run();
   }, [editor]);
 
   if (!editor) {
@@ -342,6 +460,13 @@ export function TiptapEditor({
         >
           <ListTodo className="h-4 w-4" />
         </MenuButton>
+        <MenuButton
+          onClick={insertDescriptionList}
+          isActive={editor.isActive('descriptionList')}
+          tooltip="Description List"
+        >
+          <ListTree className="h-4 w-4" />
+        </MenuButton>
 
         <MenuDivider />
 
@@ -377,6 +502,21 @@ export function TiptapEditor({
         >
           <LinkIcon className="h-4 w-4" />
         </MenuButton>
+
+        {/* Image */}
+        <MenuButton
+          onClick={() => fileInputRef.current?.click()}
+          tooltip="Add Image"
+        >
+          <ImageIcon className="h-4 w-4" />
+        </MenuButton>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleImageUpload}
+          className="hidden"
+        />
       </div>
 
       {/* Editor Content */}

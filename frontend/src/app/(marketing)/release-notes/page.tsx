@@ -26,6 +26,44 @@ export const metadata: Metadata = {
 // Release notes data - add new releases at the top
 const releases = [
   {
+    version: '2.6.0',
+    date: 'January 2, 2026',
+    title: 'Folder Management & Note Downloads',
+    type: 'major',
+    changes: [
+      {
+        type: 'feature',
+        title: 'Folder Management for Notes',
+        description: 'Organize your notes into folders with full CRUD support. Create, rename, and delete folders easily.',
+      },
+      {
+        type: 'feature',
+        title: 'Nested Folders',
+        description: 'Create folders inside folders for better organization. Expand and collapse folder trees with a single click.',
+      },
+      {
+        type: 'feature',
+        title: 'Move Notes to Folders',
+        description: 'Easily move notes between folders using the new "Move to folder" option in the note menu.',
+      },
+      {
+        type: 'feature',
+        title: 'Download Notes as .txt',
+        description: 'Export any note as a plain text file with a single click. Perfect for backups and sharing.',
+      },
+      {
+        type: 'improvement',
+        title: 'Mobile Folder Sidebar',
+        description: 'Access your folder structure on mobile with the new "Folders" drawer. Manage folders on the go.',
+      },
+      {
+        type: 'improvement',
+        title: 'Better Note Card Layout',
+        description: 'Improved note card footer with folder name and timestamp displayed clearly without overlap.',
+      },
+    ],
+  },
+  {
     version: '2.5.0',
     date: 'December 31, 2025',
     title: 'Razorpay Payments & Habit Tracker Improvements',
