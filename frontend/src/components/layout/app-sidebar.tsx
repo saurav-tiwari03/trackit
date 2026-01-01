@@ -304,7 +304,7 @@ export function AppSidebar() {
                   </Avatar>
                   <div className="flex-1 text-left group-data-[collapsible=icon]:hidden">
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium truncate">{user?.name}</p>
+                    <p className="text-sm font-medium truncate">{user?.name}</p>
                       {/* Subscription Badge */}
                       {user?.subscriptionPlan === 'plus' && (
                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300">

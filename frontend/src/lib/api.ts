@@ -184,6 +184,8 @@ export const notesAPI = {
   getAll: (params?: {
     search?: string;
     project?: string;
+    folder?: string;
+    noFolder?: boolean;
     tag?: string;
     isPinned?: boolean;
     isFavorite?: boolean;
@@ -197,6 +199,7 @@ export const notesAPI = {
     content?: string;
     plainText?: string;
     project?: string;
+    folder?: string;
     color?: string;
     tags?: string[];
   }) => api.post('/notes', data),
@@ -207,6 +210,7 @@ export const notesAPI = {
       content?: string;
       plainText?: string;
       project?: string;
+      folder?: string;
       color?: string;
       tags?: string[];
     }
@@ -215,6 +219,31 @@ export const notesAPI = {
   togglePin: (id: string) => api.patch(`/notes/${id}/pin`),
   toggleFavorite: (id: string) => api.patch(`/notes/${id}/favorite`),
   toggleArchive: (id: string) => api.patch(`/notes/${id}/archive`),
+  move: (id: string, folderId: string | null) =>
+    api.patch(`/notes/${id}/move`, { folder: folderId }),
+  download: (id: string) =>
+    api.get(`/notes/${id}/download`, { responseType: 'blob' }),
+};
+
+// Folders API
+export const foldersAPI = {
+  getAll: () => api.get('/folders'),
+  getOne: (id: string) => api.get(`/folders/${id}`),
+  create: (data: { name?: string; parent?: string; color?: string; icon?: string }) =>
+    api.post('/folders', data),
+  update: (
+    id: string,
+    data: {
+      name?: string;
+      parent?: string;
+      color?: string;
+      icon?: string;
+      isExpanded?: boolean;
+      order?: number;
+    }
+  ) => api.put(`/folders/${id}`, data),
+  delete: (id: string) => api.delete(`/folders/${id}`),
+  toggle: (id: string) => api.patch(`/folders/${id}/toggle`),
 };
 
 // Habits API

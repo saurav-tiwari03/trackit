@@ -89,7 +89,7 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { isAuthenticated, isHydrated, checkAuth } = useAuthStore();
+  const { isAuthenticated, isHydrated, checkAuth, refreshUser } = useAuthStore();
   const { fetchProjects } = useProjectsStore();
   const [isChecking, setIsChecking] = useState(true);
 
@@ -111,8 +111,10 @@ export default function MainLayout({
       router.push('/login');
     } else {
       fetchProjects();
+      // Always refresh user data to get latest subscription status
+      refreshUser();
     }
-  }, [isAuthenticated, isHydrated, isChecking, router, fetchProjects]);
+  }, [isAuthenticated, isHydrated, isChecking, router, fetchProjects, refreshUser]);
 
   if (!isHydrated || isChecking) {
     return <SplashScreen />;

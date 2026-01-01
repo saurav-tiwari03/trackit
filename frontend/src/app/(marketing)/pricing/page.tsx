@@ -99,7 +99,7 @@ const plans = [
       'Recurring tasks',
       'Dark mode themes',
     ],
-    cta: 'Start Plus Trial',
+    cta: 'Get Plus',
     ctaLink: '/register?plan=plus',
   },
   {
@@ -122,7 +122,7 @@ const plans = [
       'File attachments (50GB)',
       'Priority feature requests',
     ],
-    cta: 'Start Pro Trial',
+    cta: 'Get Pro',
     ctaLink: '/register?plan=pro',
   },
 ];
@@ -140,9 +140,9 @@ const faqs = [
       'We accept all major payment methods including UPI, Credit/Debit Cards, Net Banking, and popular wallets through our secure Razorpay payment gateway.',
   },
   {
-    question: 'Is there a free trial for paid plans?',
+    question: 'Is there a free plan available?',
     answer:
-      'Yes, both Plus and Pro plans come with a 7-day free trial. No credit card required to start your trial.',
+      'Yes! TrackIt offers a generous free plan with core features. You can upgrade to Plus or Pro anytime to unlock advanced features.',
   },
   {
     question: 'Can I cancel my subscription?',
