@@ -1,8 +1,10 @@
 import { Router, Response } from 'express';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import multer from 'multer';
 import crypto from 'crypto';
 import { protect, AuthRequest } from '../middleware/auth';
+import { AWS_S3_CONFIG } from '../config/config';
 
 // Generate a unique ID for file names
 const generateId = () => `${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
@@ -25,16 +27,23 @@ const upload = multer({
   },
 });
 
-// Initialize S3 client
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'ap-south-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY || '',
-    secretAccessKey: process.env.AWS_SECRET_KEY || '',
-  },
-});
+// Check if S3 is enabled
+const isS3Enabled = Boolean(
+  AWS_S3_CONFIG.AWS_ACCESS_KEY &&
+  AWS_S3_CONFIG.AWS_SECRET_KEY &&
+  AWS_S3_CONFIG.AWS_BUCKET_NAME
+);
 
-const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'app-trackit-dev';
+// Initialize S3 client (only if credentials are available)
+const s3Client = isS3Enabled
+  ? new S3Client({
+      region: AWS_S3_CONFIG.AWS_REGION || 'ap-south-1',
+      credentials: {
+        accessKeyId: AWS_S3_CONFIG.AWS_ACCESS_KEY,
+        secretAccessKey: AWS_S3_CONFIG.AWS_SECRET_KEY,
+      },
+    })
+  : null;
 
 // Upload image to S3
 router.post(
@@ -48,31 +57,41 @@ router.post(
         return;
       }
 
+      if (!isS3Enabled || !s3Client) {
+        res.status(500).json({ success: false, message: 'S3 is not configured' });
+        return;
+      }
+
       const userId = req.user?._id?.toString() || 'anonymous';
       const fileExtension = req.file.originalname.split('.').pop() || 'jpg';
       const fileName = `notes/${userId}/${generateId()}.${fileExtension}`;
 
       // Upload to S3
-      const command = new PutObjectCommand({
-        Bucket: BUCKET_NAME,
+      const putCommand = new PutObjectCommand({
+        Bucket: AWS_S3_CONFIG.AWS_BUCKET_NAME,
         Key: fileName,
         Body: req.file.buffer,
         ContentType: req.file.mimetype,
-        // Make the object publicly readable
-        ACL: 'public-read',
       });
 
-      await s3Client.send(command);
+      await s3Client.send(putCommand);
 
-      // Construct the public URL
-      const imageUrl = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'ap-south-1'}.amazonaws.com/${fileName}`;
+      // Generate a presigned URL that lasts for 7 days
+      const getCommand = new GetObjectCommand({
+        Bucket: AWS_S3_CONFIG.AWS_BUCKET_NAME,
+        Key: fileName,
+      });
 
-      console.log(`[UPLOAD] Image uploaded: ${imageUrl}`);
+      const imageUrl = await getSignedUrl(s3Client, getCommand, {
+        expiresIn: 60 * 60 * 24 * 7, // 7 days
+      });
+
+      console.log(`[UPLOAD] Image uploaded: ${fileName}`);
 
       res.json({
         success: true,
         url: imageUrl,
-        fileName,
+        key: fileName,
       });
     } catch (error) {
       console.error('[UPLOAD] Error uploading image:', error);
@@ -85,5 +104,41 @@ router.post(
   }
 );
 
-export default router;
+// Get a fresh presigned URL for an existing image
+router.get(
+  '/image/*key',
+  protect,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      if (!isS3Enabled || !s3Client) {
+        res.status(500).json({ success: false, message: 'S3 is not configured' });
+        return;
+      }
 
+      const key = req.params.key as string;
+
+      const getCommand = new GetObjectCommand({
+        Bucket: AWS_S3_CONFIG.AWS_BUCKET_NAME,
+        Key: key,
+      });
+
+      const imageUrl = await getSignedUrl(s3Client, getCommand, {
+        expiresIn: 60 * 60 * 24 * 7, // 7 days
+      });
+
+      res.json({
+        success: true,
+        url: imageUrl,
+      });
+    } catch (error) {
+      console.error('[UPLOAD] Error getting image URL:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get image URL',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+);
+
+export default router;
