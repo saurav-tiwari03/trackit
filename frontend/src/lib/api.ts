@@ -293,5 +293,21 @@ export const paymentsAPI = {
   cancelSubscription: () => api.post('/payments/cancel'),
 };
 
+// Upload API
+export const uploadAPI = {
+  uploadImage: async (file: File | Blob): Promise<string> => {
+    const formData = new FormData();
+    formData.append('image', file);
+    
+    const response = await api.post('/upload/image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    
+    return response.data.url;
+  },
+};
+
 export default api;
 

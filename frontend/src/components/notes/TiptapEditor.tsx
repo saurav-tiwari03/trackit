@@ -13,8 +13,8 @@ import Color from '@tiptap/extension-color';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
-import Image from '@tiptap/extension-image';
 import { common, createLowlight } from 'lowlight';
+import { CustomImage } from './extensions/custom-image';
 import { useCallback, useEffect, useRef } from 'react';
 import {
   Bold,
@@ -43,6 +43,8 @@ import {
 } from 'lucide-react';
 import { DescriptionListKit } from './extensions/description-list';
 import { cn } from '@/lib/utils';
+import { compressImageToBlob } from '@/lib/image-compressor';
+import { uploadAPI } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import {
   Tooltip,
@@ -154,12 +156,9 @@ export function TiptapEditor({
             'bg-muted rounded-lg p-4 font-mono text-sm overflow-x-auto my-4',
         },
       }),
-      Image.configure({
+      CustomImage.configure({
         inline: false,
         allowBase64: true,
-        HTMLAttributes: {
-          class: 'rounded-lg max-w-full h-auto my-4 mx-auto block',
-        },
       }),
       ...DescriptionListKit,
     ],
@@ -181,18 +180,19 @@ export function TiptapEditor({
             const file = item.getAsFile();
             if (!file) return false;
 
-            const reader = new FileReader();
-            reader.onload = (e) => {
-              const base64 = e.target?.result as string;
-              if (base64) {
+            // Compress and upload to S3
+            compressImageToBlob(file, 1200, 1200, 0.8)
+              .then((compressedBlob) => uploadAPI.uploadImage(compressedBlob as File))
+              .then((imageUrl) => {
                 view.dispatch(
                   view.state.tr.replaceSelectionWith(
-                    view.state.schema.nodes.image.create({ src: base64 })
+                    view.state.schema.nodes.image.create({ src: imageUrl })
                   )
                 );
-              }
-            };
-            reader.readAsDataURL(file);
+              })
+              .catch((error) => {
+                console.error('Failed to upload image:', error);
+              });
             return true;
           }
         }
@@ -205,25 +205,29 @@ export function TiptapEditor({
         for (const file of files) {
           if (file.type.startsWith('image/')) {
             event.preventDefault();
-            const reader = new FileReader();
-            reader.onload = (e) => {
-              const base64 = e.target?.result as string;
-              if (base64) {
+            const clientX = event.clientX;
+            const clientY = event.clientY;
+            
+            // Compress and upload to S3
+            compressImageToBlob(file, 1200, 1200, 0.8)
+              .then((compressedBlob) => uploadAPI.uploadImage(compressedBlob as File))
+              .then((imageUrl) => {
                 const coordinates = view.posAtCoords({
-                  left: event.clientX,
-                  top: event.clientY,
+                  left: clientX,
+                  top: clientY,
                 });
                 if (coordinates) {
                   view.dispatch(
                     view.state.tr.insert(
                       coordinates.pos,
-                      view.state.schema.nodes.image.create({ src: base64 })
+                      view.state.schema.nodes.image.create({ src: imageUrl })
                     )
                   );
                 }
-              }
-            };
-            reader.readAsDataURL(file);
+              })
+              .catch((error) => {
+                console.error('Failed to upload image:', error);
+              });
             return true;
           }
         }
@@ -262,19 +266,19 @@ export function TiptapEditor({
     editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
   }, [editor]);
 
-  const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !editor) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      if (base64) {
-        editor.chain().focus().setImage({ src: base64 }).run();
-      }
-    };
-    reader.readAsDataURL(file);
-
+    try {
+      // Compress and upload to S3
+      const compressedBlob = await compressImageToBlob(file, 1200, 1200, 0.8);
+      const imageUrl = await uploadAPI.uploadImage(compressedBlob as File);
+      editor.chain().focus().setImage({ src: imageUrl }).run();
+    } catch (error) {
+      console.error('Failed to upload image:', error);
+    }
+    
     // Reset input so the same file can be selected again
     e.target.value = '';
   }, [editor]);
