@@ -26,6 +26,49 @@ export const metadata: Metadata = {
 // Release notes data - add new releases at the top
 const releases = [
   {
+    version: '2.7.0',
+    date: 'January 3, 2026',
+    title: 'FitLog - Complete Fitness Tracking',
+    type: 'major',
+    changes: [
+      {
+        type: 'feature',
+        title: 'FitLog Dashboard',
+        description: 'Track your fitness journey with calories, protein, weight, and workouts all in one place.',
+      },
+      {
+        type: 'feature',
+        title: 'Meal-Based Nutrition Logging',
+        description: 'Log individual meals (breakfast, lunch, dinner, snacks) with automatic macro totals calculation.',
+      },
+      {
+        type: 'feature',
+        title: 'Multiple Workouts Per Day',
+        description: 'Log multiple workout sessions per day - morning cardio, evening weights, and more.',
+      },
+      {
+        type: 'feature',
+        title: 'Personalized Goals Calculator',
+        description: 'Set your fitness goal (lose weight, maintain, gain muscle) and get personalized calorie and macro targets.',
+      },
+      {
+        type: 'feature',
+        title: 'Weight History Tracking',
+        description: 'Track weight over time with visual charts, trend indicators, and progress summary.',
+      },
+      {
+        type: 'feature',
+        title: 'Exercise Logging',
+        description: 'Log exercises with sets, reps, and weights. Track your progress on each exercise.',
+      },
+      {
+        type: 'improvement',
+        title: 'Smart Macro Calculation',
+        description: 'Uses Mifflin-St Jeor equation with activity multipliers for accurate TDEE and macro recommendations.',
+      },
+    ],
+  },
+  {
     version: '2.6.0',
     date: 'January 2, 2026',
     title: 'Folder Management & Note Downloads',

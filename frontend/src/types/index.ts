@@ -166,3 +166,133 @@ export interface HabitStats {
   activeStreaks: number;
 }
 
+// FitLog Types
+export interface FitLogExercise {
+  name: string;
+  sets: number;
+  reps: number;
+  weight?: number;
+  duration?: number;
+  notes?: string;
+}
+
+export type WorkoutType =
+  | 'push'
+  | 'pull'
+  | 'legs'
+  | 'upper'
+  | 'lower'
+  | 'full_body'
+  | 'cardio'
+  | 'hiit'
+  | 'rest'
+  | 'custom';
+
+export interface FitLogWorkout {
+  _id?: string;
+  type: WorkoutType;
+  customName?: string;
+  exercises: FitLogExercise[];
+  duration: number;
+  caloriesBurned?: number;
+  notes?: string;
+}
+
+export type MealType =
+  | 'breakfast'
+  | 'lunch'
+  | 'dinner'
+  | 'snack'
+  | 'pre_workout'
+  | 'post_workout'
+  | 'other';
+
+export interface FitLogMeal {
+  _id?: string;
+  type: MealType;
+  name?: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  time?: string;
+}
+
+export interface FitLogNutrition {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  water?: number;
+  meals?: FitLogMeal[];
+}
+
+export interface FitLogBodyMetrics {
+  weight?: number;
+  bodyFat?: number;
+}
+
+export type MoodType = 'great' | 'good' | 'okay' | 'tired' | 'poor';
+
+export interface FitLogEntry {
+  _id: string;
+  user: string;
+  date: string;
+  nutrition?: FitLogNutrition;
+  workout?: FitLogWorkout; // Legacy single workout
+  workouts?: FitLogWorkout[]; // Multiple workouts
+  bodyMetrics?: FitLogBodyMetrics;
+  caloriesBurned?: number;
+  steps?: number;
+  notes?: string;
+  mood?: MoodType;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type FitnessGoalType = 'lose_weight' | 'maintain' | 'gain_muscle' | 'gain_weight';
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
+export type Gender = 'male' | 'female' | 'other';
+
+export interface FitLogGoal {
+  _id: string;
+  user: string;
+  // Personal info for calculations
+  fitnessGoal: FitnessGoalType;
+  activityLevel: ActivityLevel;
+  gender?: Gender;
+  age?: number;
+  height?: number;
+  heightUnit: 'cm' | 'ft';
+  currentWeight?: number;
+  // Nutrition targets
+  caloriesIntake: number;
+  caloriesBurn: number;
+  protein: number;
+  carbs?: number;
+  fat?: number;
+  water?: number;
+  steps?: number;
+  targetWeight?: number;
+  startWeight?: number;
+  weightUnit: 'kg' | 'lbs';
+  workoutsPerWeek?: number;
+  isCustomTargets: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FitLogWeeklyStats {
+  totalCaloriesIn: number;
+  totalCaloriesBurned: number;
+  totalProtein: number;
+  avgCaloriesIn: number;
+  avgProtein: number;
+  workoutsCompleted: number;
+  avgWeight: number;
+  latestWeight: number;
+  entriesCount: number;
+  daysLogged: number;
+}
+

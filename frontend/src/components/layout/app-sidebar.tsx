@@ -22,6 +22,7 @@ import {
   Zap,
   Crown,
   Sparkles,
+  Dumbbell,
 } from 'lucide-react';
 
 import {
@@ -64,6 +65,7 @@ const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard', color: 'text-blue-500' },
   { icon: Inbox, label: 'Inbox', href: '/inbox', color: 'text-violet-500' },
   { icon: Flame, label: 'Streaks', href: '/streaks', color: 'text-orange-500' },
+  { icon: Dumbbell, label: 'FitLog', href: '/fitlog', color: 'text-emerald-500' },
   { icon: CheckSquare, label: 'All Tasks', href: '/tasks', color: 'text-green-500' },
   { icon: Calendar, label: 'Calendar', href: '/calendar', color: 'text-amber-500' },
   { icon: StickyNote, label: 'Notes', href: '/notes', color: 'text-yellow-500' },
@@ -85,13 +87,13 @@ export function AppSidebar() {
   // Auto-collapse on Slack page and expand on hover
   const isSlackPage = pathname === '/slack';
 
-  // Lightweight polling for unread count
-  // (no realtime infra yet; this gets you “right now” notifications)
-  useEffect(() => {
-    void fetchUnreadCount();
-    const t = window.setInterval(() => void fetchUnreadCount(), 15000);
-    return () => window.clearInterval(t);
-  }, [fetchUnreadCount]);
+  // Disabled: Lightweight polling for unread count
+  // TODO: Re-enable when realtime notifications are implemented
+  // useEffect(() => {
+  //   void fetchUnreadCount();
+  //   const t = window.setInterval(() => void fetchUnreadCount(), 15000);
+  //   return () => window.clearInterval(t);
+  // }, [fetchUnreadCount]);
 
   const handleLogout = () => {
     logout();
@@ -304,7 +306,7 @@ export function AppSidebar() {
                   </Avatar>
                   <div className="flex-1 text-left group-data-[collapsible=icon]:hidden">
                     <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium truncate">{user?.name}</p>
+                      <p className="text-sm font-medium truncate">{user?.name}</p>
                       {/* Subscription Badge */}
                       {user?.subscriptionPlan === 'plus' && (
                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300">

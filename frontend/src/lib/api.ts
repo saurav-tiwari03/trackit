@@ -293,18 +293,142 @@ export const paymentsAPI = {
   cancelSubscription: () => api.post('/payments/cancel'),
 };
 
+// FitLog API
+export const fitlogAPI = {
+  getEntries: (params?: { startDate?: string; endDate?: string; limit?: number }) =>
+    api.get('/fitlog', { params }),
+  getToday: () => api.get('/fitlog/today'),
+  getEntry: (date: string) => api.get(`/fitlog/${date}`),
+  saveEntry: (data: {
+    date: string;
+    nutrition?: {
+      calories: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+      water?: number;
+    };
+    workout?: {
+      type: string;
+      customName?: string;
+      exercises: Array<{
+        name: string;
+        sets: number;
+        reps: number;
+        weight?: number;
+        duration?: number;
+        notes?: string;
+      }>;
+      duration: number;
+      caloriesBurned?: number;
+      notes?: string;
+    };
+    bodyMetrics?: { weight?: number; bodyFat?: number };
+    caloriesBurned?: number;
+    steps?: number;
+    notes?: string;
+    mood?: string;
+  }) => api.post('/fitlog', data),
+  updateEntry: (
+    date: string,
+    data: Partial<{
+      nutrition: {
+        calories: number;
+        protein: number;
+        carbs: number;
+        fat: number;
+        water?: number;
+      };
+      workout: {
+        type: string;
+        customName?: string;
+        exercises: Array<{
+          name: string;
+          sets: number;
+          reps: number;
+          weight?: number;
+          duration?: number;
+        }>;
+        duration: number;
+        caloriesBurned?: number;
+      };
+      bodyMetrics: { weight?: number; bodyFat?: number };
+      caloriesBurned: number;
+      steps: number;
+      notes: string;
+      mood: string;
+    }>
+  ) => api.put(`/fitlog/${date}`, data),
+  deleteEntry: (date: string) => api.delete(`/fitlog/${date}`),
+  getGoals: () => api.get('/fitlog/goals'),
+  updateGoals: (
+    data: Partial<{
+      caloriesIntake: number;
+      caloriesBurn: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+      water: number;
+      steps: number;
+      targetWeight: number;
+      startWeight: number;
+      weightUnit: 'kg' | 'lbs';
+      workoutsPerWeek: number;
+    }>
+  ) => api.put('/fitlog/goals', data),
+  getWeeklyStats: () => api.get('/fitlog/stats/weekly'),
+  getWeightProgress: (days?: number) =>
+    api.get('/fitlog/progress/weight', { params: { days } }),
+  // Meal endpoints
+  addMeal: (
+    date: string,
+    meal: {
+      type: string;
+      name?: string;
+      calories: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+      time?: string;
+    }
+  ) => api.post(`/fitlog/${date}/meals`, meal),
+  deleteMeal: (date: string, mealId: string) =>
+    api.delete(`/fitlog/${date}/meals/${mealId}`),
+  // Workout endpoints
+  addWorkout: (
+    date: string,
+    workout: {
+      type: string;
+      customName?: string;
+      exercises?: Array<{
+        name: string;
+        sets: number;
+        reps: number;
+        weight?: number;
+        duration?: number;
+        notes?: string;
+      }>;
+      duration: number;
+      caloriesBurned?: number;
+      notes?: string;
+    }
+  ) => api.post(`/fitlog/${date}/workouts`, workout),
+  deleteWorkout: (date: string, workoutId: string) =>
+    api.delete(`/fitlog/${date}/workouts/${workoutId}`),
+};
+
 // Upload API
 export const uploadAPI = {
   uploadImage: async (file: File | Blob): Promise<string> => {
     const formData = new FormData();
     formData.append('image', file);
-    
+
     const response = await api.post('/upload/image', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
-    
+
     return response.data.url;
   },
 };
