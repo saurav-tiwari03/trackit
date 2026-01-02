@@ -13,6 +13,7 @@ import habitRoutes from './habit.routes';
 import pushRoutes from './push.routes';
 import paymentRoutes from './payment.routes';
 import uploadRoutes from './upload.routes';
+import fitlogRoutes from './fitlog.routes';
 
 const router = Router();
 
@@ -30,5 +31,6 @@ router.use('/habits', habitRoutes);
 router.use('/push', pushRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/upload', uploadRoutes);
+router.use('/fitlog', fitlogRoutes);
 
 export default router;

@@ -21,3 +21,19 @@ export {
   TransactionStatus,
   PaymentMethod,
 } from './Transaction';
+export {
+  FitLogEntry,
+  IFitLogEntry,
+  IWorkout,
+  INutrition,
+  IBodyMetrics,
+  IExercise,
+  IMeal,
+} from './FitLogEntry';
+export {
+  FitLogGoal,
+  IFitLogGoal,
+  FitnessGoalType,
+  ActivityLevel,
+  Gender,
+} from './FitLogGoal';
