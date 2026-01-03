@@ -704,14 +704,39 @@ export default function FitLogPage() {
     }
   };
 
-  const handleUpdateWater = async (amount: number, isAdding: boolean = true) => {
+  const handleUpdateWater = async (amount: number, isAdding: boolean = true, showToast: boolean = true) => {
+    const currentWater = entry?.nutrition?.water || 0;
+    const newWater = isAdding 
+      ? currentWater + amount 
+      : Math.max(0, currentWater - amount);
+    
+    // Optimistic update - update local state immediately
+    setEntry((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        nutrition: {
+          ...prev.nutrition,
+          calories: prev.nutrition?.calories || 0,
+          protein: prev.nutrition?.protein || 0,
+          carbs: prev.nutrition?.carbs || 0,
+          fat: prev.nutrition?.fat || 0,
+          water: newWater,
+        },
+      };
+    });
+    
+    if (showToast) {
+      if (isAdding) {
+        toast.success(`+${amount}ml`, { duration: 1500 });
+      } else {
+        toast.success(`-${amount}ml`, { duration: 1500 });
+      }
+    }
+    setShowDrinkDialog(false);
+    
+    // Save to backend in background
     try {
-      setIsSaving(true);
-      const currentWater = entry?.nutrition?.water || 0;
-      const newWater = isAdding 
-        ? currentWater + amount 
-        : Math.max(0, currentWater - amount);
-      
       await fitlogAPI.updateEntry(selectedDate, {
         nutrition: {
           calories: entry?.nutrition?.calories || 0,
@@ -721,23 +746,28 @@ export default function FitLogPage() {
           water: newWater,
         },
       });
-      
-      if (isAdding) {
-        toast.success(`Added ${amount}ml of water!`);
-      } else {
-        toast.success(`Removed ${amount}ml of water`);
-      }
-      setShowDrinkDialog(false);
-      fetchData();
     } catch (error) {
       console.error('Failed to update water:', error);
-      toast.error('Failed to update water');
-    } finally {
-      setIsSaving(false);
+      // Revert on error
+      setEntry((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          nutrition: {
+            ...prev.nutrition,
+            calories: prev.nutrition?.calories || 0,
+            protein: prev.nutrition?.protein || 0,
+            carbs: prev.nutrition?.carbs || 0,
+            fat: prev.nutrition?.fat || 0,
+            water: currentWater,
+          },
+        };
+      });
+      toast.error('Failed to save water intake');
     }
   };
 
-  const handleToggleWaterGlass = async (glassIndex: number) => {
+  const handleToggleWaterGlass = (glassIndex: number) => {
     const waterPerGlass = (goals?.water || 2000) / 8;
     const currentWater = entry?.nutrition?.water || 0;
     const glassWaterAmount = waterPerGlass * (glassIndex + 1);
@@ -751,13 +781,13 @@ export default function FitLogPage() {
       const targetWater = waterPerGlass * glassIndex;
       const amountToRemove = currentWater - targetWater;
       if (amountToRemove > 0) {
-        await handleUpdateWater(amountToRemove, false);
+        handleUpdateWater(amountToRemove, false, true);
       }
     } else {
       // Add water up to this glass
       const amountToAdd = glassWaterAmount - currentWater;
       if (amountToAdd > 0) {
-        await handleUpdateWater(amountToAdd, true);
+        handleUpdateWater(amountToAdd, true, true);
       }
     }
   };
@@ -2503,9 +2533,8 @@ export default function FitLogPage() {
                   <Button
                     key={amount}
                     variant="outline"
-                    className="flex-col h-16 gap-1"
+                    className="flex-col h-16 gap-1 hover:bg-blue-50 hover:border-blue-300"
                     onClick={() => handleUpdateWater(amount, true)}
-                    disabled={isSaving}
                   >
                     <Plus className="h-4 w-4 text-blue-500" />
                     <span className="text-xs">{amount}ml</span>
@@ -2522,9 +2551,9 @@ export default function FitLogPage() {
                     <Button
                       key={amount}
                       variant="outline"
-                      className="flex-col h-16 gap-1"
+                      className="flex-col h-16 gap-1 hover:bg-red-50 hover:border-red-300"
                       onClick={() => handleUpdateWater(amount, false)}
-                      disabled={isSaving || (nutrition?.water || 0) < amount}
+                      disabled={(nutrition?.water || 0) < amount}
                     >
                       <Minus className="h-4 w-4 text-red-500" />
                       <span className="text-xs">{amount}ml</span>
@@ -2547,10 +2576,10 @@ export default function FitLogPage() {
                 <Button
                   variant="outline"
                   onClick={() => handleUpdateWater(drinkAmount, true)}
-                  disabled={isSaving || !drinkAmount}
+                  disabled={!drinkAmount}
                   className="gap-1"
                 >
-                  {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4" /> Add</>}
+                  <Plus className="h-4 w-4" /> Add
                 </Button>
               </div>
             </div>
