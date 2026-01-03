@@ -296,11 +296,11 @@ export const paymentsAPI = {
 // FitLog API
 export const fitlogAPI = {
   // Analyze food image with AI
-  analyzeFoodImage: async (file: File, quantity?: string) => {
+  analyzeFoodImage: async (file: File, description?: string) => {
     const formData = new FormData();
     formData.append('image', file);
-    if (quantity) {
-      formData.append('quantity', quantity);
+    if (description) {
+      formData.append('description', description);
     }
     return api.post('/fitlog/analyze-food', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -387,6 +387,15 @@ export const fitlogAPI = {
       workoutsPerWeek: number;
     }>
   ) => api.put('/fitlog/goals', data),
+  calculateGoalsWithAI: (data: {
+    gender: string;
+    age: number;
+    height: number;
+    currentWeight: number;
+    targetWeight?: number;
+    activityLevel: string;
+    fitnessGoal: string;
+  }) => api.post('/fitlog/goals/calculate', data),
   getWeeklyStats: () => api.get('/fitlog/stats/weekly'),
   getWeightProgress: (days?: number) =>
     api.get('/fitlog/progress/weight', { params: { days } }),
@@ -406,6 +415,20 @@ export const fitlogAPI = {
   ) => api.post(`/fitlog/${date}/meals`, meal),
   deleteMeal: (date: string, mealId: string) =>
     api.delete(`/fitlog/${date}/meals/${mealId}`),
+  updateMeal: (
+    date: string,
+    mealId: string,
+    meal: {
+      type?: string;
+      name?: string;
+      description?: string;
+      calories?: number;
+      protein?: number;
+      carbs?: number;
+      fat?: number;
+      time?: string;
+    }
+  ) => api.put(`/fitlog/${date}/meals/${mealId}`, meal),
   // Workout endpoints
   addWorkout: (
     date: string,

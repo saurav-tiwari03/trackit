@@ -30,6 +30,11 @@ import {
   Camera,
   ImageIcon,
   Upload,
+  Pencil,
+  GlassWater,
+  Coffee,
+  HelpCircle,
+  Minus,
 } from 'lucide-react';
 import {
   FitLogEntry,
@@ -53,6 +58,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import {
   Select,
   SelectContent,
@@ -293,6 +303,9 @@ export default function FitLogPage() {
   const [showWorkoutDialog, setShowWorkoutDialog] = useState(false);
   const [showWeightDialog, setShowWeightDialog] = useState(false);
   const [showGoalsDialog, setShowGoalsDialog] = useState(false);
+  const [showDrinkDialog, setShowDrinkDialog] = useState(false);
+  const [drinkAmount, setDrinkAmount] = useState(250);
+  const [isCalculatingGoals, setIsCalculatingGoals] = useState(false);
 
   // Form states
   const [nutritionForm, setNutritionForm] = useState({
@@ -327,6 +340,7 @@ export default function FitLogPage() {
   const [foodImage, setFoodImage] = useState<File | null>(null);
   const [foodImagePreview, setFoodImagePreview] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [editingMealId, setEditingMealId] = useState<string | null>(null);
   const [workoutForm, setWorkoutForm] = useState<{
     type: WorkoutType;
     customName: string;
@@ -541,12 +555,29 @@ export default function FitLogPage() {
     setMealInputMode('manual');
     setFoodImage(null);
     setFoodImagePreview(null);
+    setEditingMealId(null);
+  };
+
+  const handleEditMeal = (meal: FitLogMeal) => {
+    setMealForm({
+      type: meal.type,
+      name: meal.name || '',
+      description: meal.description || '',
+      calories: meal.calories,
+      protein: meal.protein,
+      carbs: meal.carbs,
+      fat: meal.fat,
+      time: meal.time || '',
+    });
+    setEditingMealId(meal._id || null);
+    setMealInputMode('manual');
+    setShowMealDialog(true);
   };
 
   const handleAddMeal = async () => {
     try {
       setIsSaving(true);
-      await fitlogAPI.addMeal(selectedDate, {
+      const mealData = {
         type: mealForm.type,
         name: mealForm.name || undefined,
         description: mealForm.description || undefined,
@@ -555,15 +586,26 @@ export default function FitLogPage() {
         carbs: mealForm.carbs,
         fat: mealForm.fat,
         time: mealForm.time || undefined,
-      });
+      };
+      
       const mealLabel = MEAL_TYPES.find(m => m.value === mealForm.type)?.label || 'Meal';
-      toast.success(`${mealLabel} added!`);
+      
+      if (editingMealId) {
+        // Update existing meal
+        await fitlogAPI.updateMeal(selectedDate, editingMealId, mealData);
+        toast.success(`${mealLabel} updated!`);
+      } else {
+        // Add new meal
+        await fitlogAPI.addMeal(selectedDate, mealData);
+        toast.success(`${mealLabel} added!`);
+      }
+      
       setShowMealDialog(false);
       resetMealForm();
       fetchData();
     } catch (error) {
-      console.error('Failed to add meal:', error);
-      toast.error('Failed to add meal');
+      console.error('Failed to save meal:', error);
+      toast.error(editingMealId ? 'Failed to update meal' : 'Failed to add meal');
     } finally {
       setIsSaving(false);
     }
@@ -659,6 +701,115 @@ export default function FitLogPage() {
       toast.error('Failed to save weight');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleUpdateWater = async (amount: number, isAdding: boolean = true) => {
+    try {
+      setIsSaving(true);
+      const currentWater = entry?.nutrition?.water || 0;
+      const newWater = isAdding 
+        ? currentWater + amount 
+        : Math.max(0, currentWater - amount);
+      
+      await fitlogAPI.updateEntry(selectedDate, {
+        nutrition: {
+          calories: entry?.nutrition?.calories || 0,
+          protein: entry?.nutrition?.protein || 0,
+          carbs: entry?.nutrition?.carbs || 0,
+          fat: entry?.nutrition?.fat || 0,
+          water: newWater,
+        },
+      });
+      
+      if (isAdding) {
+        toast.success(`Added ${amount}ml of water!`);
+      } else {
+        toast.success(`Removed ${amount}ml of water`);
+      }
+      setShowDrinkDialog(false);
+      fetchData();
+    } catch (error) {
+      console.error('Failed to update water:', error);
+      toast.error('Failed to update water');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleToggleWaterGlass = async (glassIndex: number) => {
+    const waterPerGlass = (goals?.water || 2000) / 8;
+    const currentWater = entry?.nutrition?.water || 0;
+    const glassWaterAmount = waterPerGlass * (glassIndex + 1);
+    
+    // If this glass is filled, remove water down to previous glass level
+    // If this glass is empty, add water up to this glass level
+    const isFilled = currentWater >= glassWaterAmount;
+    
+    if (isFilled) {
+      // Remove water - set to previous glass level
+      const targetWater = waterPerGlass * glassIndex;
+      const amountToRemove = currentWater - targetWater;
+      if (amountToRemove > 0) {
+        await handleUpdateWater(amountToRemove, false);
+      }
+    } else {
+      // Add water up to this glass
+      const amountToAdd = glassWaterAmount - currentWater;
+      if (amountToAdd > 0) {
+        await handleUpdateWater(amountToAdd, true);
+      }
+    }
+  };
+
+  const handleCalculateGoalsWithAI = async () => {
+    if (!goalsForm.currentWeight || !goalsForm.height || !goalsForm.age) {
+      toast.error('Please fill in your weight, height, and age first');
+      return;
+    }
+
+    try {
+      setIsCalculatingGoals(true);
+      const response = await fitlogAPI.calculateGoalsWithAI({
+        gender: goalsForm.gender,
+        age: goalsForm.age,
+        height: goalsForm.height,
+        currentWeight: goalsForm.currentWeight,
+        targetWeight: goalsForm.targetWeight,
+        activityLevel: goalsForm.activityLevel,
+        fitnessGoal: goalsForm.fitnessGoal,
+      });
+
+      if (response.data.success && response.data.data) {
+        const aiGoals = response.data.data;
+        setGoalsForm((p) => ({
+          ...p,
+          caloriesIntake: aiGoals.caloriesIntake,
+          caloriesBurn: aiGoals.caloriesBurn,
+          protein: aiGoals.protein,
+          carbs: aiGoals.carbs,
+          fat: aiGoals.fat,
+          water: aiGoals.water,
+          isCustomTargets: false,
+        }));
+        
+        // Show tips in toast
+        if (aiGoals.tips && aiGoals.tips.length > 0) {
+          toast.success(aiGoals.explanation, {
+            description: aiGoals.tips[0],
+            duration: 5000,
+          });
+        } else {
+          toast.success('AI calculated your personalized goals!');
+        }
+      } else {
+        toast.error(response.data.message || 'Failed to calculate goals');
+      }
+    } catch (error) {
+      console.error('Failed to calculate goals with AI:', error);
+      toast.error('Failed to calculate goals with AI');
+    } finally {
+      setIsCalculatingGoals(false);
     }
   };
 
@@ -929,7 +1080,7 @@ export default function FitLogPage() {
                   variant="default"
                   size="sm"
                   onClick={() => setShowMealDialog(true)}
-                  className="gap-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                  variant="outline" className="gap-2"
                 >
                   <Plus className="h-4 w-4" />
                   Add Meal
@@ -957,7 +1108,7 @@ export default function FitLogPage() {
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
                           <div className="text-right text-xs">
                             <p className="font-medium">{meal.calories} kcal</p>
                             <p className="text-muted-foreground">
@@ -965,14 +1116,24 @@ export default function FitLogPage() {
                             </p>
                           </div>
                           {meal._id && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-destructive"
-                              onClick={() => handleDeleteMeal(meal._id!)}
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                                onClick={() => handleEditMeal(meal)}
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 text-destructive"
+                                onClick={() => handleDeleteMeal(meal._id!)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -1022,27 +1183,60 @@ export default function FitLogPage() {
               </div>
               {/* Water */}
               <div className="mt-4 pt-4 border-t">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <Droplets className="h-4 w-4 text-blue-500" />
                     <span className="font-medium">Water</span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button className="text-muted-foreground hover:text-foreground transition-colors">
+                          <HelpCircle className="h-3.5 w-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[200px]">
+                        <p>Click empty glass to fill up to that point. Click filled glass to remove water from that point.</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
-                  <span className="text-muted-foreground">
-                    {nutrition?.water || 0}ml / {goals?.water || 2000}ml
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-sm">
+                      {nutrition?.water || 0}ml / {goals?.water || 2000}ml
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowDrinkDialog(true)}
+                      className="h-7 gap-1"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add
+                    </Button>
+                  </div>
                 </div>
-                <div className="mt-2 flex gap-1">
+                <div className="flex gap-1">
                   {Array.from({ length: 8 }).map((_, i) => {
                     const waterPerGlass = (goals?.water || 2000) / 8;
                     const filled = (nutrition?.water || 0) >= waterPerGlass * (i + 1);
                     return (
-                      <div
-                        key={i}
-                        className={cn(
-                          'h-8 flex-1 rounded-md transition-colors',
-                          filled ? 'bg-blue-500' : 'bg-muted/50'
-                        )}
-                      />
+                      <Tooltip key={i}>
+                        <TooltipTrigger asChild>
+                          <div
+                            className={cn(
+                              'h-8 flex-1 rounded-md transition-all cursor-pointer',
+                              filled 
+                                ? 'bg-blue-500 hover:bg-blue-400' 
+                                : 'bg-muted/50 hover:bg-blue-200'
+                            )}
+                            onClick={() => handleToggleWaterGlass(i)}
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          {filled 
+                            ? `Click to remove (${Math.round(waterPerGlass)}ml)` 
+                            : `Click to add (${Math.round(waterPerGlass * (i + 1) - (nutrition?.water || 0))}ml)`
+                          }
+                        </TooltipContent>
+                      </Tooltip>
                     );
                   })}
                 </div>
@@ -1079,7 +1273,7 @@ export default function FitLogPage() {
                     });
                     setShowWorkoutDialog(true);
                   }}
-                  className="gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
+                  variant="outline" className="gap-2"
                 >
                   <Plus className="h-4 w-4" />
                   Add Workout
@@ -1499,7 +1693,7 @@ export default function FitLogPage() {
             <Button
               onClick={handleSaveNutrition}
               disabled={isSaving}
-              className="bg-gradient-to-r from-emerald-500 to-teal-500"
+              variant="outline"
             >
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
             </Button>
@@ -1516,37 +1710,39 @@ export default function FitLogPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Utensils className="h-5 w-5 text-purple-500" />
-              Add Meal
+              {editingMealId ? 'Edit Meal' : 'Add Meal'}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Mode Toggle */}
-            <div className="flex gap-2 p-1 bg-muted rounded-lg">
-              <button
-                onClick={() => setMealInputMode('manual')}
-                className={cn(
-                  'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all',
-                  mealInputMode === 'manual'
-                    ? 'bg-background shadow-sm text-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <Utensils className="h-4 w-4" />
-                Manual
-              </button>
-              <button
-                onClick={() => setMealInputMode('ai')}
-                className={cn(
-                  'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all',
-                  mealInputMode === 'ai'
-                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <Sparkles className="h-4 w-4" />
-                AI Scan
-              </button>
-            </div>
+            {/* Mode Toggle - only show when adding new meal */}
+            {!editingMealId && (
+              <div className="flex gap-2 p-1 bg-muted rounded-lg">
+                <button
+                  onClick={() => setMealInputMode('manual')}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all',
+                    mealInputMode === 'manual'
+                      ? 'bg-background shadow-sm text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <Utensils className="h-4 w-4" />
+                  Manual
+                </button>
+                <button
+                  onClick={() => setMealInputMode('ai')}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all',
+                    mealInputMode === 'ai'
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  AI Scan
+                </button>
+              </div>
+            )}
 
             {/* AI Mode - Image Upload */}
             {mealInputMode === 'ai' && (
@@ -1601,7 +1797,7 @@ export default function FitLogPage() {
                 <Button
                   onClick={handleAnalyzeFood}
                   disabled={!foodImage || isAnalyzing}
-                  className="w-full bg-gradient-to-r from-purple-500 to-pink-500"
+                  variant="outline" className="w-full"
                 >
                   {isAnalyzing ? (
                     <>
@@ -1623,8 +1819,8 @@ export default function FitLogPage() {
               </div>
             )}
 
-            {/* Common Fields (shown in both modes, or after AI analysis) */}
-            {(mealInputMode === 'manual' || mealForm.calories > 0) && (
+            {/* Common Fields (shown in both modes, or after AI analysis, or when editing) */}
+            {(mealInputMode === 'manual' || mealForm.calories > 0 || editingMealId) && (
               <>
                 <div>
                   <label className="text-sm font-medium mb-2 block">Meal Type</label>
@@ -1712,14 +1908,16 @@ export default function FitLogPage() {
                     />
                   </div>
                 </div>
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Description (optional)</label>
-                  <Input
-                    value={mealForm.description}
-                    onChange={(e) => setMealForm((p) => ({ ...p, description: e.target.value }))}
-                    placeholder="e.g., Serving size, additional notes..."
-                  />
-                </div>
+                {(mealInputMode === 'manual' || editingMealId) && (
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Description (optional)</label>
+                    <Input
+                      value={mealForm.description}
+                      onChange={(e) => setMealForm((p) => ({ ...p, description: e.target.value }))}
+                      placeholder="e.g., khichdi 200g with curd 30g"
+                    />
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -1733,9 +1931,15 @@ export default function FitLogPage() {
             <Button
               onClick={handleAddMeal}
               disabled={isSaving || !mealForm.calories}
-              className="bg-gradient-to-r from-purple-500 to-pink-500"
+              variant="outline"
             >
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add Meal'}
+              {isSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : editingMealId ? (
+                'Update Meal'
+              ) : (
+                'Add Meal'
+              )}
             </Button>
           </div>
         </DialogContent>
@@ -1919,7 +2123,7 @@ export default function FitLogPage() {
             <Button
               onClick={handleSaveWorkout}
               disabled={isSaving}
-              className="bg-gradient-to-r from-emerald-500 to-teal-500"
+              variant="outline"
             >
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
             </Button>
@@ -2004,7 +2208,7 @@ export default function FitLogPage() {
             <Button
               onClick={handleSaveWeight}
               disabled={isSaving || !weightForm.weight}
-              className="bg-gradient-to-r from-cyan-500 to-blue-500"
+              variant="outline"
             >
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
             </Button>
@@ -2136,28 +2340,20 @@ export default function FitLogPage() {
                 type="button"
                 variant="outline"
                 className="w-full gap-2"
-                onClick={() => {
-                  const recommended = calculateRecommendedMacros(
-                    goalsForm.currentWeight,
-                    goalsForm.height,
-                    goalsForm.age,
-                    goalsForm.gender,
-                    goalsForm.activityLevel,
-                    goalsForm.fitnessGoal
-                  );
-                  setGoalsForm((p) => ({
-                    ...p,
-                    caloriesIntake: recommended.calories,
-                    protein: recommended.protein,
-                    carbs: recommended.carbs,
-                    fat: recommended.fat,
-                    isCustomTargets: false,
-                  }));
-                  toast.success('Macros calculated based on your profile!');
-                }}
+                onClick={handleCalculateGoalsWithAI}
+                disabled={isCalculatingGoals}
               >
-                <Sparkles className="h-4 w-4" />
-                Calculate Recommended Macros
+                {isCalculatingGoals ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Calculating with AI...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    Calculate with AI
+                  </>
+                )}
               </Button>
             )}
 
@@ -2272,7 +2468,7 @@ export default function FitLogPage() {
             <Button
               onClick={handleSaveGoals}
               disabled={isSaving}
-              className="bg-gradient-to-r from-emerald-500 to-teal-500"
+              variant="outline"
             >
               {isSaving ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -2280,6 +2476,84 @@ export default function FitLogPage() {
                 'Save Goals'
               )}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Drink Dialog */}
+      <Dialog open={showDrinkDialog} onOpenChange={setShowDrinkDialog}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GlassWater className="h-5 w-5 text-blue-500" />
+              Manage Water Intake
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Current status */}
+            <div className="text-center p-3 bg-muted/30 rounded-lg">
+              <p className="text-2xl font-bold text-blue-500">{nutrition?.water || 0}ml</p>
+              <p className="text-xs text-muted-foreground">of {goals?.water || 2000}ml daily goal</p>
+            </div>
+            
+            <div>
+              <label className="text-sm font-medium mb-3 block">Quick Add</label>
+              <div className="grid grid-cols-4 gap-2">
+                {[150, 250, 350, 500].map((amount) => (
+                  <Button
+                    key={amount}
+                    variant="outline"
+                    className="flex-col h-16 gap-1"
+                    onClick={() => handleUpdateWater(amount, true)}
+                    disabled={isSaving}
+                  >
+                    <Plus className="h-4 w-4 text-blue-500" />
+                    <span className="text-xs">{amount}ml</span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {(nutrition?.water || 0) > 0 && (
+              <div>
+                <label className="text-sm font-medium mb-3 block">Quick Remove</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[150, 250, 350, 500].map((amount) => (
+                    <Button
+                      key={amount}
+                      variant="outline"
+                      className="flex-col h-16 gap-1"
+                      onClick={() => handleUpdateWater(amount, false)}
+                      disabled={isSaving || (nutrition?.water || 0) < amount}
+                    >
+                      <Minus className="h-4 w-4 text-red-500" />
+                      <span className="text-xs">{amount}ml</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="border-t pt-4">
+              <label className="text-sm font-medium mb-2 block">Custom Amount (ml)</label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  value={drinkAmount}
+                  onChange={(e) => setDrinkAmount(parseInt(e.target.value) || 0)}
+                  placeholder="250"
+                  className="flex-1"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => handleUpdateWater(drinkAmount, true)}
+                  disabled={isSaving || !drinkAmount}
+                  className="gap-1"
+                >
+                  {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4" /> Add</>}
+                </Button>
+              </div>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
