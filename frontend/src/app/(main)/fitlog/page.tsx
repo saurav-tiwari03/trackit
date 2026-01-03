@@ -27,6 +27,9 @@ import {
   BarChart3,
   History,
   CalendarDays,
+  Camera,
+  ImageIcon,
+  Upload,
 } from 'lucide-react';
 import {
   FitLogEntry,
@@ -302,6 +305,7 @@ export default function FitLogPage() {
   const [mealForm, setMealForm] = useState<{
     type: MealType;
     name: string;
+    description: string;
     calories: number;
     protein: number;
     carbs: number;
@@ -310,12 +314,19 @@ export default function FitLogPage() {
   }>({
     type: 'breakfast',
     name: '',
+    description: '',
     calories: 0,
     protein: 0,
     carbs: 0,
     fat: 0,
     time: '',
   });
+  
+  // AI Food Analysis states
+  const [mealInputMode, setMealInputMode] = useState<'manual' | 'ai'>('manual');
+  const [foodImage, setFoodImage] = useState<File | null>(null);
+  const [foodImagePreview, setFoodImagePreview] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [workoutForm, setWorkoutForm] = useState<{
     type: WorkoutType;
     customName: string;
@@ -470,12 +481,75 @@ export default function FitLogPage() {
     }
   };
 
+  const handleAnalyzeFood = async () => {
+    if (!foodImage) {
+      toast.error('Please select an image first');
+      return;
+    }
+
+    try {
+      setIsAnalyzing(true);
+      const response = await fitlogAPI.analyzeFoodImage(foodImage, mealForm.description || undefined);
+      
+      if (response.data.success && response.data.data) {
+        const macros = response.data.data;
+        setMealForm((prev) => ({
+          ...prev,
+          name: macros.name || '',
+          calories: macros.calories,
+          protein: macros.protein,
+          carbs: macros.carbs,
+          fat: macros.fat,
+        }));
+        // Show serving info in toast for reference
+        const servingInfo = `Serving: ${macros.servingSize || 'N/A'} | Confidence: ${macros.confidence}`;
+        toast.success(`Food analyzed! ${servingInfo}`);
+      } else {
+        toast.error(response.data.message || 'Failed to analyze food');
+      }
+    } catch (error) {
+      console.error('Failed to analyze food:', error);
+      toast.error('Failed to analyze food image');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFoodImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFoodImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const resetMealForm = () => {
+    setMealForm({
+      type: 'breakfast',
+      name: '',
+      description: '',
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      time: '',
+    });
+    setMealInputMode('manual');
+    setFoodImage(null);
+    setFoodImagePreview(null);
+  };
+
   const handleAddMeal = async () => {
     try {
       setIsSaving(true);
       await fitlogAPI.addMeal(selectedDate, {
         type: mealForm.type,
         name: mealForm.name || undefined,
+        description: mealForm.description || undefined,
         calories: mealForm.calories,
         protein: mealForm.protein,
         carbs: mealForm.carbs,
@@ -485,15 +559,7 @@ export default function FitLogPage() {
       const mealLabel = MEAL_TYPES.find(m => m.value === mealForm.type)?.label || 'Meal';
       toast.success(`${mealLabel} added!`);
       setShowMealDialog(false);
-      setMealForm({
-        type: 'breakfast',
-        name: '',
-        calories: 0,
-        protein: 0,
-        carbs: 0,
-        fat: 0,
-        time: '',
-      });
+      resetMealForm();
       fetchData();
     } catch (error) {
       console.error('Failed to add meal:', error);
@@ -1442,8 +1508,11 @@ export default function FitLogPage() {
       </Dialog>
 
       {/* Meal Dialog */}
-      <Dialog open={showMealDialog} onOpenChange={setShowMealDialog}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={showMealDialog} onOpenChange={(open) => {
+        setShowMealDialog(open);
+        if (!open) resetMealForm();
+      }}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Utensils className="h-5 w-5 text-purple-500" />
@@ -1451,95 +1520,214 @@ export default function FitLogPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Meal Type</label>
-              <Select
-                value={mealForm.type}
-                onValueChange={(v) => setMealForm((p) => ({ ...p, type: v as MealType }))}
+            {/* Mode Toggle */}
+            <div className="flex gap-2 p-1 bg-muted rounded-lg">
+              <button
+                onClick={() => setMealInputMode('manual')}
+                className={cn(
+                  'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all',
+                  mealInputMode === 'manual'
+                    ? 'bg-background shadow-sm text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MEAL_TYPES.map((type) => (
-                    <SelectItem key={type.value} value={type.value}>
-                      {type.emoji} {type.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <Utensils className="h-4 w-4" />
+                Manual
+              </button>
+              <button
+                onClick={() => setMealInputMode('ai')}
+                className={cn(
+                  'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all',
+                  mealInputMode === 'ai'
+                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <Sparkles className="h-4 w-4" />
+                AI Scan
+              </button>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm font-medium mb-2 block">
-                  Meal Name (optional)
-                </label>
-                <Input
-                  value={mealForm.name}
-                  onChange={(e) => setMealForm((p) => ({ ...p, name: e.target.value }))}
-                  placeholder="e.g., Oatmeal with fruits"
-                />
+
+            {/* AI Mode - Image Upload */}
+            {mealInputMode === 'ai' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Food Image</label>
+                  <div className="relative">
+                    {foodImagePreview ? (
+                      <div className="relative rounded-lg overflow-hidden border border-border">
+                        <img
+                          src={foodImagePreview}
+                          alt="Food preview"
+                          className="w-full h-48 object-cover"
+                        />
+                        <button
+                          onClick={() => {
+                            setFoodImage(null);
+                            setFoodImagePreview(null);
+                          }}
+                          className="absolute top-2 right-2 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
+                        >
+                          <X className="h-4 w-4 text-white" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-purple-500 hover:bg-purple-500/5 transition-colors">
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                          <Camera className="h-8 w-8 text-muted-foreground mb-2" />
+                          <p className="text-sm text-muted-foreground">
+                            <span className="font-medium text-purple-500">Click to upload</span> or drag and drop
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 10MB</p>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageSelect}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Description (helps AI understand better)</label>
+                  <Input
+                    value={mealForm.description}
+                    onChange={(e) => setMealForm((p) => ({ ...p, description: e.target.value }))}
+                    placeholder="e.g., khichdi 200g with curd 30g"
+                  />
+                </div>
+                <Button
+                  onClick={handleAnalyzeFood}
+                  disabled={!foodImage || isAnalyzing}
+                  className="w-full bg-gradient-to-r from-purple-500 to-pink-500"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Analyze Food
+                    </>
+                  )}
+                </Button>
+                {mealForm.calories > 0 && (
+                  <div className="text-sm text-muted-foreground text-center">
+                    ✓ Food analyzed! Review and edit the values below.
+                  </div>
+                )}
               </div>
-              <div>
-                <label className="text-sm font-medium mb-2 block">
-                  Time (optional)
-                </label>
-                <Input
-                  type="time"
-                  value={mealForm.time}
-                  onChange={(e) => setMealForm((p) => ({ ...p, time: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-2 block">Calories</label>
-              <Input
-                type="number"
-                value={mealForm.calories || ''}
-                onChange={(e) =>
-                  setMealForm((p) => ({ ...p, calories: parseInt(e.target.value) || 0 }))
-                }
-                placeholder="e.g., 500"
-              />
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Protein (g)</label>
-                <Input
-                  type="number"
-                  value={mealForm.protein || ''}
-                  onChange={(e) =>
-                    setMealForm((p) => ({ ...p, protein: parseInt(e.target.value) || 0 }))
-                  }
-                  placeholder="30"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-2 block">Carbs (g)</label>
-                <Input
-                  type="number"
-                  value={mealForm.carbs || ''}
-                  onChange={(e) =>
-                    setMealForm((p) => ({ ...p, carbs: parseInt(e.target.value) || 0 }))
-                  }
-                  placeholder="50"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-2 block">Fat (g)</label>
-                <Input
-                  type="number"
-                  value={mealForm.fat || ''}
-                  onChange={(e) =>
-                    setMealForm((p) => ({ ...p, fat: parseInt(e.target.value) || 0 }))
-                  }
-                  placeholder="15"
-                />
-              </div>
-            </div>
+            )}
+
+            {/* Common Fields (shown in both modes, or after AI analysis) */}
+            {(mealInputMode === 'manual' || mealForm.calories > 0) && (
+              <>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Meal Type</label>
+                  <Select
+                    value={mealForm.type}
+                    onValueChange={(v) => setMealForm((p) => ({ ...p, type: v as MealType }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MEAL_TYPES.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.emoji} {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      Meal Name (optional)
+                    </label>
+                    <Input
+                      value={mealForm.name}
+                      onChange={(e) => setMealForm((p) => ({ ...p, name: e.target.value }))}
+                      placeholder="e.g., Oatmeal with fruits"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      Time (optional)
+                    </label>
+                    <Input
+                      type="time"
+                      value={mealForm.time}
+                      onChange={(e) => setMealForm((p) => ({ ...p, time: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Calories</label>
+                  <Input
+                    type="number"
+                    value={mealForm.calories || ''}
+                    onChange={(e) =>
+                      setMealForm((p) => ({ ...p, calories: parseInt(e.target.value) || 0 }))
+                    }
+                    placeholder="e.g., 500"
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Protein (g)</label>
+                    <Input
+                      type="number"
+                      value={mealForm.protein || ''}
+                      onChange={(e) =>
+                        setMealForm((p) => ({ ...p, protein: parseInt(e.target.value) || 0 }))
+                      }
+                      placeholder="30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Carbs (g)</label>
+                    <Input
+                      type="number"
+                      value={mealForm.carbs || ''}
+                      onChange={(e) =>
+                        setMealForm((p) => ({ ...p, carbs: parseInt(e.target.value) || 0 }))
+                      }
+                      placeholder="50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Fat (g)</label>
+                    <Input
+                      type="number"
+                      value={mealForm.fat || ''}
+                      onChange={(e) =>
+                        setMealForm((p) => ({ ...p, fat: parseInt(e.target.value) || 0 }))
+                      }
+                      placeholder="15"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Description (optional)</label>
+                  <Input
+                    value={mealForm.description}
+                    onChange={(e) => setMealForm((p) => ({ ...p, description: e.target.value }))}
+                    placeholder="e.g., Serving size, additional notes..."
+                  />
+                </div>
+              </>
+            )}
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowMealDialog(false)}>
+            <Button variant="outline" onClick={() => {
+              setShowMealDialog(false);
+              resetMealForm();
+            }}>
               Cancel
             </Button>
             <Button

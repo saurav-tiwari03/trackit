@@ -295,6 +295,17 @@ export const paymentsAPI = {
 
 // FitLog API
 export const fitlogAPI = {
+  // Analyze food image with AI
+  analyzeFoodImage: async (file: File, quantity?: string) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    if (quantity) {
+      formData.append('quantity', quantity);
+    }
+    return api.post('/fitlog/analyze-food', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
   getEntries: (params?: { startDate?: string; endDate?: string; limit?: number }) =>
     api.get('/fitlog', { params }),
   getToday: () => api.get('/fitlog/today'),
@@ -385,6 +396,7 @@ export const fitlogAPI = {
     meal: {
       type: string;
       name?: string;
+      description?: string;
       calories: number;
       protein: number;
       carbs: number;

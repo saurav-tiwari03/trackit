@@ -211,6 +211,7 @@ export interface FitLogMeal {
   _id?: string;
   type: MealType;
   name?: string;
+  description?: string;
   calories: number;
   protein: number;
   carbs: number;
