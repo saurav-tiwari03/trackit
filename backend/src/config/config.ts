@@ -36,6 +36,10 @@ export const RAZORPAY_CONFIG = {
   WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET || '',
 };
 
+export const GEMINI_CONFIG = {
+  API_KEY: process.env.GEMINI_API_KEY || '',
+};
+
 // Razorpay Plan IDs (created in Razorpay Dashboard)
 export const SUBSCRIPTION_PLANS = {
   plus: {

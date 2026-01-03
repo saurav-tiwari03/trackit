@@ -34,6 +34,7 @@ export interface IWorkout {
 export interface IMeal {
   type: 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'pre_workout' | 'post_workout' | 'other';
   name?: string;
+  description?: string;
   calories: number;
   protein: number;
   carbs: number;
@@ -120,6 +121,7 @@ const mealSchema = new Schema<IMeal>(
       required: true,
     },
     name: { type: String, trim: true },
+    description: { type: String, trim: true, maxlength: 500 },
     calories: { type: Number, required: true, min: 0 },
     protein: { type: Number, required: true, min: 0 },
     carbs: { type: Number, required: true, min: 0 },

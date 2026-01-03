@@ -47,6 +47,7 @@
     "@aws-sdk/client-s3": "^3.948.0",
     "@aws-sdk/credential-providers": "^3.948.0",
     "@aws-sdk/s3-request-presigner": "^3.948.0",
+    "@google/generative-ai": "^0.24.1",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",

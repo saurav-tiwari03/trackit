@@ -1,8 +1,26 @@
 import { Router, Response } from 'express';
+import multer from 'multer';
 import { FitLogEntry, FitLogGoal } from '../models';
 import { protect, AuthRequest } from '../middleware/auth';
+import { analyzeFoodImage } from '../service/gemini.service';
 
 const router = Router();
+
+// Configure multer for memory storage (for image uploads)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (_req, file, cb) => {
+    // Accept only image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  },
+});
 
 // Helper to get today's date in YYYY-MM-DD format (UTC-safe)
 const getUTCDateString = (date: Date = new Date()): string =>
@@ -431,7 +449,7 @@ router.post('/:date/meals', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?._id;
     const { date } = req.params;
-    const { type, name, calories, protein, carbs, fat, time } = req.body;
+    const { type, name, description, calories, protein, carbs, fat, time } = req.body;
 
     // Validate date format
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -451,7 +469,7 @@ router.post('/:date/meals', async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const meal = { type, name, calories, protein, carbs, fat, time };
+    const meal = { type, name, description, calories, protein, carbs, fat, time };
 
     // Find or create entry for the date
     let entry = await FitLogEntry.findOne({ user: userId, date });
@@ -573,6 +591,180 @@ router.delete('/:date/meals/:mealId', async (req: AuthRequest, res: Response) =>
     });
   }
 });
+
+// @route   POST /api/fitlog/analyze-food
+// @desc    Analyze food image using Gemini AI and return macros
+// @access  Private
+router.post(
+  '/analyze-food',
+  upload.single('image'),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { quantity } = req.body;
+
+      if (!req.file) {
+        res.status(400).json({
+          success: false,
+          message: 'Image file is required',
+        });
+        return;
+      }
+
+      // Analyze the food image with Gemini
+      const result = await analyzeFoodImage(
+        req.file.buffer,
+        req.file.mimetype,
+        quantity
+      );
+
+      if (!result.success) {
+        res.status(422).json({
+          success: false,
+          message: result.error || 'Failed to analyze food image',
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: result.data,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Error analyzing food image',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+);
+
+// @route   POST /api/fitlog/:date/meals/from-image
+// @desc    Analyze food image and add as meal to a specific date
+// @access  Private
+router.post(
+  '/:date/meals/from-image',
+  upload.single('image'),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user?._id;
+      const { date } = req.params;
+      const { quantity, mealType, time } = req.body;
+
+      // Validate date format
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid date format. Use YYYY-MM-DD',
+        });
+        return;
+      }
+
+      if (!req.file) {
+        res.status(400).json({
+          success: false,
+          message: 'Image file is required',
+        });
+        return;
+      }
+
+      // Analyze the food image with Gemini
+      const result = await analyzeFoodImage(
+        req.file.buffer,
+        req.file.mimetype,
+        quantity
+      );
+
+      if (!result.success || !result.data) {
+        res.status(422).json({
+          success: false,
+          message: result.error || 'Failed to analyze food image',
+        });
+        return;
+      }
+
+      const macros = result.data;
+
+      // Create the meal object
+      const meal = {
+        type: mealType || 'other',
+        name: macros.name,
+        calories: macros.calories,
+        protein: macros.protein,
+        carbs: macros.carbs,
+        fat: macros.fat,
+        time: time,
+      };
+
+      // Find or create entry for the date
+      let entry = await FitLogEntry.findOne({ user: userId, date });
+
+      if (!entry) {
+        // Create new entry with this meal
+        entry = await FitLogEntry.create({
+          user: userId,
+          date,
+          nutrition: {
+            calories: meal.calories,
+            protein: meal.protein,
+            carbs: meal.carbs,
+            fat: meal.fat,
+            water: 0,
+            meals: [meal],
+          },
+        });
+      } else {
+        // Add meal to existing entry
+        if (!entry.nutrition) {
+          entry.nutrition = {
+            calories: 0,
+            protein: 0,
+            carbs: 0,
+            fat: 0,
+            water: 0,
+            meals: [],
+          };
+        }
+        if (!entry.nutrition.meals) {
+          entry.nutrition.meals = [];
+        }
+        entry.nutrition.meals.push(meal);
+
+        // Recalculate totals from meals
+        const totals = entry.nutrition.meals.reduce(
+          (acc, m) => ({
+            calories: acc.calories + m.calories,
+            protein: acc.protein + m.protein,
+            carbs: acc.carbs + m.carbs,
+            fat: acc.fat + m.fat,
+          }),
+          { calories: 0, protein: 0, carbs: 0, fat: 0 }
+        );
+
+        entry.nutrition.calories = totals.calories;
+        entry.nutrition.protein = totals.protein;
+        entry.nutrition.carbs = totals.carbs;
+        entry.nutrition.fat = totals.fat;
+
+        await entry.save();
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          entry,
+          analyzedFood: macros,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Error analyzing and adding food',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+);
 
 // @route   POST /api/fitlog/:date/workouts
 // @desc    Add a workout to a specific date
