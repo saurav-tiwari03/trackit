@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import multer from 'multer';
 import { FitLogEntry, FitLogGoal } from '../models';
 import { protect, AuthRequest } from '../middleware/auth';
-import { analyzeFoodImage } from '../service/gemini.service';
+import { analyzeFoodImage, calculateGoalsWithAI } from '../service/gemini.service';
 
 const router = Router();
 
@@ -153,6 +153,53 @@ router.put('/goals', async (req: AuthRequest, res: Response) => {
     res.status(500).json({
       success: false,
       message: 'Error updating goals',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+// @route   POST /api/fitlog/goals/calculate
+// @desc    Calculate personalized goals using AI
+// @access  Private
+router.post('/goals/calculate', async (req: AuthRequest, res: Response) => {
+  try {
+    const { gender, age, height, currentWeight, targetWeight, activityLevel, fitnessGoal } = req.body;
+
+    // Validate required fields
+    if (!gender || !age || !height || !currentWeight || !activityLevel || !fitnessGoal) {
+      res.status(400).json({
+        success: false,
+        message: 'Missing required fields: gender, age, height, currentWeight, activityLevel, fitnessGoal',
+      });
+      return;
+    }
+
+    const result = await calculateGoalsWithAI({
+      gender,
+      age,
+      height,
+      currentWeight,
+      targetWeight,
+      activityLevel,
+      fitnessGoal,
+    });
+
+    if (!result.success) {
+      res.status(422).json({
+        success: false,
+        message: result.error || 'Failed to calculate goals',
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: result.data,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error calculating goals',
       error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
@@ -592,6 +639,78 @@ router.delete('/:date/meals/:mealId', async (req: AuthRequest, res: Response) =>
   }
 });
 
+// @route   PUT /api/fitlog/:date/meals/:mealId
+// @desc    Update a meal for a specific date
+// @access  Private
+router.put('/:date/meals/:mealId', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?._id;
+    const { date, mealId } = req.params;
+    const { type, name, description, calories, protein, carbs, fat, time } = req.body;
+
+    // Validate date format
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid date format. Use YYYY-MM-DD',
+      });
+      return;
+    }
+
+    const entry = await FitLogEntry.findOne({ user: userId, date });
+
+    if (!entry || !entry.nutrition?.meals) {
+      res.status(404).json({ success: false, message: 'Entry or meals not found' });
+      return;
+    }
+
+    // Find and update the meal
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mealIndex = entry.nutrition.meals.findIndex((m: any) => m._id?.toString() === mealId);
+    
+    if (mealIndex === -1) {
+      res.status(404).json({ success: false, message: 'Meal not found' });
+      return;
+    }
+
+    // Update meal fields
+    if (type !== undefined) entry.nutrition.meals[mealIndex].type = type;
+    if (name !== undefined) entry.nutrition.meals[mealIndex].name = name;
+    if (description !== undefined) entry.nutrition.meals[mealIndex].description = description;
+    if (calories !== undefined) entry.nutrition.meals[mealIndex].calories = calories;
+    if (protein !== undefined) entry.nutrition.meals[mealIndex].protein = protein;
+    if (carbs !== undefined) entry.nutrition.meals[mealIndex].carbs = carbs;
+    if (fat !== undefined) entry.nutrition.meals[mealIndex].fat = fat;
+    if (time !== undefined) entry.nutrition.meals[mealIndex].time = time;
+
+    // Recalculate totals from all meals
+    const totals = entry.nutrition.meals.reduce(
+      (acc, m) => ({
+        calories: acc.calories + m.calories,
+        protein: acc.protein + m.protein,
+        carbs: acc.carbs + m.carbs,
+        fat: acc.fat + m.fat,
+      }),
+      { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    );
+
+    entry.nutrition.calories = totals.calories;
+    entry.nutrition.protein = totals.protein;
+    entry.nutrition.carbs = totals.carbs;
+    entry.nutrition.fat = totals.fat;
+
+    await entry.save();
+
+    res.status(200).json({ success: true, data: entry });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error updating meal',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 // @route   POST /api/fitlog/analyze-food
 // @desc    Analyze food image using Gemini AI and return macros
 // @access  Private
@@ -600,7 +719,7 @@ router.post(
   upload.single('image'),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { quantity } = req.body;
+      const { description } = req.body;
 
       if (!req.file) {
         res.status(400).json({
@@ -614,7 +733,7 @@ router.post(
       const result = await analyzeFoodImage(
         req.file.buffer,
         req.file.mimetype,
-        quantity
+        description
       );
 
       if (!result.success) {
