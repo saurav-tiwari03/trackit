@@ -1107,10 +1107,10 @@ export default function FitLogPage() {
                   Nutrition
                 </h3>
                 <Button
-                  variant="default"
+                  variant="outline"
                   size="sm"
                   onClick={() => setShowMealDialog(true)}
-                  variant="outline" className="gap-2"
+                  className="gap-2"
                 >
                   <Plus className="h-4 w-4" />
                   Add Meal
@@ -1291,7 +1291,7 @@ export default function FitLogPage() {
                   )}
                 </h3>
                 <Button
-                  variant="default"
+                  variant="outline"
                   size="sm"
                   onClick={() => {
                     setWorkoutForm({
@@ -1303,7 +1303,7 @@ export default function FitLogPage() {
                     });
                     setShowWorkoutDialog(true);
                   }}
-                  variant="outline" className="gap-2"
+                  className="gap-2"
                 >
                   <Plus className="h-4 w-4" />
                   Add Workout
