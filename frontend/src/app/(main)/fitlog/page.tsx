@@ -119,6 +119,32 @@ const ACTIVITY_LEVELS: { value: ActivityLevel; label: string; multiplier: number
   { value: 'very_active', label: 'Very Active (athlete)', multiplier: 1.9 },
 ];
 
+// Calculate BMR and TDEE
+const calculateBMRAndTDEE = (
+  weight: number,
+  height: number,
+  age: number,
+  gender: Gender,
+  activityLevel: ActivityLevel
+): { bmr: number; tdee: number } => {
+  // BMR using Mifflin-St Jeor equation
+  let bmr: number;
+  if (gender === 'male') {
+    bmr = 10 * weight + 6.25 * height - 5 * age + 5;
+  } else {
+    bmr = 10 * weight + 6.25 * height - 5 * age - 161;
+  }
+
+  // TDEE (Total Daily Energy Expenditure)
+  const activityMultiplier = ACTIVITY_LEVELS.find(a => a.value === activityLevel)?.multiplier || 1.55;
+  const tdee = bmr * activityMultiplier;
+
+  return {
+    bmr: Math.round(bmr),
+    tdee: Math.round(tdee),
+  };
+};
+
 // Calculate recommended macros based on goals
 const calculateRecommendedMacros = (
   weight: number,
@@ -324,6 +350,7 @@ export default function FitLogPage() {
     carbs: number;
     fat: number;
     time: string;
+    imageKey: string;
   }>({
     type: 'breakfast',
     name: '',
@@ -333,6 +360,7 @@ export default function FitLogPage() {
     carbs: 0,
     fat: 0,
     time: '',
+    imageKey: '',
   });
   
   // AI Food Analysis states
@@ -370,6 +398,7 @@ export default function FitLogPage() {
     heightUnit: 'cm' as 'cm' | 'ft',
     currentWeight: 70,
     caloriesIntake: 2000,
+    caloriesBurn: 500,
     protein: 150,
     carbs: 200,
     fat: 65,
@@ -455,6 +484,7 @@ export default function FitLogPage() {
           heightUnit: goalsRes.data.data.heightUnit || 'cm',
           currentWeight: goalsRes.data.data.currentWeight || 70,
           caloriesIntake: goalsRes.data.data.caloriesIntake || 2000,
+          caloriesBurn: goalsRes.data.data.caloriesBurn || 500,
           protein: goalsRes.data.data.protein || 150,
           carbs: goalsRes.data.data.carbs || 200,
           fat: goalsRes.data.data.fat || 65,
@@ -514,6 +544,7 @@ export default function FitLogPage() {
           protein: macros.protein,
           carbs: macros.carbs,
           fat: macros.fat,
+          imageKey: macros.imageKey || '',
         }));
         // Show serving info in toast for reference
         const servingInfo = `Serving: ${macros.servingSize || 'N/A'} | Confidence: ${macros.confidence}`;
@@ -551,6 +582,7 @@ export default function FitLogPage() {
       carbs: 0,
       fat: 0,
       time: '',
+      imageKey: '',
     });
     setMealInputMode('manual');
     setFoodImage(null);
@@ -568,6 +600,7 @@ export default function FitLogPage() {
       carbs: meal.carbs,
       fat: meal.fat,
       time: meal.time || '',
+      imageKey: meal.imageKey || '',
     });
     setEditingMealId(meal._id || null);
     setMealInputMode('manual');
@@ -577,6 +610,21 @@ export default function FitLogPage() {
   const handleAddMeal = async () => {
     try {
       setIsSaving(true);
+      
+      // If there's a food image in manual mode without imageKey, upload it first
+      let imageKey = mealForm.imageKey;
+      if (foodImage && !imageKey && mealInputMode === 'manual') {
+        try {
+          const uploadRes = await fitlogAPI.uploadMealImage(foodImage);
+          if (uploadRes.data.success && uploadRes.data.data?.imageKey) {
+            imageKey = uploadRes.data.data.imageKey;
+          }
+        } catch (err) {
+          console.error('Failed to upload meal image:', err);
+          // Continue without image
+        }
+      }
+      
       const mealData = {
         type: mealForm.type,
         name: mealForm.name || undefined,
@@ -586,6 +634,7 @@ export default function FitLogPage() {
         carbs: mealForm.carbs,
         fat: mealForm.fat,
         time: mealForm.time || undefined,
+        imageKey: imageKey || undefined,
       };
       
       const mealLabel = MEAL_TYPES.find(m => m.value === mealForm.type)?.label || 'Meal';
@@ -823,15 +872,9 @@ export default function FitLogPage() {
           isCustomTargets: false,
         }));
         
-        // Show tips in toast
-        if (aiGoals.tips && aiGoals.tips.length > 0) {
-          toast.success(aiGoals.explanation, {
-            description: aiGoals.tips[0],
-            duration: 5000,
-          });
-        } else {
-          toast.success('AI calculated your personalized goals!');
-        }
+        toast.success('Goals calculated!', {
+          description: `${aiGoals.caloriesIntake} kcal • ${aiGoals.protein}g protein • ${aiGoals.carbs}g carbs • ${aiGoals.fat}g fat`,
+        });
       } else {
         toast.error(response.data.message || 'Failed to calculate goals');
       }
@@ -968,11 +1011,64 @@ export default function FitLogPage() {
                     label="kcal"
                   />
                 </div>
-                {entry?.caloriesBurned && (
-                  <div className="mt-3 text-center text-sm text-muted-foreground">
-                    🔥 Burned: {entry.caloriesBurned} kcal
-                  </div>
-                )}
+                <div className="mt-3 space-y-1">
+                  {/* TDEE - Body Burns */}
+                  {goalsForm.currentWeight > 0 && goalsForm.height > 0 && goalsForm.age > 0 && (
+                    <div className="flex items-center justify-between text-xs px-2">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <span>🧬</span> Body Burns (TDEE)
+                      </span>
+                      <span className="font-medium text-amber-500">
+                        {calculateBMRAndTDEE(
+                          goalsForm.currentWeight,
+                          goalsForm.height,
+                          goalsForm.age,
+                          goalsForm.gender,
+                          goalsForm.activityLevel
+                        ).tdee} kcal
+                      </span>
+                    </div>
+                  )}
+                  {/* Workout Burned */}
+                  {entry?.caloriesBurned ? (
+                    <div className="flex items-center justify-between text-xs px-2">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <span>🔥</span> Workout Burned
+                      </span>
+                      <span className="font-medium text-orange-500">
+                        {entry.caloriesBurned} kcal
+                      </span>
+                    </div>
+                  ) : null}
+                  {/* Net Calories */}
+                  {goalsForm.currentWeight > 0 && goalsForm.height > 0 && goalsForm.age > 0 && (
+                    <div className="flex items-center justify-between text-xs px-2 pt-1 border-t border-border/50">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <span>📊</span> Net Calories
+                      </span>
+                      <span className={cn(
+                        "font-medium",
+                        ((nutrition?.calories || 0) - calculateBMRAndTDEE(
+                          goalsForm.currentWeight,
+                          goalsForm.height,
+                          goalsForm.age,
+                          goalsForm.gender,
+                          goalsForm.activityLevel
+                        ).tdee - (entry?.caloriesBurned || 0)) < 0 
+                          ? "text-green-500" 
+                          : "text-red-500"
+                      )}>
+                        {(nutrition?.calories || 0) - calculateBMRAndTDEE(
+                          goalsForm.currentWeight,
+                          goalsForm.height,
+                          goalsForm.age,
+                          goalsForm.gender,
+                          goalsForm.activityLevel
+                        ).tdee - (entry?.caloriesBurned || 0)} kcal
+                      </span>
+                    </div>
+                  )}
+                </div>
               </motion.div>
 
               {/* Protein Card */}
@@ -1128,7 +1224,26 @@ export default function FitLogPage() {
                         className="flex items-center justify-between py-2.5 px-3 bg-muted/30 rounded-lg group"
                       >
                         <div className="flex items-center gap-3">
-                          <span className="text-xl">{mealInfo?.emoji || '🍽️'}</span>
+                          {meal.imageKey ? (
+                            <div className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0">
+                              <img
+                                src={`${process.env.NEXT_PUBLIC_API_URL}/upload/image/${meal.imageKey}`}
+                                alt={meal.name || 'Meal'}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  if (e.currentTarget.nextElementSibling) {
+                                    (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
+                                  }
+                                }}
+                              />
+                              <div className="hidden w-full h-full items-center justify-center bg-muted text-lg">
+                                {mealInfo?.emoji || '🍽️'}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-xl">{mealInfo?.emoji || '🍽️'}</span>
+                          )}
                           <div>
                             <p className="font-medium text-sm">
                               {meal.name || mealInfo?.label || 'Meal'}
@@ -1939,14 +2054,51 @@ export default function FitLogPage() {
                   </div>
                 </div>
                 {(mealInputMode === 'manual' || editingMealId) && (
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Description (optional)</label>
-                    <Input
-                      value={mealForm.description}
-                      onChange={(e) => setMealForm((p) => ({ ...p, description: e.target.value }))}
-                      placeholder="e.g., khichdi 200g with curd 30g"
-                    />
-                  </div>
+                  <>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Description (optional)</label>
+                      <Input
+                        value={mealForm.description}
+                        onChange={(e) => setMealForm((p) => ({ ...p, description: e.target.value }))}
+                        placeholder="e.g., khichdi 200g with curd 30g"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Photo (optional)</label>
+                      {foodImagePreview || mealForm.imageKey ? (
+                        <div className="relative rounded-lg overflow-hidden border border-border">
+                          <img
+                            src={foodImagePreview || `${process.env.NEXT_PUBLIC_API_URL}/upload/image/${mealForm.imageKey}`}
+                            alt="Meal preview"
+                            className="w-full h-32 object-cover"
+                          />
+                          <button
+                            onClick={() => {
+                              setFoodImage(null);
+                              setFoodImagePreview(null);
+                              setMealForm((p) => ({ ...p, imageKey: '' }));
+                            }}
+                            className="absolute top-2 right-2 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
+                          >
+                            <X className="h-4 w-4 text-white" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-purple-500 hover:bg-purple-500/5 transition-colors">
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Camera className="h-5 w-5" />
+                            <span className="text-sm">Add photo</span>
+                          </div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageSelect}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </>
                 )}
               </>
             )}

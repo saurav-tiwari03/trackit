@@ -217,6 +217,7 @@ export interface FitLogMeal {
   carbs: number;
   fat: number;
   time?: string;
+  imageKey?: string;
 }
 
 export interface FitLogNutrition {

@@ -21,17 +21,52 @@ api.interceptors.request.use(
   error => Promise.reject(error)
 );
 
+// Helper function to clear all auth data and redirect to login
+const handleUnauthorized = () => {
+  if (typeof window !== 'undefined') {
+    // Clear all localStorage
+    localStorage.clear();
+    
+    // Clear all sessionStorage
+    sessionStorage.clear();
+    
+    // Clear any cookies if needed (for httpOnly cookies, backend should handle)
+    document.cookie.split(';').forEach(cookie => {
+      const eqPos = cookie.indexOf('=');
+      const name = eqPos > -1 ? cookie.substring(0, eqPos) : cookie;
+      document.cookie = name.trim() + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+    });
+    
+    // Redirect to login if not already there
+    if (!window.location.pathname.includes('/login')) {
+      window.location.href = '/login';
+    }
+  }
+};
+
 // Response interceptor to handle errors
 api.interceptors.response.use(
-  response => response,
-  error => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
-      }
+  response => {
+    // Check for unauthorized response even on successful HTTP status
+    if (response.data?.success === false && 
+        response.data?.message === 'Not authorized to access this route') {
+      handleUnauthorized();
+      return Promise.reject(new Error('Unauthorized'));
     }
+    return response;
+  },
+  error => {
+    // Handle 401 status
+    if (error.response?.status === 401) {
+      handleUnauthorized();
+    }
+    
+    // Also check for unauthorized message in error response
+    if (error.response?.data?.success === false && 
+        error.response?.data?.message === 'Not authorized to access this route') {
+      handleUnauthorized();
+    }
+    
     return Promise.reject(error);
   }
 );
@@ -295,6 +330,14 @@ export const paymentsAPI = {
 
 // FitLog API
 export const fitlogAPI = {
+  // Upload meal image
+  uploadMealImage: async (file: File) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    return api.post('/fitlog/upload-meal-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
   // Analyze food image with AI
   analyzeFoodImage: async (file: File, description?: string) => {
     const formData = new FormData();
@@ -302,6 +345,7 @@ export const fitlogAPI = {
     if (description) {
       formData.append('description', description);
     }
+    formData.append('saveImage', 'true');
     return api.post('/fitlog/analyze-food', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -374,6 +418,12 @@ export const fitlogAPI = {
   getGoals: () => api.get('/fitlog/goals'),
   updateGoals: (
     data: Partial<{
+      fitnessGoal: string;
+      activityLevel: string;
+      gender: string;
+      age: number;
+      height: number;
+      currentWeight: number;
       caloriesIntake: number;
       caloriesBurn: number;
       protein: number;
@@ -385,6 +435,7 @@ export const fitlogAPI = {
       startWeight: number;
       weightUnit: 'kg' | 'lbs';
       workoutsPerWeek: number;
+      isCustomTargets: boolean;
     }>
   ) => api.put('/fitlog/goals', data),
   calculateGoalsWithAI: (data: {
@@ -411,6 +462,7 @@ export const fitlogAPI = {
       carbs: number;
       fat: number;
       time?: string;
+      imageKey?: string;
     }
   ) => api.post(`/fitlog/${date}/meals`, meal),
   deleteMeal: (date: string, mealId: string) =>
@@ -427,6 +479,7 @@ export const fitlogAPI = {
       carbs?: number;
       fat?: number;
       time?: string;
+      imageKey?: string;
     }
   ) => api.put(`/fitlog/${date}/meals/${mealId}`, meal),
   // Workout endpoints
