@@ -1,7 +1,8 @@
 import { Router, Response } from 'express';
 import multer from 'multer';
 import crypto from 'crypto';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { FitLogEntry, FitLogGoal } from '../models';
 import { protect, AuthRequest } from '../middleware/auth';
 import { analyzeFoodImage, calculateGoalsWithAI } from '../service/gemini.service';
@@ -59,6 +60,39 @@ const uploadMealImageToS3 = async (
     console.error('[FITLOG] Error uploading meal image:', error);
     return null;
   }
+};
+
+// Helper to get presigned URL for an S3 key
+const getPresignedUrl = async (key: string): Promise<string | null> => {
+  if (!isS3Enabled || !s3Client || !key) {
+    return null;
+  }
+
+  try {
+    const getCommand = new GetObjectCommand({
+      Bucket: AWS_S3_CONFIG.AWS_BUCKET_NAME,
+      Key: key,
+    });
+
+    const url = await getSignedUrl(s3Client, getCommand, {
+      expiresIn: 60 * 60 * 24 * 7, // 7 days
+    });
+    return url;
+  } catch (error) {
+    console.error('[FITLOG] Error getting presigned URL:', error);
+    return null;
+  }
+};
+
+// Helper to add presigned URLs to meals
+const addImageUrlsToMeals = async (meals: Array<{ imageKey?: string; imageUrl?: string }>): Promise<void> => {
+  await Promise.all(
+    meals.map(async (meal) => {
+      if (meal.imageKey) {
+        meal.imageUrl = await getPresignedUrl(meal.imageKey) || undefined;
+      }
+    })
+  );
 };
 
 // Configure multer for memory storage (for image uploads)
@@ -407,6 +441,12 @@ router.get('/:date', async (req: AuthRequest, res: Response) => {
 
     const entry = await FitLogEntry.findOne({ user: userId, date });
 
+    // Add presigned URLs to meal images
+    if (entry?.nutrition?.meals && entry.nutrition.meals.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await addImageUrlsToMeals(entry.nutrition.meals as any[]);
+    }
+
     res.status(200).json({ success: true, data: entry });
   } catch (error) {
     res.status(500).json({
@@ -633,6 +673,12 @@ router.post('/:date/meals', async (req: AuthRequest, res: Response) => {
       await entry.save();
     }
 
+    // Add presigned URLs to meal images
+    if (entry?.nutrition?.meals && entry.nutrition.meals.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await addImageUrlsToMeals(entry.nutrition.meals as any[]);
+    }
+
     res.status(200).json({ success: true, data: entry });
   } catch (error) {
     res.status(500).json({
@@ -771,6 +817,12 @@ router.put('/:date/meals/:mealId', async (req: AuthRequest, res: Response) => {
 
     await entry.save();
 
+    // Add presigned URLs to meal images
+    if (entry?.nutrition?.meals && entry.nutrition.meals.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await addImageUrlsToMeals(entry.nutrition.meals as any[]);
+    }
+
     res.status(200).json({ success: true, data: entry });
   } catch (error) {
     res.status(500).json({
@@ -813,9 +865,11 @@ router.post(
         return;
       }
 
+      const imageUrl = await getPresignedUrl(imageKey);
+
       res.status(200).json({
         success: true,
-        data: { imageKey },
+        data: { imageKey, imageUrl },
       });
     } catch (error) {
       res.status(500).json({
@@ -863,12 +917,16 @@ router.post(
 
       // Upload image to S3 if saveImage is true or by default
       let imageKey: string | null = null;
+      let imageUrl: string | null = null;
       if (saveImage !== 'false') {
         imageKey = await uploadMealImageToS3(
           req.file.buffer,
           req.file.mimetype,
           userId
         );
+        if (imageKey) {
+          imageUrl = await getPresignedUrl(imageKey);
+        }
       }
 
       res.status(200).json({
@@ -876,6 +934,7 @@ router.post(
         data: {
           ...result.data,
           imageKey,
+          imageUrl,
         },
       });
     } catch (error) {
