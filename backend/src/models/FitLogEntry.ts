@@ -40,6 +40,7 @@ export interface IMeal {
   carbs: number;
   fat: number;
   time?: string; // HH:MM format
+  imageKey?: string; // S3 key for the meal image
 }
 
 // Nutrition tracking
@@ -127,6 +128,7 @@ const mealSchema = new Schema<IMeal>(
     carbs: { type: Number, required: true, min: 0 },
     fat: { type: Number, required: true, min: 0 },
     time: { type: String, match: /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/ },
+    imageKey: { type: String, trim: true },
   },
   { _id: true }
 );

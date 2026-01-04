@@ -1,10 +1,65 @@
 import { Router, Response } from 'express';
 import multer from 'multer';
+import crypto from 'crypto';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { FitLogEntry, FitLogGoal } from '../models';
 import { protect, AuthRequest } from '../middleware/auth';
 import { analyzeFoodImage, calculateGoalsWithAI } from '../service/gemini.service';
+import { AWS_S3_CONFIG } from '../config/config';
 
 const router = Router();
+
+// Generate a unique ID for file names
+const generateId = () => `${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
+
+// Check if S3 is enabled
+const isS3Enabled = Boolean(
+  AWS_S3_CONFIG.AWS_ACCESS_KEY &&
+  AWS_S3_CONFIG.AWS_SECRET_KEY &&
+  AWS_S3_CONFIG.AWS_BUCKET_NAME
+);
+
+// Initialize S3 client
+const s3Client = isS3Enabled
+  ? new S3Client({
+      region: AWS_S3_CONFIG.AWS_REGION || 'ap-south-1',
+      credentials: {
+        accessKeyId: AWS_S3_CONFIG.AWS_ACCESS_KEY,
+        secretAccessKey: AWS_S3_CONFIG.AWS_SECRET_KEY,
+      },
+    })
+  : null;
+
+// Helper to upload image to S3
+const uploadMealImageToS3 = async (
+  buffer: Buffer,
+  mimeType: string,
+  userId: string
+): Promise<string | null> => {
+  if (!isS3Enabled || !s3Client) {
+    console.log('[FITLOG] S3 not configured, skipping image upload');
+    return null;
+  }
+
+  try {
+    const extension = mimeType.split('/')[1] || 'jpg';
+    const fileName = `meals/${userId}/${generateId()}.${extension}`;
+
+    const putCommand = new PutObjectCommand({
+      Bucket: AWS_S3_CONFIG.AWS_BUCKET_NAME,
+      Key: fileName,
+      Body: buffer,
+      ContentType: mimeType,
+    });
+
+    await s3Client.send(putCommand);
+    console.log(`[FITLOG] Meal image uploaded: ${fileName}`);
+    return fileName;
+  } catch (error) {
+    console.error('[FITLOG] Error uploading meal image:', error);
+    return null;
+  }
+};
 
 // Configure multer for memory storage (for image uploads)
 const upload = multer({
@@ -115,6 +170,12 @@ router.put('/goals', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?._id;
     const {
+      fitnessGoal,
+      activityLevel,
+      gender,
+      age,
+      height,
+      currentWeight,
       caloriesIntake,
       caloriesBurn,
       protein,
@@ -126,9 +187,16 @@ router.put('/goals', async (req: AuthRequest, res: Response) => {
       startWeight,
       weightUnit,
       workoutsPerWeek,
+      isCustomTargets,
     } = req.body;
 
     const updateData: Record<string, unknown> = {};
+    if (fitnessGoal !== undefined) updateData.fitnessGoal = fitnessGoal;
+    if (activityLevel !== undefined) updateData.activityLevel = activityLevel;
+    if (gender !== undefined) updateData.gender = gender;
+    if (age !== undefined) updateData.age = age;
+    if (height !== undefined) updateData.height = height;
+    if (currentWeight !== undefined) updateData.currentWeight = currentWeight;
     if (caloriesIntake !== undefined) updateData.caloriesIntake = caloriesIntake;
     if (caloriesBurn !== undefined) updateData.caloriesBurn = caloriesBurn;
     if (protein !== undefined) updateData.protein = protein;
@@ -141,6 +209,7 @@ router.put('/goals', async (req: AuthRequest, res: Response) => {
     if (weightUnit !== undefined) updateData.weightUnit = weightUnit;
     if (workoutsPerWeek !== undefined)
       updateData.workoutsPerWeek = workoutsPerWeek;
+    if (isCustomTargets !== undefined) updateData.isCustomTargets = isCustomTargets;
 
     const goals = await FitLogGoal.findOneAndUpdate(
       { user: userId },
@@ -496,7 +565,7 @@ router.post('/:date/meals', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?._id;
     const { date } = req.params;
-    const { type, name, description, calories, protein, carbs, fat, time } = req.body;
+    const { type, name, description, calories, protein, carbs, fat, time, imageKey } = req.body;
 
     // Validate date format
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -516,7 +585,7 @@ router.post('/:date/meals', async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    const meal = { type, name, description, calories, protein, carbs, fat, time };
+    const meal = { type, name, description, calories, protein, carbs, fat, time, imageKey };
 
     // Find or create entry for the date
     let entry = await FitLogEntry.findOne({ user: userId, date });
@@ -646,7 +715,7 @@ router.put('/:date/meals/:mealId', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?._id;
     const { date, mealId } = req.params;
-    const { type, name, description, calories, protein, carbs, fat, time } = req.body;
+    const { type, name, description, calories, protein, carbs, fat, time, imageKey } = req.body;
 
     // Validate date format
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -682,6 +751,7 @@ router.put('/:date/meals/:mealId', async (req: AuthRequest, res: Response) => {
     if (carbs !== undefined) entry.nutrition.meals[mealIndex].carbs = carbs;
     if (fat !== undefined) entry.nutrition.meals[mealIndex].fat = fat;
     if (time !== undefined) entry.nutrition.meals[mealIndex].time = time;
+    if (imageKey !== undefined) entry.nutrition.meals[mealIndex].imageKey = imageKey;
 
     // Recalculate totals from all meals
     const totals = entry.nutrition.meals.reduce(
@@ -711,6 +781,52 @@ router.put('/:date/meals/:mealId', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// @route   POST /api/fitlog/upload-meal-image
+// @desc    Upload a meal image to S3 and return the key
+// @access  Private
+router.post(
+  '/upload-meal-image',
+  upload.single('image'),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user?._id?.toString() || 'anonymous';
+
+      if (!req.file) {
+        res.status(400).json({
+          success: false,
+          message: 'Image file is required',
+        });
+        return;
+      }
+
+      const imageKey = await uploadMealImageToS3(
+        req.file.buffer,
+        req.file.mimetype,
+        userId
+      );
+
+      if (!imageKey) {
+        res.status(500).json({
+          success: false,
+          message: 'Failed to upload image. S3 may not be configured.',
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: { imageKey },
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Error uploading meal image',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+);
+
 // @route   POST /api/fitlog/analyze-food
 // @desc    Analyze food image using Gemini AI and return macros
 // @access  Private
@@ -719,7 +835,8 @@ router.post(
   upload.single('image'),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { description } = req.body;
+      const userId = req.user?._id?.toString() || 'anonymous';
+      const { description, saveImage } = req.body;
 
       if (!req.file) {
         res.status(400).json({
@@ -744,9 +861,22 @@ router.post(
         return;
       }
 
+      // Upload image to S3 if saveImage is true or by default
+      let imageKey: string | null = null;
+      if (saveImage !== 'false') {
+        imageKey = await uploadMealImageToS3(
+          req.file.buffer,
+          req.file.mimetype,
+          userId
+        );
+      }
+
       res.status(200).json({
         success: true,
-        data: result.data,
+        data: {
+          ...result.data,
+          imageKey,
+        },
       });
     } catch (error) {
       res.status(500).json({
