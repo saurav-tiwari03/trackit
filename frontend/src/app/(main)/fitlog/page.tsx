@@ -351,6 +351,7 @@ export default function FitLogPage() {
     fat: number;
     time: string;
     imageKey: string;
+    imageUrl: string;
   }>({
     type: 'breakfast',
     name: '',
@@ -361,6 +362,7 @@ export default function FitLogPage() {
     fat: 0,
     time: '',
     imageKey: '',
+    imageUrl: '',
   });
   
   // AI Food Analysis states
@@ -545,6 +547,7 @@ export default function FitLogPage() {
           carbs: macros.carbs,
           fat: macros.fat,
           imageKey: macros.imageKey || '',
+          imageUrl: macros.imageUrl || '',
         }));
         // Show serving info in toast for reference
         const servingInfo = `Serving: ${macros.servingSize || 'N/A'} | Confidence: ${macros.confidence}`;
@@ -583,6 +586,7 @@ export default function FitLogPage() {
       fat: 0,
       time: '',
       imageKey: '',
+      imageUrl: '',
     });
     setMealInputMode('manual');
     setFoodImage(null);
@@ -601,6 +605,7 @@ export default function FitLogPage() {
       fat: meal.fat,
       time: meal.time || '',
       imageKey: meal.imageKey || '',
+      imageUrl: meal.imageUrl || '',
     });
     setEditingMealId(meal._id || null);
     setMealInputMode('manual');
@@ -613,7 +618,7 @@ export default function FitLogPage() {
       
       // If there's a food image in manual mode without imageKey, upload it first
       let imageKey = mealForm.imageKey;
-      if (foodImage && !imageKey && mealInputMode === 'manual') {
+      if (foodImage && !imageKey) {
         try {
           const uploadRes = await fitlogAPI.uploadMealImage(foodImage);
           if (uploadRes.data.success && uploadRes.data.data?.imageKey) {
@@ -1218,17 +1223,18 @@ export default function FitLogPage() {
                 <div className="mb-4 space-y-2">
                   {nutrition.meals.map((meal, idx) => {
                     const mealInfo = MEAL_TYPES.find(m => m.value === meal.type);
+                    const mealDisplayName = meal.name || `Meal ${idx + 1}`;
                     return (
                       <div
                         key={meal._id || idx}
                         className="flex items-center justify-between py-2.5 px-3 bg-muted/30 rounded-lg group"
                       >
                         <div className="flex items-center gap-3">
-                          {meal.imageKey ? (
+                          {meal.imageUrl ? (
                             <div className="relative w-10 h-10 rounded-lg overflow-hidden flex-shrink-0">
                               <img
-                                src={`${process.env.NEXT_PUBLIC_API_URL}/upload/image/${meal.imageKey}`}
-                                alt={meal.name || 'Meal'}
+                                src={meal.imageUrl}
+                                alt={mealDisplayName}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
                                   e.currentTarget.style.display = 'none';
@@ -1246,7 +1252,7 @@ export default function FitLogPage() {
                           )}
                           <div>
                             <p className="font-medium text-sm">
-                              {meal.name || mealInfo?.label || 'Meal'}
+                              {mealDisplayName}
                             </p>
                             {meal.time && (
                               <p className="text-xs text-muted-foreground">{meal.time}</p>
@@ -1889,76 +1895,101 @@ export default function FitLogPage() {
               </div>
             )}
 
-            {/* AI Mode - Image Upload */}
+            {/* AI Mode - Image Upload and Analysis */}
             {mealInputMode === 'ai' && (
               <div className="space-y-3">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Food Image</label>
-                  <div className="relative">
-                    {foodImagePreview ? (
-                      <div className="relative rounded-lg overflow-hidden border border-border">
-                        <img
-                          src={foodImagePreview}
-                          alt="Food preview"
-                          className="w-full h-48 object-cover"
-                        />
-                        <button
-                          onClick={() => {
-                            setFoodImage(null);
-                            setFoodImagePreview(null);
-                          }}
-                          className="absolute top-2 right-2 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
-                        >
-                          <X className="h-4 w-4 text-white" />
-                        </button>
+                {/* Before analysis: show upload UI */}
+                {mealForm.calories === 0 && (
+                  <>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Food Image</label>
+                      <div className="relative">
+                        {foodImagePreview ? (
+                          <div className="relative rounded-lg overflow-hidden border border-border">
+                            <img
+                              src={foodImagePreview}
+                              alt="Food preview"
+                              className="w-full h-48 object-cover"
+                            />
+                            <button
+                              onClick={() => {
+                                setFoodImage(null);
+                                setFoodImagePreview(null);
+                              }}
+                              className="absolute top-2 right-2 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
+                            >
+                              <X className="h-4 w-4 text-white" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-purple-500 hover:bg-purple-500/5 transition-colors">
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                              <Camera className="h-8 w-8 text-muted-foreground mb-2" />
+                              <p className="text-sm text-muted-foreground">
+                                <span className="font-medium text-purple-500">Click to upload</span> or drag and drop
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 10MB</p>
+                            </div>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleImageSelect}
+                              className="hidden"
+                            />
+                          </label>
+                        )}
                       </div>
-                    ) : (
-                      <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-purple-500 hover:bg-purple-500/5 transition-colors">
-                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                          <Camera className="h-8 w-8 text-muted-foreground mb-2" />
-                          <p className="text-sm text-muted-foreground">
-                            <span className="font-medium text-purple-500">Click to upload</span> or drag and drop
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 10MB</p>
-                        </div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageSelect}
-                          className="hidden"
-                        />
-                      </label>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Description (helps AI understand better)</label>
-                  <Input
-                    value={mealForm.description}
-                    onChange={(e) => setMealForm((p) => ({ ...p, description: e.target.value }))}
-                    placeholder="e.g., khichdi 200g with curd 30g"
-                  />
-                </div>
-                <Button
-                  onClick={handleAnalyzeFood}
-                  disabled={!foodImage || isAnalyzing}
-                  variant="outline" className="w-full"
-                >
-                  {isAnalyzing ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Analyze Food
-                    </>
-                  )}
-                </Button>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Description (helps AI understand better)</label>
+                      <Input
+                        value={mealForm.description}
+                        onChange={(e) => setMealForm((p) => ({ ...p, description: e.target.value }))}
+                        placeholder="e.g., khichdi 200g with curd 30g"
+                      />
+                    </div>
+                    <Button
+                      onClick={handleAnalyzeFood}
+                      disabled={!foodImage || isAnalyzing}
+                      variant="outline" className="w-full"
+                    >
+                      {isAnalyzing ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          Analyzing...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Analyze Food
+                        </>
+                      )}
+                    </Button>
+                  </>
+                )}
+                
+                {/* After analysis: show success message */}
                 {mealForm.calories > 0 && (
-                  <div className="text-sm text-muted-foreground text-center">
-                    ✓ Food analyzed! Review and edit the values below.
+                  <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                    <div className="h-8 w-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                      <Sparkles className="h-4 w-4 text-emerald-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">AI Analysis Complete</p>
+                      <p className="text-xs text-muted-foreground">Review and edit the values below, then save.</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="ml-auto text-xs"
+                      onClick={() => {
+                        setMealForm(p => ({ ...p, calories: 0, protein: 0, carbs: 0, fat: 0, name: '', imageKey: '', imageUrl: '' }));
+                        setFoodImage(null);
+                        setFoodImagePreview(null);
+                      }}
+                    >
+                      Re-scan
+                    </Button>
                   </div>
                 )}
               </div>
@@ -2053,52 +2084,74 @@ export default function FitLogPage() {
                     />
                   </div>
                 </div>
+                {/* Description field - show in manual mode or when editing */}
                 {(mealInputMode === 'manual' || editingMealId) && (
-                  <>
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">Description (optional)</label>
-                      <Input
-                        value={mealForm.description}
-                        onChange={(e) => setMealForm((p) => ({ ...p, description: e.target.value }))}
-                        placeholder="e.g., khichdi 200g with curd 30g"
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Description (optional)</label>
+                    <Input
+                      value={mealForm.description}
+                      onChange={(e) => setMealForm((p) => ({ ...p, description: e.target.value }))}
+                      placeholder="e.g., khichdi 200g with curd 30g"
+                    />
+                  </div>
+                )}
+                
+                {/* Photo section - different behavior based on mode */}
+                {/* In AI mode after analysis: show the captured image (read-only) */}
+                {mealInputMode === 'ai' && mealForm.calories > 0 && (foodImagePreview || mealForm.imageUrl) && (
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Captured Image</label>
+                    <div className="relative rounded-lg overflow-hidden border border-border">
+                      <img
+                        src={foodImagePreview || mealForm.imageUrl}
+                        alt="Analyzed food"
+                        className="w-full h-32 object-cover"
                       />
+                      <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/60 rounded text-xs text-white flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        AI Analyzed
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">Photo (optional)</label>
-                      {foodImagePreview || mealForm.imageKey ? (
-                        <div className="relative rounded-lg overflow-hidden border border-border">
-                          <img
-                            src={foodImagePreview || `${process.env.NEXT_PUBLIC_API_URL}/upload/image/${mealForm.imageKey}`}
-                            alt="Meal preview"
-                            className="w-full h-32 object-cover"
-                          />
-                          <button
-                            onClick={() => {
-                              setFoodImage(null);
-                              setFoodImagePreview(null);
-                              setMealForm((p) => ({ ...p, imageKey: '' }));
-                            }}
-                            className="absolute top-2 right-2 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
-                          >
-                            <X className="h-4 w-4 text-white" />
-                          </button>
+                  </div>
+                )}
+                
+                {/* In manual mode or editing: show photo upload/edit option */}
+                {(mealInputMode === 'manual' || editingMealId) && (
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Photo (optional)</label>
+                    {foodImagePreview || mealForm.imageUrl ? (
+                      <div className="relative rounded-lg overflow-hidden border border-border">
+                        <img
+                          src={foodImagePreview || mealForm.imageUrl}
+                          alt="Meal preview"
+                          className="w-full h-32 object-cover"
+                        />
+                        <button
+                          onClick={() => {
+                            setFoodImage(null);
+                            setFoodImagePreview(null);
+                            setMealForm((p) => ({ ...p, imageKey: '', imageUrl: '' }));
+                          }}
+                          className="absolute top-2 right-2 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
+                        >
+                          <X className="h-4 w-4 text-white" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-purple-500 hover:bg-purple-500/5 transition-colors">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Camera className="h-5 w-5" />
+                          <span className="text-sm">Add photo</span>
                         </div>
-                      ) : (
-                        <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-purple-500 hover:bg-purple-500/5 transition-colors">
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Camera className="h-5 w-5" />
-                            <span className="text-sm">Add photo</span>
-                          </div>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleImageSelect}
-                            className="hidden"
-                          />
-                        </label>
-                      )}
-                    </div>
-                  </>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageSelect}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
                 )}
               </>
             )}

@@ -1,5 +1,5 @@
 export type SubscriptionPlan = 'free' | 'plus' | 'pro';
-export type SubscriptionStatus = 'active' | 'cancelled' | 'expired' | 'pending';
+export type SubscriptionStatus = 'active' | 'authenticated' | 'pending' | 'halted' | 'cancelled' | 'paused' | 'expired' | 'completed';
 
 export interface User {
   id: string;
@@ -218,6 +218,7 @@ export interface FitLogMeal {
   fat: number;
   time?: string;
   imageKey?: string;
+  imageUrl?: string; // Presigned S3 URL for displaying the image
 }
 
 export interface FitLogNutrition {
