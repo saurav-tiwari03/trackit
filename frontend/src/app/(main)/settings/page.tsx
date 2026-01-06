@@ -534,7 +534,7 @@ function SettingsContent() {
                     </div>
                   </div>
                   <Button asChild variant={user?.subscriptionPlan === 'free' || !user?.subscriptionPlan ? 'default' : 'outline'}>
-                    <Link href="/pricing">
+                    <Link href="/upgrade">
                       {user?.subscriptionPlan === 'free' || !user?.subscriptionPlan ? (
                         <>
                           <Zap className="w-4 h-4 mr-2" />

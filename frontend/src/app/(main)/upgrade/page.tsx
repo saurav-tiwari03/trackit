@@ -242,7 +242,7 @@ export default function PricingPage() {
             </Link>
           </Button>
           <div>
-            <h1 className="text-2xl font-semibold">Choose Your Plan</h1>
+            <h1 className="text-2xl font-semibold">Upgrade Your Plan</h1>
             <p className="text-sm text-muted-foreground">
               {isSubscribed 
                 ? `You're currently on the ${currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} plan`

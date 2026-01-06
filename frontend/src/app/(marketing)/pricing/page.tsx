@@ -100,7 +100,7 @@ const plans = [
       'Dark mode themes',
     ],
     cta: 'Get Plus',
-    ctaLink: '/pricing',
+    ctaLink: '/upgrade',
   },
   {
     id: 'pro',
@@ -123,7 +123,7 @@ const plans = [
       'Priority feature requests',
     ],
     cta: 'Get Pro',
-    ctaLink: '/pricing',
+    ctaLink: '/upgrade',
   },
 ];
 

@@ -275,7 +275,7 @@ export function AppSidebar() {
         {(!user?.subscriptionPlan || user.subscriptionPlan === 'free') && (
           <div className="mb-2 group-data-[collapsible=icon]:hidden">
             <Link
-              href="/pricing"
+              href="/upgrade"
               onClick={() => {
                 if (isMobile) setOpenMobile(false);
               }}
