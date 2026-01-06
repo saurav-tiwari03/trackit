@@ -72,7 +72,6 @@ const navItems = [
   { icon: Trophy, label: 'Achievements', href: '/achievements', color: 'text-teal-500' },
   { icon: MessageCircle, label: 'Slack', href: '/slack', color: 'text-pink-500' },
   { icon: Bell, label: 'Notifications', href: '/notifications', color: 'text-red-500' },
-  { icon: Settings, label: 'Settings', href: '/settings', color: 'text-gray-500' },
 ];
 
 export function AppSidebar() {
@@ -329,7 +328,7 @@ export function AppSidebar() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56">
                 {/* Subscription Status in Dropdown */}
-                <div className="px-2 py-1.5 mb-1">
+                <div className="px-2 py-2 mb-1">
                   <div className="flex items-center gap-2">
                     {user?.subscriptionPlan === 'plus' ? (
                       <>
@@ -350,9 +349,9 @@ export function AppSidebar() {
                   </div>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
+                <DropdownMenuItem asChild className="py-2.5 cursor-pointer">
                   <Link
-                    href="/pricing"
+                    href="/upgrade"
                     onClick={() => {
                       if (isMobile) setOpenMobile(false);
                     }}
@@ -361,7 +360,7 @@ export function AppSidebar() {
                     {user?.subscriptionPlan === 'free' || !user?.subscriptionPlan ? 'Upgrade Plan' : 'Manage Plan'}
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
+                <DropdownMenuItem asChild className="py-2.5 cursor-pointer">
                   <Link
                     href="/settings"
                     onClick={() => {
@@ -373,10 +372,13 @@ export function AppSidebar() {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => {
-                  if (isMobile) setOpenMobile(false);
-                  handleLogout();
-                }}>
+                <DropdownMenuItem 
+                  onClick={() => {
+                    if (isMobile) setOpenMobile(false);
+                    handleLogout();
+                  }}
+                  className="py-2.5 cursor-pointer"
+                >
                   <LogOut className="mr-2 h-4 w-4" />
                   Logout
                 </DropdownMenuItem>
