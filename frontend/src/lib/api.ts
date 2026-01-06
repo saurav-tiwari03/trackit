@@ -330,6 +330,8 @@ export const paymentsAPI = {
 
 // FitLog API
 export const fitlogAPI = {
+  // Get AI usage info (for rate limiting display)
+  getAIUsage: () => api.get('/fitlog/ai-usage'),
   // Upload meal image
   uploadMealImage: async (file: File) => {
     const formData = new FormData();
