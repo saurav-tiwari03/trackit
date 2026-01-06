@@ -10,6 +10,8 @@ export interface IGoogleCalendarTokens {
 
 export type SubscriptionPlanType = 'free' | 'plus' | 'pro';
 
+export type SubscriptionStatusType = 'active' | 'authenticated' | 'pending' | 'halted' | 'cancelled' | 'paused' | 'expired' | 'completed';
+
 export interface IUser extends Document {
   _id: Types.ObjectId;
   name: string;
@@ -20,7 +22,7 @@ export interface IUser extends Document {
   googleCalendar?: IGoogleCalendarTokens;
   // Subscription fields for quick access
   subscriptionPlan: SubscriptionPlanType;
-  subscriptionStatus: 'active' | 'cancelled' | 'expired' | 'pending';
+  subscriptionStatus: SubscriptionStatusType;
   subscriptionExpiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -70,7 +72,7 @@ const userSchema = new Schema<IUser>(
     },
     subscriptionStatus: {
       type: String,
-      enum: ['active', 'cancelled', 'expired', 'pending'],
+      enum: ['active', 'authenticated', 'pending', 'halted', 'cancelled', 'paused', 'expired', 'completed'],
       default: 'active',
     },
     subscriptionExpiresAt: {
