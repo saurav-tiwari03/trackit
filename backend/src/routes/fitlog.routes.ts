@@ -3,10 +3,11 @@ import multer from 'multer';
 import crypto from 'crypto';
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { FitLogEntry, FitLogGoal } from '../models';
+import { FitLogEntry, FitLogGoal, AIUsage, AI_LIMITS, User } from '../models';
 import { protect, AuthRequest } from '../middleware/auth';
 import { analyzeFoodImage, calculateGoalsWithAI } from '../service/gemini.service';
 import { AWS_S3_CONFIG } from '../config/config';
+import { SubscriptionPlanType } from '../models/User';
 
 const router = Router();
 
@@ -114,6 +115,109 @@ const upload = multer({
 // Helper to get today's date in YYYY-MM-DD format (UTC-safe)
 const getUTCDateString = (date: Date = new Date()): string =>
   `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+
+// AI Usage Rate Limiting
+interface AIUsageCheckResult {
+  allowed: boolean;
+  currentUsage: number;
+  limit: number;
+  remaining: number;
+  plan: SubscriptionPlanType;
+}
+
+/**
+ * Check if user can use AI meal analysis and increment counter atomically
+ * Uses findOneAndUpdate with $inc to prevent race conditions
+ */
+const checkAndIncrementAIUsage = async (
+  userId: string
+): Promise<AIUsageCheckResult> => {
+  const today = getUTCDateString();
+
+  // Get user's subscription plan
+  const user = await User.findById(userId).select('subscriptionPlan');
+  const plan: SubscriptionPlanType = user?.subscriptionPlan || 'free';
+  const limit = AI_LIMITS[plan as keyof typeof AI_LIMITS]?.mealAnalysis || AI_LIMITS.free.mealAnalysis;
+
+  // Atomically check current usage - don't increment yet
+  let usage = await AIUsage.findOne({ user: userId, date: today });
+
+  if (!usage) {
+    // Create new record for today
+    usage = await AIUsage.create({
+      user: userId,
+      date: today,
+      mealAnalysisCount: 0,
+    });
+  }
+
+  const currentUsage = usage.mealAnalysisCount;
+
+  // Check if limit exceeded
+  if (currentUsage >= limit) {
+    return {
+      allowed: false,
+      currentUsage,
+      limit,
+      remaining: 0,
+      plan,
+    };
+  }
+
+  // Atomically increment the counter using findOneAndUpdate
+  // This prevents race conditions where two requests check at the same time
+  const updatedUsage = await AIUsage.findOneAndUpdate(
+    {
+      user: userId,
+      date: today,
+      mealAnalysisCount: { $lt: limit }, // Only increment if still under limit
+    },
+    { $inc: { mealAnalysisCount: 1 } },
+    { new: true }
+  );
+
+  // If update failed (limit reached between check and update), deny request
+  if (!updatedUsage) {
+    return {
+      allowed: false,
+      currentUsage: limit,
+      limit,
+      remaining: 0,
+      plan,
+    };
+  }
+
+  return {
+    allowed: true,
+    currentUsage: updatedUsage.mealAnalysisCount,
+    limit,
+    remaining: limit - updatedUsage.mealAnalysisCount,
+    plan,
+  };
+};
+
+/**
+ * Get current AI usage without incrementing (for display purposes)
+ */
+const getAIUsageInfo = async (
+  userId: string
+): Promise<{ currentUsage: number; limit: number; remaining: number; plan: SubscriptionPlanType }> => {
+  const today = getUTCDateString();
+
+  const user = await User.findById(userId).select('subscriptionPlan');
+  const plan: SubscriptionPlanType = user?.subscriptionPlan || 'free';
+  const limit = AI_LIMITS[plan as keyof typeof AI_LIMITS]?.mealAnalysis || AI_LIMITS.free.mealAnalysis;
+
+  const usage = await AIUsage.findOne({ user: userId, date: today });
+  const currentUsage = usage?.mealAnalysisCount || 0;
+
+  return {
+    currentUsage,
+    limit,
+    remaining: Math.max(0, limit - currentUsage),
+    plan,
+  };
+};
 
 // Apply auth middleware to all routes
 router.use(protect);
@@ -881,21 +985,69 @@ router.post(
   }
 );
 
+// @route   GET /api/fitlog/ai-usage
+// @desc    Get current AI usage info for the user
+// @access  Private
+router.get('/ai-usage', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?._id?.toString();
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    const usageInfo = await getAIUsageInfo(userId);
+
+    res.status(200).json({
+      success: true,
+      data: usageInfo,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching AI usage info',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 // @route   POST /api/fitlog/analyze-food
 // @desc    Analyze food image using Gemini AI and return macros
-// @access  Private
+// @access  Private (Rate limited by subscription plan)
 router.post(
   '/analyze-food',
   upload.single('image'),
   async (req: AuthRequest, res: Response) => {
     try {
-      const userId = req.user?._id?.toString() || 'anonymous';
+      const userId = req.user?._id?.toString();
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
       const { description, saveImage } = req.body;
 
       if (!req.file) {
         res.status(400).json({
           success: false,
           message: 'Image file is required',
+        });
+        return;
+      }
+
+      // Check and increment AI usage (rate limiting)
+      const usageCheck = await checkAndIncrementAIUsage(userId);
+
+      if (!usageCheck.allowed) {
+        res.status(429).json({
+          success: false,
+          message: `Daily AI analysis limit reached (${usageCheck.limit} per day for ${usageCheck.plan} plan). Upgrade your plan for more analyses.`,
+          data: {
+            currentUsage: usageCheck.currentUsage,
+            limit: usageCheck.limit,
+            remaining: 0,
+            plan: usageCheck.plan,
+          },
         });
         return;
       }
@@ -936,6 +1088,12 @@ router.post(
           imageKey,
           imageUrl,
         },
+        usage: {
+          currentUsage: usageCheck.currentUsage,
+          limit: usageCheck.limit,
+          remaining: usageCheck.remaining,
+          plan: usageCheck.plan,
+        },
       });
     } catch (error) {
       res.status(500).json({
@@ -949,13 +1107,19 @@ router.post(
 
 // @route   POST /api/fitlog/:date/meals/from-image
 // @desc    Analyze food image and add as meal to a specific date
-// @access  Private
+// @access  Private (Rate limited by subscription plan)
 router.post(
   '/:date/meals/from-image',
   upload.single('image'),
   async (req: AuthRequest, res: Response) => {
     try {
       const userId = req.user?._id;
+      const userIdStr = userId?.toString();
+      if (!userId || !userIdStr) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
       const { date } = req.params;
       const { quantity, mealType, time } = req.body;
 
@@ -972,6 +1136,23 @@ router.post(
         res.status(400).json({
           success: false,
           message: 'Image file is required',
+        });
+        return;
+      }
+
+      // Check and increment AI usage (rate limiting)
+      const usageCheck = await checkAndIncrementAIUsage(userIdStr);
+
+      if (!usageCheck.allowed) {
+        res.status(429).json({
+          success: false,
+          message: `Daily AI analysis limit reached (${usageCheck.limit} per day for ${usageCheck.plan} plan). Upgrade your plan for more analyses.`,
+          data: {
+            currentUsage: usageCheck.currentUsage,
+            limit: usageCheck.limit,
+            remaining: 0,
+            plan: usageCheck.plan,
+          },
         });
         return;
       }
@@ -1062,6 +1243,12 @@ router.post(
         data: {
           entry,
           analyzedFood: macros,
+        },
+        usage: {
+          currentUsage: usageCheck.currentUsage,
+          limit: usageCheck.limit,
+          remaining: usageCheck.remaining,
+          plan: usageCheck.plan,
         },
       });
     } catch (error) {

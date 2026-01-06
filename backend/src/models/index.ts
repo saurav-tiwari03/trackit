@@ -37,3 +37,9 @@ export {
   ActivityLevel,
   Gender,
 } from './FitLogGoal';
+export {
+  AIUsage,
+  IAIUsage,
+  AI_LIMITS,
+  SubscriptionPlanForLimits,
+} from './AIUsage';
