@@ -31,6 +31,8 @@ import {
   X,
   Check,
   Home,
+  PanelLeftClose,
+  PanelLeft,
 } from 'lucide-react';
 import { notesAPI, projectsAPI, foldersAPI } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -149,6 +151,7 @@ export default function NotesPage() {
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState('');
   const [mobileFolderSheetOpen, setMobileFolderSheetOpen] = useState(false);
+  const [folderSidebarCollapsed, setFolderSidebarCollapsed] = useState(false);
 
   const fetchFolders = useCallback(async () => {
     try {
@@ -957,25 +960,48 @@ export default function NotesPage() {
   return (
     <div className="h-full flex">
       {/* Folder Sidebar */}
-      <div className="w-56 border-r border-border bg-muted/30 flex-shrink-0 hidden md:flex flex-col">
-        <div className="p-3 border-b border-border">
+      <motion.div
+        initial={false}
+        animate={{
+          width: folderSidebarCollapsed ? 0 : 224,
+          opacity: folderSidebarCollapsed ? 0 : 1,
+        }}
+        transition={{ duration: 0.2, ease: 'easeInOut' }}
+        className={cn(
+          'border-r border-border bg-muted/30 flex-shrink-0 hidden md:flex flex-col overflow-hidden',
+          folderSidebarCollapsed && 'border-r-0'
+        )}
+      >
+        <div className="p-3 border-b border-border min-w-[224px]">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               Folders
             </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 w-6 p-0"
-              onClick={() => openNewFolderDialog()}
-            >
-              <FolderPlus className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={() => openNewFolderDialog()}
+                title="New folder"
+              >
+                <FolderPlus className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={() => setFolderSidebarCollapsed(true)}
+                title="Minimize sidebar"
+              >
+                <PanelLeftClose className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="p-2">
+          <div className="p-2 min-w-[224px]">
             {/* All Notes */}
             <div
               className={cn(
@@ -1013,7 +1039,30 @@ export default function NotesPage() {
             )}
           </div>
         </ScrollArea>
-      </div>
+      </motion.div>
+
+      {/* Collapsed Sidebar Toggle */}
+      <AnimatePresence>
+        {folderSidebarCollapsed && (
+          <motion.div
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -10 }}
+            transition={{ duration: 0.15 }}
+            className="hidden md:flex items-start pt-3 pl-2 pr-1 border-r border-border bg-muted/30"
+          >
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => setFolderSidebarCollapsed(false)}
+              title="Expand sidebar"
+            >
+              <PanelLeft className="h-4 w-4" />
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">

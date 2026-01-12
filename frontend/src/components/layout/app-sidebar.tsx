@@ -23,6 +23,7 @@ import {
   Crown,
   Sparkles,
   Dumbbell,
+  PenTool,
 } from 'lucide-react';
 
 import {
@@ -69,6 +70,7 @@ const navItems = [
   { icon: CheckSquare, label: 'All Tasks', href: '/tasks', color: 'text-green-500' },
   { icon: Calendar, label: 'Calendar', href: '/calendar', color: 'text-amber-500' },
   { icon: StickyNote, label: 'Notes', href: '/notes', color: 'text-yellow-500' },
+  { icon: PenTool, label: 'Whiteboards', href: '/whiteboards', color: 'text-violet-500' },
   { icon: Trophy, label: 'Achievements', href: '/achievements', color: 'text-teal-500' },
   { icon: MessageCircle, label: 'Slack', href: '/slack', color: 'text-pink-500' },
   { icon: Bell, label: 'Notifications', href: '/notifications', color: 'text-red-500' },

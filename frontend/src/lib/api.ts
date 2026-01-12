@@ -507,6 +507,48 @@ export const fitlogAPI = {
     api.delete(`/fitlog/${date}/workouts/${workoutId}`),
 };
 
+// Whiteboards API
+export const whiteboardsAPI = {
+  getAll: (params?: {
+    search?: string;
+    project?: string;
+    folder?: string;
+    noFolder?: boolean;
+    isPinned?: boolean;
+    isFavorite?: boolean;
+    isArchived?: boolean;
+    sortBy?: string;
+    sortOrder?: string;
+  }) => api.get('/whiteboards', { params }),
+  getOne: (id: string) => api.get(`/whiteboards/${id}`),
+  create: (data: {
+    title?: string;
+    elements?: string;
+    appState?: string;
+    files?: string;
+    project?: string;
+    folder?: string;
+  }) => api.post('/whiteboards', data),
+  update: (
+    id: string,
+    data: {
+      title?: string;
+      elements?: string;
+      appState?: string;
+      files?: string;
+      project?: string;
+      folder?: string;
+      thumbnail?: string;
+    }
+  ) => api.put(`/whiteboards/${id}`, data),
+  delete: (id: string) => api.delete(`/whiteboards/${id}`),
+  togglePin: (id: string) => api.patch(`/whiteboards/${id}/pin`),
+  toggleFavorite: (id: string) => api.patch(`/whiteboards/${id}/favorite`),
+  toggleArchive: (id: string) => api.patch(`/whiteboards/${id}/archive`),
+  move: (id: string, folderId: string | null) =>
+    api.patch(`/whiteboards/${id}/move`, { folder: folderId }),
+};
+
 // Upload API
 export const uploadAPI = {
   uploadImage: async (file: File | Blob): Promise<string> => {
