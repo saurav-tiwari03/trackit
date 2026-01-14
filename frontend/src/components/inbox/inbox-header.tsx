@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
   Filter,
@@ -84,12 +84,12 @@ export function InboxHeader({
 
   return (
     <div className={cn(
-      "flex items-center justify-between px-4 py-3 sticky top-0 z-10",
+      "flex items-center gap-4 px-4 py-3 sticky top-0 z-10",
       isCustomTheme ? "bg-background/60 backdrop-blur-md" : "bg-background/95 backdrop-blur-sm"
     )}>
-      {/* Left: Search with bottom border extending to Filters */}
-      <div className="flex items-center gap-4 border-b border-white/30 pb-2 flex-1 mr-4">
-        <div className="relative flex-1 max-w-[400px]">
+      {/* Left: Search with bottom border */}
+      <div className="flex items-center gap-4 border-b border-white/30 pb-2">
+        <div className="relative w-[280px] sm:w-[350px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             value={searchQuery}
@@ -108,7 +108,7 @@ export function InboxHeader({
               <ChevronDown className="h-3 w-3" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-[200px]">
+          <DropdownMenuContent align="start" className="w-[200px]">
             {filterOptions.map((option, index) => (
               <div key={option.value}>
                 {index === 1 && <DropdownMenuSeparator />}
@@ -124,35 +124,48 @@ export function InboxHeader({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      
+      {/* Spacer to push view controls to right */}
+      <div className="flex-1" />
 
       {/* Right: View Controls */}
-      <div className="flex items-center gap-2">
-        {/* Group By - Only show in Board view */}
-        {viewMode === 'board' && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-2">
-                <Kanban className="h-4 w-4" />
-                Group by {groupByOptions.find((o) => o.value === groupBy)?.label}
-                <ChevronDown className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[180px]">
-              {groupByOptions.map((option) => (
-                <DropdownMenuItem
-                  key={option.value}
-                  onClick={() => onGroupByChange(option.value)}
-                  className={cn(groupBy === option.value && 'bg-muted')}
-                >
-                  {option.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+      <div className="flex items-center">
+        {/* Group By - Only show in Board view with smooth animation */}
+        <AnimatePresence mode="wait">
+          {viewMode === 'board' && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 'auto', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: 'easeInOut' }}
+              className="overflow-hidden mr-2"
+            >
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="gap-2 whitespace-nowrap">
+                    <Kanban className="h-4 w-4" />
+                    Group by {groupByOptions.find((o) => o.value === groupBy)?.label}
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-[180px]">
+                  {groupByOptions.map((option) => (
+                    <DropdownMenuItem
+                      key={option.value}
+                      onClick={() => onGroupByChange(option.value)}
+                      className={cn(groupBy === option.value && 'bg-muted')}
+                    >
+                      {option.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* View Mode Tabs - Enhanced Design with Sliding Animation */}
-        <div className="flex items-center border rounded-lg p-1 ml-2 bg-muted/20 relative">
+        <div className="flex items-center border rounded-lg p-1 bg-muted/20 relative">
           {viewModes.map((mode) => {
             const isActive = viewMode === mode.value;
             return (

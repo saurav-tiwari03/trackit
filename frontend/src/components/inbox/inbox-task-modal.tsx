@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { format } from 'date-fns';
 import {
   Calendar as CalendarIcon,
@@ -17,7 +17,17 @@ import {
   Paperclip,
   FileText,
   ImagePlus,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  Video,
 } from 'lucide-react';
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
+
+// Set up PDF.js worker
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 import { Task, Section, RepeatConfig } from '@/types';
 import { Modal, ModalHeader, ModalContent } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
@@ -47,6 +57,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+
+interface PreviewAttachment {
+  _id: string;
+  name: string;
+  mimeType: string;
+  url: string;
+  size: number;
+}
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -108,6 +132,15 @@ export function InboxTaskModal({
   const [isLoadingSubtasks, setIsLoadingSubtasks] = useState(false);
   const [isUploadingAttachments, setIsUploadingAttachments] = useState(false);
   const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>({});
+  
+  // Preview modal state
+  const [previewAttachment, setPreviewAttachment] = useState<PreviewAttachment | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [pdfNumPages, setPdfNumPages] = useState(0);
+  const [pdfCurrentPage, setPdfCurrentPage] = useState(1);
+  const pdfContainerRef = useRef<HTMLDivElement>(null);
+  const [pdfPageWidth, setPdfPageWidth] = useState(600);
 
   // Fetch signed URLs for attachments
   const fetchAttachmentUrls = useCallback(async (taskId: string, attachments: Task['attachments']) => {
@@ -300,6 +333,35 @@ export function InboxTaskModal({
 
   const isPdfFile = (mimeType: string) => mimeType === 'application/pdf';
   const isImageFile = (mimeType: string) => mimeType.startsWith('image/');
+  const isVideoFile = (mimeType: string) => mimeType.startsWith('video/');
+
+  // PDF container width observer
+  useEffect(() => {
+    if (!pdfContainerRef.current || !previewAttachment) return;
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const width = entry.contentRect.width - 32;
+        if (width > 0) {
+          setPdfPageWidth(Math.min(width, 800));
+        }
+      }
+    });
+    resizeObserver.observe(pdfContainerRef.current);
+    return () => resizeObserver.disconnect();
+  }, [previewAttachment]);
+
+  // Handle opening attachment preview
+  const handleOpenPreview = useCallback(async (att: { _id: string; name: string; mimeType: string; url: string; size: number }) => {
+    setPreviewAttachment(att);
+    setIsPreviewLoading(true);
+    setPdfCurrentPage(1);
+    setPdfNumPages(0);
+    
+    // Get the URL
+    const url = attachmentUrls[att._id] || getAttachmentUrl(att);
+    setPreviewUrl(url);
+    setIsPreviewLoading(false);
+  }, [attachmentUrls]);
 
   const handleDelete = async () => {
     if (!editedTask) return;
@@ -705,7 +767,7 @@ export function InboxTaskModal({
                 <input
                   type="file"
                   multiple
-                  accept="application/pdf,image/*"
+                  accept="application/pdf,image/*,video/*"
                   className="hidden"
                   disabled={isUploadingAttachments}
                   onChange={(e) => handleUploadAttachments(e.target.files)}
@@ -726,24 +788,31 @@ export function InboxTaskModal({
                     <XIcon className="h-3 w-3" />
                   </button>
 
-                  {/* Attachment preview */}
-                  <a
-                    href={getAttachmentUrl(att)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block"
+                  {/* Attachment preview - opens modal */}
+                  <button
+                    onClick={() => handleOpenPreview(att)}
+                    className="block w-full text-left"
                   >
-                    <div className="w-[120px] h-[100px] bg-muted rounded-xl overflow-hidden flex items-center justify-center">
+                    <div className="w-[120px] h-[100px] bg-muted rounded-xl overflow-hidden flex items-center justify-center hover:ring-2 hover:ring-primary/50 transition-all">
                       {isImageFile(att.mimeType) ? (
-                        <img
-                          src={getAttachmentUrl(att)}
-                          alt={att.name}
-                          className="w-full h-full object-cover"
-                        />
+                        getAttachmentUrl(att) ? (
+                          <img
+                            src={getAttachmentUrl(att)}
+                            alt={att.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        )
                       ) : isPdfFile(att.mimeType) ? (
                         <div className="flex flex-col items-center justify-center">
                           <FileText className="h-10 w-10 text-rose-500" />
                           <span className="text-[10px] text-rose-500 font-semibold mt-1">PDF</span>
+                        </div>
+                      ) : isVideoFile(att.mimeType) ? (
+                        <div className="flex flex-col items-center justify-center">
+                          <Video className="h-10 w-10 text-blue-500" />
+                          <span className="text-[10px] text-blue-500 font-semibold mt-1">VIDEO</span>
                         </div>
                       ) : (
                         <Paperclip className="h-8 w-8 text-muted-foreground" />
@@ -752,7 +821,7 @@ export function InboxTaskModal({
                     <p className="text-xs text-muted-foreground mt-1.5 truncate text-center px-1">
                       {att.name}
                     </p>
-                  </a>
+                  </button>
                 </div>
               ))}
 
@@ -801,6 +870,160 @@ export function InboxTaskModal({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Attachment Preview Modal */}
+      <Dialog
+        open={!!previewAttachment}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPreviewAttachment(null);
+            setPreviewUrl('');
+            setIsPreviewLoading(false);
+            setPdfNumPages(0);
+            setPdfCurrentPage(1);
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl w-[90vw] h-[80vh] p-0 overflow-hidden bg-black/95 border-none focus:outline-none">
+          <DialogHeader className="sr-only">
+            <DialogTitle>{previewAttachment?.name || 'Attachment preview'}</DialogTitle>
+          </DialogHeader>
+          <div className={`relative w-full h-full ${previewAttachment && isPdfFile(previewAttachment.mimeType) ? 'block' : 'flex items-center justify-center'}`}>
+            {/* Close button */}
+            <button
+              onClick={() => setPreviewAttachment(null)}
+              className="absolute top-4 right-4 z-50 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 backdrop-blur-sm transition-colors"
+            >
+              <XIcon className="h-6 w-6" />
+            </button>
+
+            {/* Download button */}
+            <a
+              href={previewUrl}
+              download={previewAttachment?.name}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="absolute top-4 right-16 z-50 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 backdrop-blur-sm transition-colors"
+            >
+              <Download className="h-6 w-6" />
+            </a>
+
+            {/* Type & name indicator */}
+            <div className="absolute top-4 left-4 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 text-white backdrop-blur-sm max-w-[50%]">
+              {previewAttachment && isImageFile(previewAttachment.mimeType) && <ImagePlus className="h-4 w-4 shrink-0" />}
+              {previewAttachment && isVideoFile(previewAttachment.mimeType) && <Video className="h-4 w-4 shrink-0" />}
+              {previewAttachment && isPdfFile(previewAttachment.mimeType) && <FileText className="h-4 w-4 shrink-0" />}
+              <span className="text-sm font-medium truncate">{previewAttachment?.name}</span>
+            </div>
+
+            {/* Loading state */}
+            {isPreviewLoading && (
+              <div className="flex items-center justify-center">
+                <div className="h-8 w-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+
+            {/* Image Preview */}
+            {!isPreviewLoading && previewAttachment && isImageFile(previewAttachment.mimeType) && (
+              <img
+                src={previewUrl}
+                alt={previewAttachment.name}
+                className="max-w-full max-h-full object-contain"
+              />
+            )}
+
+            {/* Video Preview */}
+            {!isPreviewLoading && previewAttachment && isVideoFile(previewAttachment.mimeType) && (
+              <video
+                src={previewUrl}
+                controls
+                className="max-w-full max-h-full"
+                autoPlay
+              />
+            )}
+
+            {/* PDF Preview */}
+            {!isPreviewLoading && previewAttachment && isPdfFile(previewAttachment.mimeType) && (
+              <>
+                <div className="w-full h-full overflow-y-auto bg-neutral-900/50 p-4 pt-16">
+                  <div ref={pdfContainerRef} className="max-w-3xl mx-auto min-h-full flex flex-col items-center">
+                    <Document
+                      file={previewUrl}
+                      onLoadSuccess={(info) => {
+                        setPdfNumPages(info.numPages);
+                        setPdfCurrentPage((p) => Math.min(Math.max(1, p), info.numPages));
+                      }}
+                      onLoadError={(error) => console.error('PDF Load Error:', error)}
+                      loading={<div className="h-[50vh] flex items-center justify-center text-white">Loading PDF…</div>}
+                      error={<div className="h-[50vh] flex items-center justify-center text-red-400">Failed to load PDF</div>}
+                    >
+                      {pdfNumPages > 0 && pdfPageWidth > 0 && (
+                        <Page
+                          pageNumber={pdfCurrentPage}
+                          renderTextLayer={false}
+                          renderAnnotationLayer={false}
+                          className="shadow-lg mx-auto mb-24"
+                          width={pdfPageWidth}
+                          loading={
+                            <div
+                              className="bg-white shadow-lg mx-auto mb-24 animate-pulse"
+                              style={{ width: pdfPageWidth, height: pdfPageWidth * 1.414 }}
+                            />
+                          }
+                        />
+                      )}
+                    </Document>
+                  </div>
+                </div>
+
+                {/* PDF Page Navigation */}
+                {pdfNumPages > 0 && (
+                  <div className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm rounded-full px-6 py-2 shadow-2xl border border-border/20 flex items-center gap-6 z-50">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPdfCurrentPage((p) => Math.max(1, p - 1));
+                      }}
+                      disabled={pdfCurrentPage <= 1}
+                      className="p-1 hover:bg-black/5 rounded-full disabled:opacity-30 transition-colors"
+                    >
+                      <ChevronLeft className="h-5 w-5 text-black" />
+                    </button>
+                    <span className="text-sm font-semibold text-black min-w-12 text-center select-none">
+                      {pdfCurrentPage} of {pdfNumPages}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPdfCurrentPage((p) => Math.min(pdfNumPages, p + 1));
+                      }}
+                      disabled={pdfCurrentPage >= pdfNumPages}
+                      className="p-1 hover:bg-black/5 rounded-full disabled:opacity-30 transition-colors"
+                    >
+                      <ChevronRight className="h-5 w-5 text-black" />
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Unsupported file type */}
+            {!isPreviewLoading && previewAttachment && !isImageFile(previewAttachment.mimeType) && !isVideoFile(previewAttachment.mimeType) && !isPdfFile(previewAttachment.mimeType) && (
+              <div className="flex flex-col items-center justify-center text-white gap-4">
+                <Paperclip className="h-16 w-16 opacity-50" />
+                <p className="text-lg">Preview not available for this file type</p>
+                <a
+                  href={previewUrl}
+                  download={previewAttachment.name}
+                  className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+                >
+                  Download File
+                </a>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Modal>
   );
 }

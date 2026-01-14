@@ -51,6 +51,7 @@ interface CanvasProps {
   opacity: number;
   onElementsChange?: (elements: WhiteboardElement[]) => void;
   onViewChange?: (panOffset: Point, scale: number, isContentVisible: boolean) => void;
+  onElementDoubleClick?: (element: WhiteboardElement) => void;
 }
 
 function generateId(): string {
@@ -241,6 +242,7 @@ export default function Canvas({
   opacity,
   onElementsChange,
   onViewChange,
+  onElementDoubleClick,
 }: CanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
@@ -669,6 +671,19 @@ export default function Canvas({
     setScale((prev) => Math.min(Math.max(prev * delta, 0.1), 5));
   }, []);
 
+  const handleDoubleClick = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      const { x, y } = getMouseCoordinates(event);
+      // Find element under cursor - check from top to bottom (reverse order)
+      const clickedElement = [...elements].reverse().find((el) => isPointInElement(x, y, el));
+      
+      if (clickedElement && clickedElement.type === 'image' && clickedElement.imageData) {
+        onElementDoubleClick?.(clickedElement);
+      }
+    },
+    [elements, getMouseCoordinates, onElementDoubleClick]
+  );
+
   // Get cursor style based on tool
   const getCursor = () => {
     if (isDragging) {
@@ -714,6 +729,7 @@ export default function Canvas({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       onWheel={handleWheel}
+      onDoubleClick={handleDoubleClick}
     />
   );
 }
