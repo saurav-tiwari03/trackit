@@ -13,6 +13,11 @@ import {
   Trash2,
   ArrowLeft,
   ArrowRight,
+  Tag,
+  Copy,
+  ChevronRight,
+  Flag,
+  Activity,
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Task, Section, User } from '@/types';
@@ -26,6 +31,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import {
   Popover,
@@ -33,6 +41,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { toast } from '@/components/ui/sonner';
 
 interface AddTaskFormState {
   title: string;
@@ -51,7 +60,36 @@ interface InboxBoardViewProps {
   onRenameBucket: (sectionId: string, newName: string) => Promise<void>;
   onDeleteBucket?: (sectionId: string) => Promise<void>;
   onMoveBucket?: (sectionId: string, direction: 'left' | 'right') => Promise<void>;
+  onDeleteTask?: (taskId: string) => Promise<void>;
+  onDuplicateTask?: (task: Task) => Promise<void>;
+  onUpdateTask?: (taskId: string, data: Partial<Task>) => Promise<void>;
 }
+
+// Label options
+const labelOptions = [
+  { name: 'Pink', color: 'bg-pink-500' },
+  { name: 'Red', color: 'bg-red-500' },
+  { name: 'Yellow', color: 'bg-yellow-500' },
+  { name: 'Green', color: 'bg-green-500' },
+  { name: 'Blue', color: 'bg-blue-500' },
+  { name: 'Purple', color: 'bg-purple-500' },
+];
+
+// Progress options
+const progressOptions: Array<{ value: Task['progress']; label: string; color: string }> = [
+  { value: 'not_started', label: 'Not started', color: 'bg-gray-400' },
+  { value: 'in_progress', label: 'In Progress', color: 'bg-blue-500' },
+  { value: 'completed', label: 'Completed', color: 'bg-green-500' },
+  { value: 'late', label: 'Late', color: 'bg-red-500' },
+];
+
+// Priority options
+const priorityOptions: Array<{ value: Task['priority']; label: string; color: string }> = [
+  { value: 'P1', label: 'Urgent', color: 'bg-red-500' },
+  { value: 'P2', label: 'High', color: 'bg-orange-500' },
+  { value: 'P3', label: 'Medium', color: 'bg-yellow-500' },
+  { value: 'P4', label: 'Low', color: 'bg-gray-400' },
+];
 
 const getInitials = (name: string) => {
   return name
@@ -70,6 +108,9 @@ export function InboxBoardView({
   onMoveTask,
   onAddTask,
   onAddBucket,
+  onDeleteTask,
+  onDuplicateTask,
+  onUpdateTask,
   onRenameBucket,
   onDeleteBucket,
   onMoveBucket,
@@ -360,7 +401,7 @@ export function InboxBoardView({
                               {...dragProvided.dragHandleProps}
                               onClick={() => onTaskClick(task)}
                               className={cn(
-                                'bg-card/90 backdrop-blur-sm border rounded p-3 cursor-pointer hover:shadow-md transition-shadow',
+                                'bg-card/90 backdrop-blur-sm border rounded p-3 cursor-pointer hover:shadow-md transition-shadow group/card relative',
                                 dragSnapshot.isDragging && 'shadow-lg'
                               )}
                               style={{
@@ -368,8 +409,158 @@ export function InboxBoardView({
                                 // Remove any transform rotation
                               }}
                             >
+                              {/* Three-dot menu on hover */}
+                              <div className="absolute top-2 right-2 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <button
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="p-1 rounded hover:bg-muted transition-colors"
+                                    >
+                                      <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-48">
+                                    {/* Add Date */}
+                                    <DropdownMenuSub>
+                                      <DropdownMenuSubTrigger className="cursor-pointer">
+                                        <CalendarIcon className="h-4 w-4 mr-2" />
+                                        Add Date
+                                      </DropdownMenuSubTrigger>
+                                      <DropdownMenuSubContent className="p-0">
+                                        <Calendar
+                                          mode="single"
+                                          selected={task.dueDate ? new Date(task.dueDate) : undefined}
+                                          onSelect={(date) => {
+                                            if (date) {
+                                              date.setHours(23, 59, 0, 0);
+                                              onUpdateTask?.(task._id, { dueDate: date.toISOString() });
+                                            }
+                                          }}
+                                          initialFocus
+                                        />
+                                      </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+
+                                    {/* Label */}
+                                    <DropdownMenuSub>
+                                      <DropdownMenuSubTrigger className="cursor-pointer">
+                                        <Tag className="h-4 w-4 mr-2" />
+                                        Label
+                                      </DropdownMenuSubTrigger>
+                                      <DropdownMenuSubContent className="w-36">
+                                        {labelOptions.map((label) => (
+                                          <DropdownMenuItem
+                                            key={label.name}
+                                            className="cursor-pointer flex items-center gap-2"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const currentLabels = task.labels || [];
+                                              const hasLabel = currentLabels.includes(label.name);
+                                              const newLabels = hasLabel
+                                                ? currentLabels.filter((l) => l !== label.name)
+                                                : [...currentLabels, label.name];
+                                              onUpdateTask?.(task._id, { labels: newLabels });
+                                            }}
+                                          >
+                                            <span className={cn('h-3 w-3 rounded-full', label.color)} />
+                                            {label.name}
+                                            {task.labels?.includes(label.name) && (
+                                              <CheckCircle2 className="h-3 w-3 ml-auto" />
+                                            )}
+                                          </DropdownMenuItem>
+                                        ))}
+                                      </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+
+                                    {/* Progress */}
+                                    <DropdownMenuSub>
+                                      <DropdownMenuSubTrigger className="cursor-pointer">
+                                        <Activity className="h-4 w-4 mr-2" />
+                                        Progress
+                                      </DropdownMenuSubTrigger>
+                                      <DropdownMenuSubContent className="w-36">
+                                        {progressOptions.map((option) => (
+                                          <DropdownMenuItem
+                                            key={option.value}
+                                            className="cursor-pointer flex items-center gap-2"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              onUpdateTask?.(task._id, { 
+                                                progress: option.value,
+                                                isCompleted: option.value === 'completed'
+                                              });
+                                            }}
+                                          >
+                                            <span className={cn('h-2 w-2 rounded-full', option.color)} />
+                                            {option.label}
+                                            {task.progress === option.value && (
+                                              <CheckCircle2 className="h-3 w-3 ml-auto" />
+                                            )}
+                                          </DropdownMenuItem>
+                                        ))}
+                                      </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+
+                                    {/* Priority */}
+                                    <DropdownMenuSub>
+                                      <DropdownMenuSubTrigger className="cursor-pointer">
+                                        <Flag className="h-4 w-4 mr-2" />
+                                        Priority
+                                      </DropdownMenuSubTrigger>
+                                      <DropdownMenuSubContent className="w-32">
+                                        {priorityOptions.map((option) => (
+                                          <DropdownMenuItem
+                                            key={option.value}
+                                            className="cursor-pointer flex items-center gap-2"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              onUpdateTask?.(task._id, { priority: option.value });
+                                            }}
+                                          >
+                                            <span className={cn('h-2 w-2 rounded-full', option.color)} />
+                                            {option.label}
+                                            {task.priority === option.value && (
+                                              <CheckCircle2 className="h-3 w-3 ml-auto" />
+                                            )}
+                                          </DropdownMenuItem>
+                                        ))}
+                                      </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+
+                                    <DropdownMenuSeparator />
+
+                                    {/* Duplicate Task */}
+                                    <DropdownMenuItem 
+                                      className="cursor-pointer"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDuplicateTask?.(task);
+                                      }}
+                                    >
+                                      <Copy className="h-4 w-4 mr-2" />
+                                      Duplicate
+                                    </DropdownMenuItem>
+
+                                    <DropdownMenuSeparator />
+
+                                    {/* Delete */}
+                                    <DropdownMenuItem 
+                                      className="cursor-pointer text-destructive focus:text-destructive"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDeleteTask?.(task._id);
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+
                               {/* Task Title Row */}
-                              <div className="flex items-start gap-2 mb-2">
+                              <div className="flex items-start gap-2 mb-2 pr-6">
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();

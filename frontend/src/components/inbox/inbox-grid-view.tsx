@@ -92,6 +92,8 @@ export function InboxGridView({
   // Use ref for pending task ID to avoid closure issues with async operations
   const pendingTaskIdRef = useRef<string | null>(null);
   const newTaskTitleRef = useRef<string>('');
+  // Track pending task ID in state for filtering
+  const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
 
   // Editing state for inline edits
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
@@ -114,19 +116,21 @@ export function InboxGridView({
     return backlog?._id || sections[0]?._id || '';
   }, [sections]);
 
-  // Sort tasks by createdAt oldest first
+  // Sort tasks by createdAt oldest first, excluding pending task
   const sortedTasks = useMemo(() => {
-    return [...tasks].sort((a, b) => {
-      // First by order if defined
-      if (a.order !== undefined && b.order !== undefined) {
-        return a.order - b.order;
-      }
-      // Then by createdAt oldest first
-      const dateA = new Date(a.createdAt || 0).getTime();
-      const dateB = new Date(b.createdAt || 0).getTime();
-      return dateA - dateB;
-    });
-  }, [tasks]);
+    return [...tasks]
+      .filter((t) => t._id !== pendingTaskId) // Hide pending task while editing
+      .sort((a, b) => {
+        // First by order if defined
+        if (a.order !== undefined && b.order !== undefined) {
+          return a.order - b.order;
+        }
+        // Then by createdAt oldest first
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
+        return dateA - dateB;
+      });
+  }, [tasks, pendingTaskId]);
 
   const handleStartAddTask = () => {
     setIsAddingTask(true);
@@ -138,6 +142,7 @@ export function InboxGridView({
     setNewTaskTitle('');
     newTaskTitleRef.current = '';
     pendingTaskIdRef.current = null;
+    setPendingTaskId(null);
   };
 
   // Create task immediately on first character typed
@@ -155,6 +160,7 @@ export function InboxGridView({
         });
         if (taskId) {
           pendingTaskIdRef.current = taskId; // Store the actual task ID in ref
+          setPendingTaskId(taskId); // Also store in state for filtering
         }
       } catch (error) {
         console.error('Failed to create task:', error);
@@ -174,10 +180,11 @@ export function InboxGridView({
       // Update the task with the final title
       await onUpdateTask(taskId, { title });
     }
-    // Reset state for next task
+    // Reset state for next task - this makes the task visible in the list
     setNewTaskTitle('');
     newTaskTitleRef.current = '';
     pendingTaskIdRef.current = null;
+    setPendingTaskId(null); // Clear state to show task in list
   };
 
   // Handle Enter key to confirm and start new task
@@ -191,10 +198,11 @@ export function InboxGridView({
         // Update the task with the final title
         await onUpdateTask(taskId, { title });
       }
-      // Reset for next task
+      // Reset for next task - this makes the task visible in the list
       setNewTaskTitle('');
       newTaskTitleRef.current = '';
       pendingTaskIdRef.current = null;
+      setPendingTaskId(null); // Clear state to show task in list
       newTaskInputRef.current?.focus();
     }
     if (e.key === 'Escape') {

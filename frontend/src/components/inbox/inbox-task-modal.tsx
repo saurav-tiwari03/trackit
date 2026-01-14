@@ -12,19 +12,17 @@ import {
   MoreHorizontal,
   ChevronDown,
   Tag,
-  Users,
   RefreshCw,
   X as XIcon,
   Paperclip,
   FileText,
   ImagePlus,
 } from 'lucide-react';
-import { Task, Section, User, RepeatConfig } from '@/types';
+import { Task, Section, RepeatConfig } from '@/types';
 import { Modal, ModalHeader, ModalContent } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Calendar } from '@/components/ui/calendar';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -90,15 +88,6 @@ const repeatOptions = [
   { value: 'monthly', label: 'Monthly' },
   { value: 'yearly', label: 'Yearly' },
 ];
-
-const getInitials = (name: string) => {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-};
 
 export function InboxTaskModal({
   task,
@@ -368,22 +357,6 @@ export function InboxTaskModal({
         </ModalHeader>
 
         <ModalContent className="flex-1 overflow-y-auto">
-          {/* Assignee */}
-          <div className="flex items-center gap-3 mb-4">
-            <Users className="h-4 w-4 text-muted-foreground" />
-            <div className="flex items-center gap-2">
-              <Avatar className="h-6 w-6">
-                <AvatarImage src={editedTask.assignee?.avatar} />
-                <AvatarFallback className="text-xs">
-                  {editedTask.assignee ? getInitials(editedTask.assignee.name) : 'U'}
-                </AvatarFallback>
-              </Avatar>
-              <span className="text-sm">
-                {editedTask.assignee?.name || 'Unassigned'}
-              </span>
-            </div>
-          </div>
-
           {/* Labels */}
           <div className="flex items-center gap-3 mb-6">
             <Tag className="h-4 w-4 text-muted-foreground" />

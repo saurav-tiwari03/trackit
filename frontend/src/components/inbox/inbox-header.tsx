@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Plus,
   Settings,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,17 +27,28 @@ import { cn } from '@/lib/utils';
 import { InboxSettingsSidebar } from './inbox-settings-sidebar';
 
 export type InboxViewMode = 'grid' | 'board' | 'schedule' | 'charts';
+export type InboxFilter = 'all' | 'not_started' | 'in_progress' | 'completed' | 'late';
 
 interface InboxHeaderProps {
   viewMode: InboxViewMode;
   onViewModeChange: (mode: InboxViewMode) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  filter: InboxFilter;
+  onFilterChange: (filter: InboxFilter) => void;
   groupBy: string;
   onGroupByChange: (groupBy: string) => void;
   currentTheme: string;
   onThemeChange: (themeId: string) => void;
 }
+
+const filterOptions: Array<{ value: InboxFilter; label: string }> = [
+  { value: 'all', label: 'All tasks' },
+  { value: 'not_started', label: 'Not started' },
+  { value: 'in_progress', label: 'In progress' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'late', label: 'Late' },
+];
 
 const viewModes: Array<{ value: InboxViewMode; label: string; icon: React.ReactNode; description: string }> = [
   { value: 'grid', label: 'Grid', icon: <LayoutGrid className="h-4 w-4" />, description: 'Table view' },
@@ -58,6 +70,8 @@ export function InboxHeader({
   onViewModeChange,
   searchQuery,
   onSearchChange,
+  filter,
+  onFilterChange,
   groupBy,
   onGroupByChange,
   currentTheme,
@@ -66,46 +80,53 @@ export function InboxHeader({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const isCustomTheme = currentTheme.startsWith('custom:') || !['dark', 'light'].includes(currentTheme);
+  const activeFilter = filterOptions.find((f) => f.value === filter);
 
   return (
     <div className={cn(
-      "flex items-center justify-between px-4 py-3 border-b sticky top-0 z-10",
+      "flex items-center justify-between px-4 py-3 sticky top-0 z-10",
       isCustomTheme ? "bg-background/60 backdrop-blur-md" : "bg-background/95 backdrop-blur-sm"
     )}>
-      {/* Left: Search */}
-      <div className="flex items-center gap-4">
-        <div className="relative">
+      {/* Left: Search with bottom border extending to Filters */}
+      <div className="flex items-center gap-4 border-b border-white/30 pb-2 flex-1 mr-4">
+        <div className="relative flex-1 max-w-[400px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search tasks..."
-            className="w-[280px] pl-9 bg-muted/30 border-0"
+            className="w-full pl-9 bg-transparent border-0 focus-visible:ring-0"
           />
         </div>
-      </div>
-
-      {/* Right: View Controls */}
-      <div className="flex items-center gap-2">
-        {/* Filters */}
+        
+        {/* Filters - inside the bordered container */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="gap-2">
+            <Button variant="ghost" size="sm" className="gap-2 shrink-0">
               <Filter className="h-4 w-4" />
-              Filters
+              {activeFilter?.value === 'all' ? 'Filters' : activeFilter?.label}
               <ChevronDown className="h-3 w-3" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-[200px]">
-            <DropdownMenuItem>All tasks</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>Not started</DropdownMenuItem>
-            <DropdownMenuItem>In progress</DropdownMenuItem>
-            <DropdownMenuItem>Completed</DropdownMenuItem>
-            <DropdownMenuItem>Late</DropdownMenuItem>
+            {filterOptions.map((option, index) => (
+              <div key={option.value}>
+                {index === 1 && <DropdownMenuSeparator />}
+                <DropdownMenuItem 
+                  className="cursor-pointer flex items-center justify-between"
+                  onClick={() => onFilterChange(option.value)}
+                >
+                  {option.label}
+                  {filter === option.value && <Check className="h-4 w-4" />}
+                </DropdownMenuItem>
+              </div>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
+      </div>
 
+      {/* Right: View Controls */}
+      <div className="flex items-center gap-2">
         {/* Group By - Only show in Board view */}
         {viewMode === 'board' && (
           <DropdownMenu>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Inbox as InboxIcon,
   Loader2,
@@ -21,6 +22,7 @@ import { toast } from '@/components/ui/sonner';
 import {
   InboxHeader,
   InboxViewMode,
+  InboxFilter,
   InboxGridView,
   InboxBoardView,
   InboxScheduleView,
@@ -50,6 +52,8 @@ const getInitialTheme = (): string => {
 };
 
 export default function InboxPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const { projects, fetchProjects } = useProjectsStore();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -58,10 +62,12 @@ export default function InboxPage() {
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [stats, setStats] = useState<InboxStats | null>(null);
   const isCreatingRef = useRef(false);
+  const hasCheckedUrlTask = useRef(false);
 
   // View state - initialize from localStorage
   const [viewMode, setViewMode] = useState<InboxViewMode>('grid');
   const [searchQuery, setSearchQuery] = useState('');
+  const [filter, setFilter] = useState<InboxFilter>('all');
   const [groupBy, setGroupBy] = useState('bucket');
   const [currentTheme, setCurrentTheme] = useState('dark');
   const [themeData, setThemeData] = useState<Array<{
@@ -224,6 +230,37 @@ export default function InboxPage() {
     }
   }, [fetchInboxTasks, projectsLoaded]);
 
+  // Handle URL query param to open task modal
+  useEffect(() => {
+    if (hasCheckedUrlTask.current || isLoading || tasks.length === 0) return;
+    
+    const taskId = searchParams.get('task');
+    if (taskId) {
+      const task = tasks.find((t) => t._id === taskId);
+      if (task) {
+        setSelectedTask(task);
+      }
+      hasCheckedUrlTask.current = true;
+    }
+  }, [searchParams, tasks, isLoading]);
+
+  // Update URL when task modal is opened/closed
+  const handleTaskClick = useCallback((task: Task) => {
+    setSelectedTask(task);
+    // Update URL with task ID
+    const url = new URL(window.location.href);
+    url.searchParams.set('task', task._id);
+    router.replace(url.pathname + url.search, { scroll: false });
+  }, [router]);
+
+  const handleCloseTaskModal = useCallback(() => {
+    setSelectedTask(null);
+    // Remove task ID from URL
+    const url = new URL(window.location.href);
+    url.searchParams.delete('task');
+    router.replace(url.pathname + url.search, { scroll: false });
+  }, [router]);
+
   // Set default section when sections are loaded
   useEffect(() => {
     if (sections.length > 0 && !newTaskSection) {
@@ -358,6 +395,48 @@ export default function InboxPage() {
       toast.error('Failed to update task');
       // Revert on error by re-fetching
       fetchInboxTasks();
+    }
+  };
+
+  // Delete task handler
+  const handleDeleteTask = async (taskId: string) => {
+    // Optimistic update
+    setTasks((prev) => prev.filter((t) => t._id !== taskId));
+
+    try {
+      await tasksAPI.delete(taskId);
+      toast.success('Task deleted');
+    } catch (error) {
+      console.error('Failed to delete task:', error);
+      toast.error('Failed to delete task');
+      // Revert on error by re-fetching
+      fetchInboxTasks();
+    }
+  };
+
+  // Duplicate task handler
+  const handleDuplicateTask = async (task: Task) => {
+    if (!inboxProject) return;
+
+    try {
+      const response = await tasksAPI.create({
+        title: `${task.title} - dup`,
+        description: task.description,
+        project: inboxProject._id,
+        section: task.section,
+        priority: task.priority,
+        labels: task.labels,
+        dueDate: task.dueDate,
+        startDate: task.startDate,
+        progress: 'not_started',
+      });
+
+      const newTask = response.data.data;
+      setTasks((prev) => [...prev, newTask]);
+      toast.success('Task duplicated');
+    } catch (error) {
+      console.error('Failed to duplicate task:', error);
+      toast.error('Failed to duplicate task');
     }
   };
 
@@ -540,16 +619,38 @@ export default function InboxPage() {
     }
   };
 
-  // Filter tasks based on search
+  // Filter tasks based on search and filter
   const filteredTasks = useMemo(() => {
-    if (!searchQuery.trim()) return tasks;
-    const query = searchQuery.toLowerCase();
-    return tasks.filter(
-      (t) =>
-        t.title.toLowerCase().includes(query) ||
-        t.description?.toLowerCase().includes(query)
-    );
-  }, [tasks, searchQuery]);
+    let result = tasks;
+
+    // Apply progress/status filter
+    if (filter !== 'all') {
+      result = result.filter((t) => {
+        if (filter === 'completed') return t.isCompleted || t.progress === 'completed';
+        if (filter === 'not_started') return t.progress === 'not_started' && !t.isCompleted;
+        if (filter === 'in_progress') return t.progress === 'in_progress' && !t.isCompleted;
+        if (filter === 'late') {
+          // Late = past due date and not completed
+          if (t.isCompleted) return false;
+          if (!t.dueDate) return false;
+          return new Date(t.dueDate) < new Date();
+        }
+        return true;
+      });
+    }
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(
+        (t) =>
+          t.title.toLowerCase().includes(query) ||
+          t.description?.toLowerCase().includes(query)
+      );
+    }
+
+    return result;
+  }, [tasks, searchQuery, filter]);
 
   const pendingTasks = filteredTasks.filter((t) => !t.isCompleted);
 
@@ -569,6 +670,8 @@ export default function InboxPage() {
         onViewModeChange={handleViewModeChange}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        filter={filter}
+        onFilterChange={setFilter}
         groupBy={groupBy}
         onGroupByChange={setGroupBy}
         currentTheme={currentTheme}
@@ -584,7 +687,7 @@ export default function InboxPage() {
               <span className="text-sm text-muted-foreground">Loading inbox...</span>
             </div>
           </div>
-        ) : tasks.length === 0 && !searchQuery ? (
+        ) : !inboxProject ? (
           <div className="flex flex-col items-center justify-center h-full">
             <InboxIcon className="h-16 w-16 text-muted-foreground/30 mb-4" />
             <h2 className="text-xl font-semibold mb-2">Your inbox is empty</h2>
@@ -605,7 +708,7 @@ export default function InboxPage() {
               <InboxGridView
                 tasks={filteredTasks}
                 sections={sections}
-                onTaskClick={setSelectedTask}
+                onTaskClick={handleTaskClick}
                 onToggleComplete={toggleComplete}
                 onAddTask={handleGridAddTask}
                 onUpdateTask={handleUpdateTask}
@@ -617,7 +720,7 @@ export default function InboxPage() {
               <InboxBoardView
                 tasks={filteredTasks}
                 sections={sections}
-                onTaskClick={setSelectedTask}
+                onTaskClick={handleTaskClick}
                 onToggleComplete={toggleComplete}
                 onMoveTask={handleMoveTask}
                 onAddTask={handleBoardAddTask}
@@ -625,6 +728,9 @@ export default function InboxPage() {
                 onRenameBucket={handleRenameBucket}
                 onDeleteBucket={handleDeleteBucket}
                 onMoveBucket={handleMoveBucket}
+                onDeleteTask={handleDeleteTask}
+                onDuplicateTask={handleDuplicateTask}
+                onUpdateTask={handleUpdateTask}
               />
             )}
 
@@ -632,7 +738,7 @@ export default function InboxPage() {
               <InboxScheduleView
                 tasks={filteredTasks}
                 sections={sections}
-                onTaskClick={setSelectedTask}
+                onTaskClick={handleTaskClick}
                 onToggleComplete={toggleComplete}
                 onAddTask={() => handleOpenAddTask()}
               />
@@ -643,7 +749,7 @@ export default function InboxPage() {
                 tasks={filteredTasks}
                 sections={sections}
                 stats={stats}
-                onTaskClick={setSelectedTask}
+                onTaskClick={handleTaskClick}
                 onToggleComplete={toggleComplete}
                 onAddTask={() => handleOpenAddTask()}
               />
@@ -656,7 +762,7 @@ export default function InboxPage() {
       <InboxTaskModal
         task={selectedTask}
         isOpen={!!selectedTask}
-        onClose={() => setSelectedTask(null)}
+        onClose={handleCloseTaskModal}
         sections={sections}
         projectName={INBOX_PROJECT_NAME}
         onTaskUpdated={fetchInboxTasks}
