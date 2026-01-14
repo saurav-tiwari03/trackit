@@ -106,6 +106,7 @@ export const tasksAPI = {
   getAll: (params?: { status?: string; project?: string; search?: string }) =>
     api.get('/tasks', { params }),
   getStats: () => api.get('/tasks/stats'),
+  getInboxStats: (projectId: string) => api.get('/tasks/inbox-stats', { params: { projectId } }),
   getOne: (id: string) => api.get(`/tasks/${id}`),
   getSubtasks: (id: string) => api.get(`/tasks/${id}/subtasks`),
   create: (data: {
@@ -114,7 +115,17 @@ export const tasksAPI = {
     project: string;
     section: string;
     priority?: string;
+    progress?: string;
+    startDate?: string;
     dueDate?: string;
+    repeat?: {
+      frequency: string;
+      interval?: number;
+      daysOfWeek?: number[];
+      dayOfMonth?: number;
+      endDate?: string;
+      occurrences?: number;
+    };
     labels?: string[];
   }) => api.post('/tasks', data),
   update: (id: string, data: Partial<{
@@ -122,10 +133,22 @@ export const tasksAPI = {
     description: string;
     section: string;
     priority: string;
+    progress: string;
     status: string;
     isCompleted: boolean;
     order: number;
+    startDate: string;
     dueDate: string;
+    repeat: {
+      frequency: string;
+      interval?: number;
+      daysOfWeek?: number[];
+      dayOfMonth?: number;
+      endDate?: string;
+      occurrences?: number;
+    } | null;
+    showNotesOnCard: boolean;
+    showChecklistOnCard: boolean;
     labels: string[];
   }>) => api.put(`/tasks/${id}`, data),
   move: (id: string, data: { section: string; order: number; isCompleted?: boolean; status?: string }) =>

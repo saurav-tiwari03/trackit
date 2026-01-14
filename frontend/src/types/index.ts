@@ -68,6 +68,17 @@ export interface Subtask {
   priority?: 'P1' | 'P2' | 'P3' | 'P4';
 }
 
+export interface RepeatConfig {
+  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+  interval?: number;
+  daysOfWeek?: number[];
+  dayOfMonth?: number;
+  endDate?: string;
+  occurrences?: number;
+}
+
+export type TaskProgress = 'not_started' | 'in_progress' | 'completed' | 'late';
+
 export interface Attachment {
   _id: string;
   name: string;
@@ -90,10 +101,17 @@ export interface Task {
   creator: User;
   priority: 'P1' | 'P2' | 'P3' | 'P4';
   status: 'open' | 'in_progress' | 'completed' | 'overdue';
+  progress: TaskProgress;
+  startDate?: string;
   dueDate?: string;
+  repeat?: RepeatConfig;
+  showNotesOnCard?: boolean;
+  showChecklistOnCard?: boolean;
   labels: string[];
   attachments?: Attachment[];
   subtasks: Subtask[];
+  subtaskCount?: number;
+  subtaskCompletedCount?: number;
   order: number;
   isCompleted: boolean;
   completedAt?: string;
@@ -137,6 +155,50 @@ export interface TaskStats {
   overdue: number;
   inProgress: number;
   completed: number;
+}
+
+export interface InboxStatsSummary {
+  total: number;
+  tasksLeft: number;
+  notStarted: number;
+  inProgress: number;
+  late: number;
+  completed: number;
+}
+
+export interface InboxBucketStat {
+  bucket: string;
+  sectionId: string;
+  total: number;
+  notStarted: number;
+  inProgress: number;
+  late: number;
+  completed: number;
+}
+
+export interface InboxPriorityStat {
+  priority: string;
+  label: string;
+  total: number;
+  notStarted: number;
+  inProgress: number;
+  late: number;
+  completed: number;
+}
+
+export interface InboxMemberStat {
+  userId: string;
+  name: string;
+  email: string;
+  avatar?: string;
+  total: number;
+}
+
+export interface InboxStats {
+  summary: InboxStatsSummary;
+  buckets: InboxBucketStat[];
+  priorities: InboxPriorityStat[];
+  members: InboxMemberStat[];
 }
 
 export interface HabitCompletion {

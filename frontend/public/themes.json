@@ -1,0 +1,99 @@
+{
+  "themes": [
+    {
+      "id": "circuit",
+      "name": "Circuit",
+      "preview": "https://res-1.cdn.office.net/shellux/images/circuit_preview.0083affab37d583b6ccba99c9227d823.png"
+    },
+    {
+      "id": "unicorn",
+      "name": "Unicorn",
+      "preview": "https://res-1.cdn.office.net/shellux/images/unicorn_preview.552cf9e728e3bb48f8fd2c9d908f7586.png"
+    },
+    {
+      "id": "super",
+      "name": "Super",
+      "preview": "https://res-1.cdn.office.net/shellux/images/super_preview.f7b71d8b697422c9dde68d19b3489cb0.png"
+    },
+    {
+      "id": "mountain-range",
+      "name": "Mountain Range",
+      "preview": "https://res-1.cdn.office.net/shellux/images/mountain_preview.88f84b584093f54b95d7877765c88de3.png"
+    },
+    {
+      "id": "cats",
+      "name": "Cats",
+      "preview": "https://res-1.cdn.office.net/shellux/images/cats_preview.21d23900f10b5235dc614d9d65ccd9e2.png"
+    },
+    {
+      "id": "robot",
+      "name": "Robot",
+      "preview": "https://res-1.cdn.office.net/shellux/images/robot_preview.715c56d347a2785ba048d5f503583942.png"
+    },
+    {
+      "id": "magnetic-mood",
+      "name": "Magnetic Mood",
+      "preview": "https://res-1.cdn.office.net/shellux/images/magneticmood_preview.560b25c5deecdb28edd83ee67e74e37b.png"
+    },
+    {
+      "id": "summer-summit",
+      "name": "Summer Summit",
+      "preview": "https://res-1.cdn.office.net/shellux/images/summersummit_preview.8551b999a227bd737413f712b660353a.png"
+    },
+    {
+      "id": "ruby-hills",
+      "name": "Ruby Hills",
+      "preview": "https://res-1.cdn.office.net/shellux/images/rubyhills_preview.80e8ea353d28a31084c7011e876685e5.png"
+    },
+    {
+      "id": "sunset",
+      "name": "Sunset",
+      "gradient": "linear-gradient(to bottom, #f97316, #ec4899, #9333ea)"
+    },
+    {
+      "id": "ocean",
+      "name": "Ocean",
+      "gradient": "linear-gradient(to bottom, #06b6d4, #0284c7, #1e40af)"
+    },
+    {
+      "id": "mountain",
+      "name": "Mountain",
+      "gradient": "linear-gradient(to bottom, #334155, #1e293b, #0f172a)"
+    },
+    {
+      "id": "forest",
+      "name": "Forest",
+      "gradient": "linear-gradient(to bottom, #166534, #14532d, #052e16)"
+    },
+    {
+      "id": "neon",
+      "name": "Neon",
+      "gradient": "linear-gradient(to bottom right, #db2777, #7c3aed, #4338ca)"
+    },
+    {
+      "id": "midnight",
+      "name": "Midnight",
+      "gradient": "linear-gradient(to bottom, #1e1b4b, #312e81, #3730a3)"
+    },
+    {
+      "id": "rose",
+      "name": "Rose",
+      "gradient": "linear-gradient(to bottom, #be185d, #9d174d, #831843)"
+    },
+    {
+      "id": "aurora",
+      "name": "Aurora",
+      "gradient": "linear-gradient(to bottom right, #10b981, #0ea5e9, #8b5cf6)"
+    },
+    {
+      "id": "ember",
+      "name": "Ember",
+      "gradient": "linear-gradient(to bottom, #dc2626, #ea580c, #f59e0b)"
+    },
+    {
+      "id": "lavender",
+      "name": "Lavender",
+      "gradient": "linear-gradient(to bottom, #a855f7, #c084fc, #d8b4fe)"
+    }
+  ]
+}

@@ -1,46 +1,156 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
-  CheckCircle2,
-  Circle,
   Inbox as InboxIcon,
-  Plus,
-  Calendar,
-  MoreHorizontal,
   Loader2,
-  CheckSquare,
+  Plus,
 } from 'lucide-react';
-import { Task, Project } from '@/types';
+import { Task, Project, InboxStats, Section } from '@/types';
 import { tasksAPI, projectsAPI } from '@/lib/api';
 import { useProjectsStore } from '@/store/projects';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { toast } from '@/components/ui/sonner';
-import { TaskModal } from '@/components/task/task-modal';
+import {
+  InboxHeader,
+  InboxViewMode,
+  InboxGridView,
+  InboxBoardView,
+  InboxScheduleView,
+  InboxChartsView,
+  InboxTaskModal,
+} from '@/components/inbox';
 
 const INBOX_PROJECT_NAME = 'Inbox';
 const INBOX_PROJECT_COLOR = '#6b7280';
+const INBOX_VIEW_MODE_KEY = 'inbox-view-mode';
+const INBOX_THEME_KEY = 'inbox-theme';
+
+// Helper to get initial view mode from localStorage
+const getInitialViewMode = (): InboxViewMode => {
+  if (typeof window === 'undefined') return 'grid';
+  const stored = localStorage.getItem(INBOX_VIEW_MODE_KEY);
+  if (stored && ['grid', 'board', 'schedule', 'charts'].includes(stored)) {
+    return stored as InboxViewMode;
+  }
+  return 'grid';
+};
+
+// Helper to get initial theme from localStorage
+const getInitialTheme = (): string => {
+  if (typeof window === 'undefined') return 'dark';
+  return localStorage.getItem(INBOX_THEME_KEY) || 'dark';
+};
 
 export default function InboxPage() {
   const { projects, fetchProjects } = useProjectsStore();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [isAddingTask, setIsAddingTask] = useState(false);
   const [inboxProject, setInboxProject] = useState<Project | null>(null);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
+  const [stats, setStats] = useState<InboxStats | null>(null);
   const isCreatingRef = useRef(false);
+
+  // View state - initialize from localStorage
+  const [viewMode, setViewMode] = useState<InboxViewMode>('grid');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [groupBy, setGroupBy] = useState('bucket');
+  const [currentTheme, setCurrentTheme] = useState('dark');
+  const [themeData, setThemeData] = useState<Array<{
+    id: string;
+    name: string;
+    preview?: string | null;
+    color?: string;
+    gradient?: string;
+  }>>([]);
+
+  // Load view mode, theme, and theme data from localStorage on mount
+  useEffect(() => {
+    const storedViewMode = localStorage.getItem(INBOX_VIEW_MODE_KEY);
+    if (storedViewMode && ['grid', 'board', 'schedule', 'charts'].includes(storedViewMode)) {
+      setViewMode(storedViewMode as InboxViewMode);
+    }
+    const storedTheme = localStorage.getItem(INBOX_THEME_KEY);
+    if (storedTheme) {
+      setCurrentTheme(storedTheme);
+    }
+
+    // Fetch theme data
+    fetch('/themes.json')
+      .then((res) => res.json())
+      .then((data) => setThemeData(data.themes || []))
+      .catch(console.error);
+  }, []);
+
+  // Get current theme style for background
+  const themeStyle = useMemo(() => {
+    // Handle custom color themes
+    if (currentTheme.startsWith('custom:')) {
+      const customColor = currentTheme.replace('custom:', '');
+      return { backgroundColor: customColor };
+    }
+
+    const theme = themeData.find((t) => t.id === currentTheme);
+    if (!theme) return {};
+    
+    if (theme.preview) {
+      return {
+        backgroundImage: `url(${theme.preview})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      };
+    }
+    if (theme.gradient) {
+      return { background: theme.gradient };
+    }
+    if (theme.color) {
+      return { backgroundColor: theme.color };
+    }
+    return {};
+  }, [currentTheme, themeData]);
+
+  // Check if current theme is an image theme
+  const isImageTheme = useMemo(() => {
+    if (currentTheme.startsWith('custom:')) return false;
+    const theme = themeData.find((t) => t.id === currentTheme);
+    return theme?.preview ? true : false;
+  }, [currentTheme, themeData]);
+
+  // Persist view mode to localStorage
+  const handleViewModeChange = (mode: InboxViewMode) => {
+    setViewMode(mode);
+    localStorage.setItem(INBOX_VIEW_MODE_KEY, mode);
+  };
+
+  // Persist theme to localStorage
+  const handleThemeChange = (themeId: string) => {
+    setCurrentTheme(themeId);
+    localStorage.setItem(INBOX_THEME_KEY, themeId);
+  };
+
+  // Add task dialog
+  const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskSection, setNewTaskSection] = useState<string>('');
+  const [isAddingTask, setIsAddingTask] = useState(false);
+
+  // Add bucket dialog
+  const [isAddBucketOpen, setIsAddBucketOpen] = useState(false);
+  const [newBucketName, setNewBucketName] = useState('');
+  const [isAddingBucket, setIsAddingBucket] = useState(false);
+
+  // Get sections from inbox project
+  const sections: Section[] = useMemo(() => {
+    return inboxProject?.sections || [];
+  }, [inboxProject]);
 
   // Fetch projects on mount
   useEffect(() => {
@@ -51,22 +161,19 @@ export default function InboxPage() {
     loadProjects();
   }, [fetchProjects]);
 
-  // Find or create Inbox project - only after projects are loaded
+  // Find or create Inbox project
   const getOrCreateInboxProject = useCallback(async () => {
-    // Find existing Inbox project
-    let inbox = projects.find(p => p.name === INBOX_PROJECT_NAME);
+    let inbox = projects.find((p) => p.name === INBOX_PROJECT_NAME);
 
     if (inbox) {
       setInboxProject(inbox);
       return inbox;
     }
 
-    // Prevent duplicate creation with ref
     if (isCreatingRef.current) {
       return null;
     }
 
-    // Only create if projects are loaded and no Inbox exists
     if (projectsLoaded && !inbox) {
       isCreatingRef.current = true;
       try {
@@ -97,8 +204,12 @@ export default function InboxPage() {
     try {
       const inbox = await getOrCreateInboxProject();
       if (inbox) {
-        const response = await tasksAPI.getAll({ project: inbox._id });
-        setTasks(response.data.data);
+        const [tasksResponse, statsResponse] = await Promise.all([
+          tasksAPI.getAll({ project: inbox._id }),
+          tasksAPI.getInboxStats(inbox._id),
+        ]);
+        setTasks(tasksResponse.data.data);
+        setStats(statsResponse.data.data);
       }
     } catch (error) {
       console.error('Failed to fetch inbox tasks:', error);
@@ -113,36 +224,257 @@ export default function InboxPage() {
     }
   }, [fetchInboxTasks, projectsLoaded]);
 
-  const handleAddTask = async () => {
+  // Set default section when sections are loaded
+  useEffect(() => {
+    if (sections.length > 0 && !newTaskSection) {
+      // Default to "Up next" or first section
+      const upNext = sections.find((s) => s.name === 'Up next');
+      setNewTaskSection(upNext?._id || sections[0]._id);
+    }
+  }, [sections, newTaskSection]);
+
+  // Generic add task for dialogs (schedule/charts views) - uses optimistic updates
+  const handleAddTaskDialog = async (sectionId?: string) => {
     if (!newTaskTitle.trim() || !inboxProject) return;
 
     setIsAddingTask(true);
     try {
-      const defaultSection = inboxProject.sections?.[0]?._id;
-      if (!defaultSection) {
-        console.error('No section found in Inbox project');
+      const targetSection = sectionId || newTaskSection || sections[0]?._id;
+      if (!targetSection) {
+        toast.error('No section found');
         return;
       }
 
-      await tasksAPI.create({
+      const response = await tasksAPI.create({
         title: newTaskTitle,
         project: inboxProject._id,
-        section: defaultSection,
+        section: targetSection,
         priority: 'P4',
+        progress: 'not_started',
       });
 
+      // Optimistic update - append new task to the list without re-fetching
+      const newTask = response.data.data as Task;
+      setTasks((prev) => [...prev, newTask]);
+
       setNewTaskTitle('');
-      await fetchInboxTasks();
+      setIsAddTaskOpen(false);
+      toast.success('Task added');
     } catch (error) {
       console.error('Failed to add task:', error);
+      toast.error('Failed to add task');
     } finally {
       setIsAddingTask(false);
     }
   };
 
+  // Board view add task handler - uses optimistic updates
+  const handleBoardAddTask = async (
+    sectionId: string,
+    data: { title: string; dueDate?: string }
+  ) => {
+    if (!data.title.trim() || !inboxProject) return;
+
+    try {
+      const response = await tasksAPI.create({
+        title: data.title,
+        project: inboxProject._id,
+        section: sectionId,
+        priority: 'P4',
+        progress: 'not_started',
+        dueDate: data.dueDate,
+      });
+
+      // Optimistic update - append new task to the list without re-fetching
+      const newTask = response.data.data as Task;
+      setTasks((prev) => [...prev, newTask]);
+
+      toast.success('Task added');
+    } catch (error) {
+      console.error('Failed to add task:', error);
+      toast.error('Failed to add task');
+      throw error;
+    }
+  };
+
+  // Grid view add task handler - uses optimistic updates to keep order stable
+  // Returns the created task ID so the grid can track it for subsequent updates
+  const handleGridAddTask = async (data: {
+    title: string;
+    section?: string;
+    startDate?: string;
+    dueDate?: string;
+  }): Promise<string | undefined> => {
+    if (!data.title.trim() || !inboxProject) return;
+
+    try {
+      const targetSection = data.section || sections[0]?._id;
+      if (!targetSection) {
+        toast.error('No section found');
+        return;
+      }
+
+      const response = await tasksAPI.create({
+        title: data.title,
+        project: inboxProject._id,
+        section: targetSection,
+        priority: 'P4',
+        progress: 'not_started',
+        startDate: data.startDate,
+        dueDate: data.dueDate,
+      });
+
+      // Optimistic update - append new task to the list without re-fetching
+      const newTask = response.data.data as Task;
+      setTasks((prev) => [...prev, newTask]);
+      
+      return newTask._id; // Return the task ID for tracking
+    } catch (error) {
+      console.error('Failed to add task:', error);
+      toast.error('Failed to add task');
+      throw error;
+    }
+  };
+
+  // Update task handler - uses optimistic updates
+  const handleUpdateTask = async (taskId: string, data: Partial<Task>) => {
+    // Sync isCompleted with progress status
+    const syncedData = { ...data };
+    if (data.progress) {
+      syncedData.isCompleted = data.progress === 'completed';
+    }
+
+    // Optimistic update first
+    setTasks((prev) =>
+      prev.map((t) =>
+        t._id === taskId ? { ...t, ...syncedData } : t
+      )
+    );
+
+    try {
+      await tasksAPI.update(taskId, syncedData);
+    } catch (error) {
+      console.error('Failed to update task:', error);
+      toast.error('Failed to update task');
+      // Revert on error by re-fetching
+      fetchInboxTasks();
+    }
+  };
+
+  const handleOpenAddTask = (sectionId?: string) => {
+    if (sectionId) {
+      setNewTaskSection(sectionId);
+    }
+    setIsAddTaskOpen(true);
+  };
+
+  const handleAddBucket = async () => {
+    if (!newBucketName.trim() || !inboxProject) return;
+
+    setIsAddingBucket(true);
+    try {
+      const response = await projectsAPI.addSection(inboxProject._id, {
+        name: newBucketName,
+      });
+
+      // Update inbox project with new sections immediately
+      const updatedProject = response.data.data as Project;
+      setInboxProject(updatedProject);
+
+      setNewBucketName('');
+      setIsAddBucketOpen(false);
+      
+      toast.success('Bucket added');
+    } catch (error) {
+      console.error('Failed to add bucket:', error);
+      toast.error('Failed to add bucket');
+    } finally {
+      setIsAddingBucket(false);
+    }
+  };
+
+  const handleRenameBucket = async (sectionId: string, newName: string) => {
+    if (!inboxProject) return;
+
+    try {
+      // Update sections with the new name
+      const updatedSections = sections.map((s) =>
+        s._id === sectionId ? { ...s, name: newName } : s
+      );
+
+      const response = await projectsAPI.updateSections(inboxProject._id, updatedSections);
+      
+      // Update inbox project with new sections immediately
+      const updatedProject = response.data.data as Project;
+      setInboxProject(updatedProject);
+      
+      toast.success('Bucket renamed');
+    } catch (error) {
+      console.error('Failed to rename bucket:', error);
+      toast.error('Failed to rename bucket');
+    }
+  };
+
+  const handleDeleteBucket = async (sectionId: string) => {
+    if (!inboxProject) return;
+
+    // Check if bucket has tasks
+    const bucketTasks = tasks.filter((t) => t.section === sectionId);
+    if (bucketTasks.length > 0) {
+      toast.error('Cannot delete bucket with tasks. Move or delete tasks first.');
+      return;
+    }
+
+    try {
+      const updatedSections = sections.filter((s) => s._id !== sectionId);
+      const response = await projectsAPI.updateSections(inboxProject._id, updatedSections);
+      
+      const updatedProject = response.data.data as Project;
+      setInboxProject(updatedProject);
+      
+      toast.success('Bucket deleted');
+    } catch (error) {
+      console.error('Failed to delete bucket:', error);
+      toast.error('Failed to delete bucket');
+    }
+  };
+
+  const handleMoveBucket = async (sectionId: string, direction: 'left' | 'right') => {
+    if (!inboxProject) return;
+
+    const currentIndex = sections.findIndex((s) => s._id === sectionId);
+    if (currentIndex === -1) return;
+
+    const newIndex = direction === 'left' ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex < 0 || newIndex >= sections.length) return;
+
+    // Swap sections
+    const updatedSections = [...sections];
+    [updatedSections[currentIndex], updatedSections[newIndex]] = 
+      [updatedSections[newIndex], updatedSections[currentIndex]];
+
+    // Optimistic update
+    setInboxProject((prev) => prev ? { ...prev, sections: updatedSections } : null);
+
+    try {
+      const response = await projectsAPI.updateSections(inboxProject._id, updatedSections);
+      const updatedProject = response.data.data as Project;
+      setInboxProject(updatedProject);
+    } catch (error) {
+      console.error('Failed to move bucket:', error);
+      toast.error('Failed to move bucket');
+      // Revert
+      setInboxProject((prev) => prev ? { ...prev, sections } : null);
+    }
+  };
+
   const toggleComplete = async (task: Task) => {
     try {
-      await tasksAPI.update(task._id, { isCompleted: !task.isCompleted });
+      const newProgress = task.isCompleted ? 'not_started' : 'completed';
+      await tasksAPI.update(task._id, {
+        isCompleted: !task.isCompleted,
+        progress: newProgress,
+      });
       setTasks((prev) =>
         prev.map((t) =>
           t._id === task._id
@@ -150,238 +482,273 @@ export default function InboxPage() {
               ...t,
               isCompleted: !t.isCompleted,
               status: !t.isCompleted ? 'completed' : 'open',
+                progress: newProgress as Task['progress'],
             }
             : t
         )
       );
     } catch (error) {
       console.error('Failed to update task:', error);
+      toast.error('Failed to update task');
     }
   };
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
+  const handleMoveTask = async (taskId: string, sectionId: string, order: number) => {
+    // Store previous state for rollback
+    const previousTasks = [...tasks];
+    
+    // Optimistic update FIRST - before API call to avoid visual glitch
+    setTasks((prev) =>
+      prev.map((t) =>
+        t._id === taskId ? { ...t, section: sectionId, order } : t
+      )
+    );
+
+    try {
+      await tasksAPI.move(taskId, { section: sectionId, order });
+    } catch (error) {
+      console.error('Failed to move task:', error);
+      toast.error('Failed to move task');
+      // Rollback on error
+      setTasks(previousTasks);
+    }
   };
 
-  const pendingTasks = tasks.filter(t => !t.isCompleted);
-  const completedTasks = tasks.filter(t => t.isCompleted);
+  const handleReorderTask = async (taskId: string, newOrder: number) => {
+    // Store previous state for rollback
+    const previousTasks = [...tasks];
+    
+    // Find the task and update order optimistically
+    const taskIndex = tasks.findIndex(t => t._id === taskId);
+    if (taskIndex === -1) return;
+    
+    const reorderedTasks = [...tasks];
+    const [removed] = reorderedTasks.splice(taskIndex, 1);
+    reorderedTasks.splice(newOrder, 0, removed);
+    
+    // Update orders for all tasks
+    const updatedTasks = reorderedTasks.map((t, idx) => ({ ...t, order: idx }));
+    setTasks(updatedTasks);
+
+    try {
+      await tasksAPI.update(taskId, { order: newOrder });
+    } catch (error) {
+      console.error('Failed to reorder task:', error);
+      toast.error('Failed to reorder task');
+      // Rollback on error
+      setTasks(previousTasks);
+    }
+  };
+
+  // Filter tasks based on search
+  const filteredTasks = useMemo(() => {
+    if (!searchQuery.trim()) return tasks;
+    const query = searchQuery.toLowerCase();
+    return tasks.filter(
+      (t) =>
+        t.title.toLowerCase().includes(query) ||
+        t.description?.toLowerCase().includes(query)
+    );
+  }, [tasks, searchQuery]);
+
+  const pendingTasks = filteredTasks.filter((t) => !t.isCompleted);
+
+  // Check if we're using a custom theme (needs transparency)
+  const isCustomTheme = currentTheme.startsWith('custom:') || !['dark', 'light', ''].includes(currentTheme);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b px-4 sm:px-6 py-4">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
-              <InboxIcon className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-semibold">Inbox</h1>
-              <p className="text-sm text-muted-foreground">
-                Quick tasks and ideas
-              </p>
-            </div>
-          </div>
-          <Badge variant="secondary">{pendingTasks.length} pending</Badge>
-        </div>
+    <div className="h-full min-h-screen flex flex-col relative" style={themeStyle}>
+      {/* Overlay for readability when using image backgrounds */}
+      {isImageTheme && (
+        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-0" />
+      )}
+      {/* Header with View Controls */}
+      <div className="relative z-10 flex flex-col h-full">
+      <InboxHeader
+        viewMode={viewMode}
+        onViewModeChange={handleViewModeChange}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        groupBy={groupBy}
+        onGroupByChange={setGroupBy}
+        currentTheme={currentTheme}
+        onThemeChange={handleThemeChange}
+      />
 
-        {/* Quick Add */}
-        <div className="flex items-center gap-2">
-          <div className="flex-1 flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
-            <Plus className="h-4 w-4 text-muted-foreground shrink-0" />
-            <Input
-              value={newTaskTitle}
-              onChange={(e) => setNewTaskTitle(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddTask()}
-              placeholder="Add a task..."
-              className="flex-1 border-0 bg-transparent h-8 focus-visible:ring-0 px-0"
-            />
-            {isAddingTask && (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            )}
-          </div>
-          <Button
-            onClick={handleAddTask}
-            disabled={!newTaskTitle.trim() || isAddingTask}
-            size="sm"
-          >
-            Add
-          </Button>
-        </div>
-      </div>
-
-      {/* Task List */}
-      <div className="p-4 sm:p-6">
+      {/* Main Content */}
+      <div className="flex-1 overflow-hidden">
         {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div className="flex items-center justify-center h-full">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Loading inbox...</span>
+            </div>
           </div>
-        ) : tasks.length === 0 ? (
-          <div className="text-center py-12">
-            <InboxIcon className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-            <p className="text-muted-foreground mb-2">Your inbox is empty</p>
-            <p className="text-sm text-muted-foreground">
+        ) : tasks.length === 0 && !searchQuery ? (
+          <div className="flex flex-col items-center justify-center h-full">
+            <InboxIcon className="h-16 w-16 text-muted-foreground/30 mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Your inbox is empty</h2>
+            <p className="text-muted-foreground mb-6">
               Add quick tasks and ideas here
             </p>
+            <Button onClick={() => setIsAddTaskOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add your first task
+            </Button>
           </div>
         ) : (
-          <div className="space-y-6">
-            {/* Pending Tasks */}
-            {pendingTasks.length > 0 && (
-              <div className="space-y-2">
-                <AnimatePresence mode="popLayout">
-                  {pendingTasks.map((task, index) => (
-                    <motion.div
-                      key={task._id}
-                      layout
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ delay: index * 0.02 }}
-                      className="group p-3 sm:p-4 rounded-xl border bg-card cursor-pointer hover:shadow-md hover:border-border/80 transition-all"
-                      onClick={() => setSelectedTask(task)}
-                    >
-                      <div className="flex items-start gap-3">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleComplete(task);
-                          }}
-                          className="shrink-0 mt-0.5"
-                        >
-                          <Circle className="h-5 w-5 text-muted-foreground hover:text-foreground transition-colors" />
-                        </button>
-
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium">{task.title}</p>
-                          {task.description && (
-                            <p className="text-sm text-muted-foreground truncate mt-0.5">
-                              {task.description.replace(/<[^>]*>/g, '')}
-                            </p>
-                          )}
-
-                          <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                            {task.dueDate && (
-                              <div
-                                className={cn(
-                                  'flex items-center gap-1 text-xs',
-                                  new Date(task.dueDate) < new Date()
-                                    ? 'text-destructive'
-                                    : 'text-muted-foreground'
-                                )}
-                              >
-                                <Calendar className="h-3 w-3" />
-                                {formatDate(task.dueDate)}
-                              </div>
-                            )}
-                            {task.subtasks && task.subtasks.length > 0 && (
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <CheckSquare className="h-3 w-3" />
-                                <span>{task.subtasks.filter(s => s.isCompleted).length}/{task.subtasks.length}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedTask(task);
-                              }}
-                            >
-                              View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleComplete(task);
-                              }}
-                            >
-                              Mark as complete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
+          <div 
+            key={viewMode}
+            className="h-full animate-in slide-in-from-right-2 fade-in duration-200"
+          >
+            {viewMode === 'grid' && (
+              <InboxGridView
+                tasks={filteredTasks}
+                sections={sections}
+                onTaskClick={setSelectedTask}
+                onToggleComplete={toggleComplete}
+                onAddTask={handleGridAddTask}
+                onUpdateTask={handleUpdateTask}
+                onReorderTask={handleReorderTask}
+              />
             )}
 
-            {/* Completed Tasks */}
-            {completedTasks.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground px-1">
-                  Completed ({completedTasks.length})
-                </h3>
-                <AnimatePresence mode="popLayout">
-                  {completedTasks.map((task) => (
-                    <motion.div
-                      key={task._id}
-                      layout
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="group p-3 sm:p-4 rounded-xl border bg-card/50 cursor-pointer opacity-60 hover:opacity-100 transition-all"
-                      onClick={() => setSelectedTask(task)}
-                    >
-                      <div className="flex items-start gap-3">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleComplete(task);
-                          }}
-                          className="shrink-0 mt-0.5"
-                        >
-                          <CheckCircle2 className="h-5 w-5 text-green-500" />
-                        </button>
+            {viewMode === 'board' && (
+              <InboxBoardView
+                tasks={filteredTasks}
+                sections={sections}
+                onTaskClick={setSelectedTask}
+                onToggleComplete={toggleComplete}
+                onMoveTask={handleMoveTask}
+                onAddTask={handleBoardAddTask}
+                onAddBucket={() => setIsAddBucketOpen(true)}
+                onRenameBucket={handleRenameBucket}
+                onDeleteBucket={handleDeleteBucket}
+                onMoveBucket={handleMoveBucket}
+              />
+            )}
 
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium line-through text-muted-foreground">
-                            {task.title}
-                          </p>
-                          {task.subtasks && task.subtasks.length > 0 && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                              <CheckSquare className="h-3 w-3" />
-                              <span>{task.subtasks.filter(s => s.isCompleted).length}/{task.subtasks.length}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
+            {viewMode === 'schedule' && (
+              <InboxScheduleView
+                tasks={filteredTasks}
+                sections={sections}
+                onTaskClick={setSelectedTask}
+                onToggleComplete={toggleComplete}
+                onAddTask={() => handleOpenAddTask()}
+              />
+            )}
+
+            {viewMode === 'charts' && (
+              <InboxChartsView
+                tasks={filteredTasks}
+                sections={sections}
+                stats={stats}
+                onTaskClick={setSelectedTask}
+                onToggleComplete={toggleComplete}
+                onAddTask={() => handleOpenAddTask()}
+              />
             )}
           </div>
         )}
       </div>
 
       {/* Task Modal */}
-      <TaskModal
+      <InboxTaskModal
         task={selectedTask}
         isOpen={!!selectedTask}
-        onOpenTask={setSelectedTask}
-        onClose={() => {
-          setSelectedTask(null);
-          fetchInboxTasks();
-        }}
+        onClose={() => setSelectedTask(null)}
+        sections={sections}
+        projectName={INBOX_PROJECT_NAME}
+        onTaskUpdated={fetchInboxTasks}
       />
+
+      {/* Add Task Dialog */}
+      <Dialog open={isAddTaskOpen} onOpenChange={setIsAddTaskOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add new task</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Input
+                value={newTaskTitle}
+                onChange={(e) => setNewTaskTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddTaskDialog();
+                  }
+                }}
+                placeholder="Task name"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground mb-2 block">Bucket</label>
+              <div className="flex flex-wrap gap-2">
+                {sections.map((section) => (
+                  <Button
+                    key={section._id}
+                    variant={newTaskSection === section._id ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setNewTaskSection(section._id)}
+                  >
+                    {section.name}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setIsAddTaskOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => handleAddTaskDialog()}
+                disabled={!newTaskTitle.trim() || isAddingTask}
+              >
+                {isAddingTask ? 'Adding...' : 'Add task'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Bucket Dialog */}
+      <Dialog open={isAddBucketOpen} onOpenChange={setIsAddBucketOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add new bucket</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Input
+                value={newBucketName}
+                onChange={(e) => setNewBucketName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddBucket();
+                  }
+                }}
+                placeholder="Bucket name"
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setIsAddBucketOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAddBucket}
+                disabled={!newBucketName.trim() || isAddingBucket}
+              >
+                {isAddingBucket ? 'Adding...' : 'Add bucket'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      </div>
     </div>
   );
 }

@@ -75,8 +75,8 @@ export function Modal({ isOpen, onClose, children, className, size = 'md' }: Mod
               className={cn(
                 'relative shadow-2xl h-full sm:h-auto',
                 'bg-white dark:bg-neutral-900',
-                // Mobile: no rounded corners, Desktop: rounded
-                'sm:rounded-2xl',
+                // Mobile: no rounded corners, Desktop: sharp corners
+                'sm:rounded',
                 'border-0 sm:border border-neutral-200 dark:border-neutral-800',
                 'sm:max-h-[85vh] overflow-hidden',
                 className
