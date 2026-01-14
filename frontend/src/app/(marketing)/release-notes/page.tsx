@@ -26,6 +26,64 @@ export const metadata: Metadata = {
 // Release notes data - add new releases at the top
 const releases = [
   {
+    version: '2.8.0',
+    date: 'January 14, 2026',
+    title: 'Enhanced Inbox & Whiteboard with SSR',
+    type: 'major',
+    changes: [
+      {
+        type: 'feature',
+        title: 'Server-Side Rendering (SSR)',
+        description: 'Improved page load performance with server-side rendering. Faster initial page loads and better SEO optimization.',
+      },
+      {
+        type: 'feature',
+        title: 'Redesigned Inbox with Multiple Views',
+        description: 'New inbox experience with Grid, Board, Schedule, and Charts views. Switch between views with smooth animations.',
+      },
+      {
+        type: 'feature',
+        title: 'Kanban Board View',
+        description: 'Visualize tasks in a Kanban-style board with drag-and-drop. Group by bucket, priority, progress, or due date.',
+      },
+      {
+        type: 'feature',
+        title: 'Custom Whiteboard Canvas',
+        description: 'Draw shapes, arrows, freehand sketches, and add text with a hand-drawn style. Built with Rough.js for that authentic sketchy look.',
+      },
+      {
+        type: 'feature',
+        title: 'Attachment Preview Modal',
+        description: 'Preview images, videos, and PDFs directly in the app without switching tabs. Full PDF viewer with page navigation.',
+      },
+      {
+        type: 'feature',
+        title: 'Whiteboard Icon Library',
+        description: 'Insert icons from popular libraries directly onto your whiteboard. Search and browse thousands of icons.',
+      },
+      {
+        type: 'improvement',
+        title: 'Draggable Toolbar',
+        description: 'Position the whiteboard toolbar on any edge - top, bottom, left, or right. Collapsible design saves screen space.',
+      },
+      {
+        type: 'improvement',
+        title: 'Custom Drawing Cursors',
+        description: 'Tool-specific cursors for pen, eraser, shapes, and more. Visual feedback that matches your current tool.',
+      },
+      {
+        type: 'improvement',
+        title: 'Smooth View Transitions',
+        description: 'AnimatePresence-powered transitions when switching between inbox views. No more jarring layout shifts.',
+      },
+      {
+        type: 'bugfix',
+        title: 'Attachment URL Loading',
+        description: 'Fixed issue where attachment thumbnails would show broken images before signed URLs loaded.',
+      },
+    ],
+  },
+  {
     version: '2.7.0',
     date: 'January 3, 2026',
     title: 'FitLog - Complete Fitness Tracking',
