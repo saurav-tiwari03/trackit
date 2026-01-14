@@ -34,6 +34,22 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Default sections for Inbox project (matching Planner-style buckets)
+const INBOX_SECTIONS = [
+  { name: 'Backlog', order: 0, color: '#6b7280' },
+  { name: 'Up next', order: 1, color: '#6366f1' },
+  { name: 'In progress', order: 2, color: '#3b82f6' },
+  { name: 'Blocked', order: 3, color: '#ef4444' },
+  { name: 'Completed', order: 4, color: '#22c55e' },
+];
+
+// Default sections for regular projects
+const DEFAULT_SECTIONS = [
+  { name: 'To Do', order: 0, color: '#6366f1' },
+  { name: 'In Progress', order: 1, color: '#f59e0b' },
+  { name: 'Done', order: 2, color: '#22c55e' },
+];
+
 // @route   POST /api/projects
 // @desc    Create a new project
 // @access  Private
@@ -41,16 +57,16 @@ router.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const { name, description, color, icon, sections } = req.body;
 
+    // Use inbox-specific sections for Inbox project
+    const isInbox = name === 'Inbox';
+    const defaultSections = isInbox ? INBOX_SECTIONS : DEFAULT_SECTIONS;
+
     const project = new Project({
       name,
       description,
       color,
       icon,
-      sections: sections || [
-        { name: 'To Do', order: 0, color: '#6366f1' },
-        { name: 'In Progress', order: 1, color: '#f59e0b' },
-        { name: 'Done', order: 2, color: '#22c55e' },
-      ],
+      sections: sections || defaultSections,
       owner: req.user?._id,
     });
     await project.save();

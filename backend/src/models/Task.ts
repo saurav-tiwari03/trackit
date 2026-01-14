@@ -9,6 +9,15 @@ export interface ISubtask {
   priority?: 'P1' | 'P2' | 'P3' | 'P4';
 }
 
+export interface IRepeatConfig {
+  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+  interval?: number; // e.g., every 2 weeks
+  daysOfWeek?: number[]; // 0-6 for weekly
+  dayOfMonth?: number; // for monthly
+  endDate?: Date;
+  occurrences?: number; // number of times to repeat
+}
+
 export interface ITask extends Document {
   _id: Types.ObjectId;
   title: string;
@@ -20,7 +29,12 @@ export interface ITask extends Document {
   creator: Types.ObjectId;
   priority: 'P1' | 'P2' | 'P3' | 'P4';
   status: 'open' | 'in_progress' | 'completed' | 'overdue';
+  progress: 'not_started' | 'in_progress' | 'completed' | 'late';
+  startDate?: Date;
   dueDate?: Date;
+  repeat?: IRepeatConfig;
+  showNotesOnCard: boolean;
+  showChecklistOnCard: boolean;
   labels: string[];
   attachments: Array<{
     _id: Types.ObjectId;
@@ -105,6 +119,22 @@ const activitySchema = new Schema(
   { _id: false }
 );
 
+const repeatConfigSchema = new Schema(
+  {
+    frequency: {
+      type: String,
+      enum: ['daily', 'weekly', 'monthly', 'yearly', 'custom'],
+      required: true,
+    },
+    interval: { type: Number, default: 1 },
+    daysOfWeek: [{ type: Number, min: 0, max: 6 }],
+    dayOfMonth: { type: Number, min: 1, max: 31 },
+    endDate: { type: Date },
+    occurrences: { type: Number },
+  },
+  { _id: false }
+);
+
 const taskSchema = new Schema<ITask>(
   {
     title: {
@@ -150,8 +180,27 @@ const taskSchema = new Schema<ITask>(
       enum: ['open', 'in_progress', 'completed', 'overdue'],
       default: 'open',
     },
+    progress: {
+      type: String,
+      enum: ['not_started', 'in_progress', 'completed', 'late'],
+      default: 'not_started',
+    },
+    startDate: {
+      type: Date,
+    },
     dueDate: {
       type: Date,
+    },
+    repeat: {
+      type: repeatConfigSchema,
+    },
+    showNotesOnCard: {
+      type: Boolean,
+      default: false,
+    },
+    showChecklistOnCard: {
+      type: Boolean,
+      default: true,
     },
     labels: [
       {

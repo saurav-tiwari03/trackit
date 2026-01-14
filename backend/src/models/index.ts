@@ -43,3 +43,4 @@ export {
   AI_LIMITS,
   SubscriptionPlanForLimits,
 } from './AIUsage';
+export { Whiteboard, IWhiteboard } from './Whiteboard';

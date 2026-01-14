@@ -14,6 +14,7 @@ import pushRoutes from './push.routes';
 import paymentRoutes from './payment.routes';
 import uploadRoutes from './upload.routes';
 import fitlogRoutes from './fitlog.routes';
+import whiteboardRoutes from './whiteboard.routes';
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use('/push', pushRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/fitlog', fitlogRoutes);
+router.use('/whiteboards', whiteboardRoutes);
 
 export default router;

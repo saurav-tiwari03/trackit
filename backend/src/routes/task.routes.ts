@@ -126,10 +126,40 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       .populate('assignee', 'name email avatar')
       .sort({ createdAt: -1 });
 
+    // Get subtask counts for all tasks
+    const taskIds = tasks.map(t => t._id);
+    const subtaskCounts = await Task.aggregate([
+      { $match: { parentTask: { $in: taskIds } } },
+      {
+        $group: {
+          _id: '$parentTask',
+          total: { $sum: 1 },
+          completed: {
+            $sum: { $cond: ['$isCompleted', 1, 0] }
+          }
+        }
+      }
+    ]);
+
+    // Create a map for quick lookup
+    const subtaskCountMap = new Map(
+      subtaskCounts.map(sc => [sc._id.toString(), { total: sc.total, completed: sc.completed }])
+    );
+
+    // Add subtask counts to tasks
+    const tasksWithSubtasks = tasks.map(task => {
+      const counts = subtaskCountMap.get(task._id.toString()) || { total: 0, completed: 0 };
+      return {
+        ...task.toObject(),
+        subtaskCount: counts.total,
+        subtaskCompletedCount: counts.completed,
+      };
+    });
+
     res.status(200).json({
       success: true,
-      count: tasks.length,
-      data: tasks,
+      count: tasksWithSubtasks.length,
+      data: tasksWithSubtasks,
     });
   } catch {
     res.status(500).json({
@@ -187,6 +217,210 @@ router.get('/stats', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// @route   GET /api/tasks/inbox-stats
+// @desc    Get detailed inbox statistics for charts view
+// @access  Private
+router.get('/inbox-stats', async (req: AuthRequest, res: Response) => {
+  try {
+    const { projectId } = req.query;
+    const userId = req.user?._id;
+
+    if (!projectId) {
+      res.status(400).json({
+        success: false,
+        message: 'Project ID is required',
+      });
+      return;
+    }
+
+    // Get project with sections
+    const projectDoc = await Project.findOne({
+      _id: projectId,
+      $or: [{ owner: userId }, { members: userId }],
+    });
+
+    if (!projectDoc) {
+      res.status(404).json({
+        success: false,
+        message: 'Project not found',
+      });
+      return;
+    }
+
+    const baseQuery = {
+      project: projectDoc._id,
+      parentTask: null,
+    };
+
+    // Get status counts
+    const [notStarted, inProgress, late, completed] = await Promise.all([
+      Task.countDocuments({ ...baseQuery, progress: 'not_started' }),
+      Task.countDocuments({ ...baseQuery, progress: 'in_progress' }),
+      Task.countDocuments({
+        ...baseQuery,
+        dueDate: { $lt: new Date() },
+        isCompleted: false,
+      }),
+      Task.countDocuments({ ...baseQuery, isCompleted: true }),
+    ]);
+
+    // Get bucket (section) distribution
+    const bucketStats = await Task.aggregate([
+      { $match: baseQuery },
+      {
+        $group: {
+          _id: '$section',
+          total: { $sum: 1 },
+          notStarted: {
+            $sum: { $cond: [{ $eq: ['$progress', 'not_started'] }, 1, 0] },
+          },
+          inProgress: {
+            $sum: { $cond: [{ $eq: ['$progress', 'in_progress'] }, 1, 0] },
+          },
+          late: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $lt: ['$dueDate', new Date()] },
+                    { $eq: ['$isCompleted', false] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          completed: {
+            $sum: { $cond: [{ $eq: ['$isCompleted', true] }, 1, 0] },
+          },
+        },
+      },
+    ]);
+
+    // Map section IDs to names
+    const sectionMap = new Map(
+      projectDoc.sections.map(s => [s._id.toString(), s.name])
+    );
+
+    const bucketData = bucketStats.map(b => ({
+      bucket: sectionMap.get(b._id?.toString()) || 'Unknown',
+      sectionId: b._id?.toString(),
+      total: b.total,
+      notStarted: b.notStarted,
+      inProgress: b.inProgress,
+      late: b.late,
+      completed: b.completed,
+    }));
+
+    // Get priority distribution
+    const priorityStats = await Task.aggregate([
+      { $match: baseQuery },
+      {
+        $group: {
+          _id: '$priority',
+          total: { $sum: 1 },
+          notStarted: {
+            $sum: { $cond: [{ $eq: ['$progress', 'not_started'] }, 1, 0] },
+          },
+          inProgress: {
+            $sum: { $cond: [{ $eq: ['$progress', 'in_progress'] }, 1, 0] },
+          },
+          late: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $lt: ['$dueDate', new Date()] },
+                    { $eq: ['$isCompleted', false] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          completed: {
+            $sum: { $cond: [{ $eq: ['$isCompleted', true] }, 1, 0] },
+          },
+        },
+      },
+    ]);
+
+    const priorityLabels: Record<string, string> = {
+      P1: 'Urgent',
+      P2: 'Important',
+      P3: 'Medium',
+      P4: 'Low',
+    };
+
+    const priorityData = priorityStats.map(p => ({
+      priority: p._id,
+      label: priorityLabels[p._id] || p._id,
+      total: p.total,
+      notStarted: p.notStarted,
+      inProgress: p.inProgress,
+      late: p.late,
+      completed: p.completed,
+    }));
+
+    // Get member distribution
+    const memberStats = await Task.aggregate([
+      { $match: { ...baseQuery, assignee: { $exists: true, $ne: null } } },
+      {
+        $group: {
+          _id: '$assignee',
+          total: { $sum: 1 },
+        },
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'user',
+        },
+      },
+      { $unwind: '$user' },
+      {
+        $project: {
+          userId: '$_id',
+          name: '$user.name',
+          email: '$user.email',
+          avatar: '$user.avatar',
+          total: 1,
+        },
+      },
+    ]);
+
+    const totalTasks = notStarted + inProgress + completed;
+    const tasksLeft = totalTasks - completed;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        summary: {
+          total: totalTasks,
+          tasksLeft,
+          notStarted,
+          inProgress,
+          late,
+          completed,
+        },
+        buckets: bucketData,
+        priorities: priorityData,
+        members: memberStats,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching inbox stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching inbox stats',
+    });
+  }
+});
+
 // @route   POST /api/tasks
 // @desc    Create a new task
 // @access  Private
@@ -199,7 +433,10 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       section,
       assignee,
       priority,
+      startDate,
       dueDate,
+      repeat,
+      progress,
       labels,
     } = req.body;
 
@@ -231,7 +468,10 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       assignee,
       creator: req.user?._id,
       priority: priority || 'P4',
+      progress: progress || 'not_started',
+      startDate,
       dueDate,
+      repeat,
       labels,
       order: maxOrderTask ? maxOrderTask.order + 1 : 0,
     });
@@ -314,7 +554,12 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
       assignee,
       priority,
       status,
+      progress,
+      startDate,
       dueDate,
+      repeat,
+      showNotesOnCard,
+      showChecklistOnCard,
       labels,
       isCompleted,
       order,
@@ -330,7 +575,12 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     if (section !== undefined) $set.section = section;
     if (assignee !== undefined) $set.assignee = assignee;
     if (priority !== undefined) $set.priority = priority;
+    if (progress !== undefined) $set.progress = progress;
+    if (startDate !== undefined) $set.startDate = startDate;
     if (dueDate !== undefined) $set.dueDate = dueDate;
+    if (repeat !== undefined) $set.repeat = repeat;
+    if (showNotesOnCard !== undefined) $set.showNotesOnCard = showNotesOnCard;
+    if (showChecklistOnCard !== undefined) $set.showChecklistOnCard = showChecklistOnCard;
     if (labels !== undefined) $set.labels = labels;
     if (order !== undefined) $set.order = order;
 
@@ -343,8 +593,22 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
         activity(req, 'field_update', `Updated priority to ${String(priority)}`)
       );
     }
+    if (progress !== undefined) {
+      activityItems.push(
+        activity(req, 'field_update', `Updated progress to ${String(progress)}`)
+      );
+    }
     if (section !== undefined)
       activityItems.push(activity(req, 'field_update', 'Updated section'));
+    if (startDate !== undefined) {
+      activityItems.push(
+        activity(
+          req,
+          'field_update',
+          startDate ? `Updated start date` : 'Cleared start date'
+        )
+      );
+    }
     if (dueDate !== undefined) {
       activityItems.push(
         activity(
@@ -352,6 +616,11 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
           'field_update',
           dueDate ? `Updated due date` : 'Cleared due date'
         )
+      );
+    }
+    if (repeat !== undefined) {
+      activityItems.push(
+        activity(req, 'field_update', repeat ? 'Set repeat schedule' : 'Removed repeat schedule')
       );
     }
     if (labels !== undefined)
