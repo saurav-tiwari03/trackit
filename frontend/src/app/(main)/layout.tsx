@@ -13,6 +13,7 @@ import { useLastVisitedPageTracker } from '@/hooks/use-last-visited-page';
 import { SplashScreen } from '@/components/ui/splash-screen';
 import { useServiceWorker } from '@/hooks/use-push-notifications';
 import { NotificationPrompt } from '@/components/notifications/notification-prompt';
+import { OfflineIndicator } from '@/components/ui/offline-indicator';
 
 function SidebarToggle() {
   const { state, isMobile, toggleSidebar } = useSidebar();
@@ -129,6 +130,7 @@ export default function MainLayout({
       <AppSidebar />
       <MainContent>{children}</MainContent>
       <NotificationPrompt />
+      <OfflineIndicator />
     </SidebarProvider>
   );
 }

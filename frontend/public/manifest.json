@@ -1,12 +1,13 @@
 {
   "name": "TrackIt - Task & Habit Tracker",
   "short_name": "TrackIt",
-  "description": "Track your tasks, habits, and streaks with TrackIt",
+  "description": "Track your tasks, habits, and streaks with TrackIt. Works offline!",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#0a0a0a",
   "theme_color": "#f97316",
   "orientation": "portrait-primary",
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/favicon-48x48.png",
@@ -39,6 +40,22 @@
       "sizes": "750x1334",
       "type": "image/png",
       "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Inbox",
+      "short_name": "Inbox",
+      "description": "View your tasks",
+      "url": "/inbox",
+      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Notes",
+      "short_name": "Notes",
+      "description": "View your notes",
+      "url": "/notes",
+      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
     }
   ]
 }

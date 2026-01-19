@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { Project, Task, TaskStats } from '@/types';
 import { projectsAPI, tasksAPI } from '@/lib/api';
+import { offlineProjectsAPI, offlineTasksAPI } from '@/lib/offline-api';
 
 interface ProjectsState {
   projects: Project[];
@@ -10,6 +11,7 @@ interface ProjectsState {
   tasks: Task[];
   stats: TaskStats | null;
   isLoading: boolean;
+  isOffline: boolean;
   fetchProjects: () => Promise<void>;
   fetchProject: (id: string) => Promise<void>;
   createProject: (data: { name: string; description?: string; color?: string }) => Promise<Project>;
@@ -40,12 +42,18 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
   tasks: [],
   stats: null,
   isLoading: false,
+  isOffline: false,
 
   fetchProjects: async () => {
     set({ isLoading: true });
     try {
-      const response = await projectsAPI.getAll();
-      set({ projects: response.data.data, isLoading: false });
+      // Use offline-aware API
+      const result = await offlineProjectsAPI.getAll();
+      set({ 
+        projects: result.data.data as unknown as Project[], 
+        isLoading: false,
+        isOffline: result.fromCache,
+      });
     } catch (error) {
       set({ isLoading: false });
       throw error;
@@ -55,12 +63,14 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
   fetchProject: async (id: string) => {
     set({ isLoading: true });
     try {
-      const response = await projectsAPI.getOne(id);
-      const project = response.data.data;
+      // Use offline-aware API
+      const result = await offlineProjectsAPI.getOne(id);
+      const project = result.data.data;
       set({
-        currentProject: project,
-        tasks: project.tasks || [],
+        currentProject: project as unknown as Project,
+        tasks: (project.tasks || []) as unknown as Task[],
         isLoading: false,
+        isOffline: result.fromCache,
       });
     } catch (error) {
       set({ isLoading: false });
@@ -162,11 +172,22 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
   },
 
   updateTask: async (id, data) => {
-    const response = await tasksAPI.update(id, data);
-    const updatedTask = response.data.data;
-    set(state => ({
-      tasks: state.tasks.map(t => (t._id === id ? updatedTask : t)),
-    }));
+    try {
+      // Use offline-aware API
+      const result = await offlineTasksAPI.update(id, data);
+      const updatedTask = result.data.data;
+      set(state => ({
+        tasks: state.tasks.map(t => (t._id === id ? updatedTask as unknown as Task : t)),
+        isOffline: result.offline,
+      }));
+    } catch (error) {
+      // Fallback to online API if offline API fails
+      const response = await tasksAPI.update(id, data);
+      const updatedTask = response.data.data;
+      set(state => ({
+        tasks: state.tasks.map(t => (t._id === id ? updatedTask : t)),
+      }));
+    }
   },
 
   moveTask: async (id, section, order) => {
@@ -220,10 +241,20 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
   },
 
   deleteTask: async (id) => {
-    await tasksAPI.delete(id);
-    set(state => ({
-      tasks: state.tasks.filter(t => t._id !== id),
-    }));
+    try {
+      // Use offline-aware API
+      const result = await offlineTasksAPI.delete(id);
+      set(state => ({
+        tasks: state.tasks.filter(t => t._id !== id),
+        isOffline: result.offline,
+      }));
+    } catch (error) {
+      // Fallback to online API
+      await tasksAPI.delete(id);
+      set(state => ({
+        tasks: state.tasks.filter(t => t._id !== id),
+      }));
+    }
   },
 
   setCurrentProject: (project) => {

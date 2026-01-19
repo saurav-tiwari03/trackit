@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 import { Toaster } from '@/components/ui/sonner';
+import { OfflineProvider } from '@/components/providers/offline-provider';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -83,7 +84,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${inter.variable} font-sans antialiased`}>
-        {children}
+        <OfflineProvider>
+          {children}
+        </OfflineProvider>
         <Toaster />
         <Analytics />
       </body>
