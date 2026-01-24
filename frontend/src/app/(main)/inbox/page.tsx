@@ -414,6 +414,46 @@ export default function InboxPage() {
     }
   };
 
+  // Bulk complete handler
+  const handleBulkComplete = async (taskIds: string[]) => {
+    // Optimistic update
+    setTasks((prev) =>
+      prev.map((t) =>
+        taskIds.includes(t._id)
+          ? { ...t, isCompleted: true, progress: 'completed' as Task['progress'] }
+          : t
+      )
+    );
+
+    try {
+      await Promise.all(
+        taskIds.map((id) =>
+          tasksAPI.update(id, { isCompleted: true, progress: 'completed' })
+        )
+      );
+      toast.success(`${taskIds.length} task${taskIds.length > 1 ? 's' : ''} completed`);
+    } catch (error) {
+      console.error('Failed to complete tasks:', error);
+      toast.error('Failed to complete tasks');
+      fetchInboxTasks();
+    }
+  };
+
+  // Bulk delete handler
+  const handleBulkDelete = async (taskIds: string[]) => {
+    // Optimistic update
+    setTasks((prev) => prev.filter((t) => !taskIds.includes(t._id)));
+
+    try {
+      await Promise.all(taskIds.map((id) => tasksAPI.delete(id)));
+      toast.success(`${taskIds.length} task${taskIds.length > 1 ? 's' : ''} deleted`);
+    } catch (error) {
+      console.error('Failed to delete tasks:', error);
+      toast.error('Failed to delete tasks');
+      fetchInboxTasks();
+    }
+  };
+
   // Duplicate task handler
   const handleDuplicateTask = async (task: Task) => {
     if (!inboxProject) return;
@@ -713,6 +753,9 @@ export default function InboxPage() {
                 onAddTask={handleGridAddTask}
                 onUpdateTask={handleUpdateTask}
                 onReorderTask={handleReorderTask}
+                onDeleteTask={handleDeleteTask}
+                onBulkComplete={handleBulkComplete}
+                onBulkDelete={handleBulkDelete}
               />
             )}
 

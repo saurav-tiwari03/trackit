@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Flag,
   Activity,
+  X,
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Task, Section, User } from '@/types';
@@ -359,13 +360,23 @@ export function InboxBoardView({
                     </Popover>
                   </div>
                   
-                  <Button
-                    onClick={() => handleAddTaskSubmit(section._id)}
-                    disabled={!addTaskForm.title.trim() || isAddingTask}
-                    className="w-full"
-                  >
-                    {isAddingTask ? 'Adding...' : 'Add task'}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => handleAddTaskSubmit(section._id)}
+                      disabled={!addTaskForm.title.trim() || isAddingTask}
+                      className="flex-1"
+                    >
+                      {isAddingTask ? 'Adding...' : 'Add task'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={resetAddTaskForm}
+                      className="h-9 w-9 shrink-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <button
@@ -560,23 +571,32 @@ export function InboxBoardView({
                               </div>
 
                               {/* Task Title Row */}
-                              <div className="flex items-start gap-2 mb-2 pr-6">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onToggleComplete(task);
-                                  }}
-                                  className="mt-0.5 shrink-0"
-                                >
-                                  {task.isCompleted ? (
-                                    <CheckCircle2 className="h-5 w-5 text-green-500" />
-                                  ) : (
-                                    <Circle className="h-5 w-5 text-muted-foreground hover:text-foreground transition-colors" />
+                              <div className="flex items-start mb-2 pr-6">
+                                <div
+                                  className={cn(
+                                    "shrink-0 overflow-hidden transition-all duration-200 ease-out",
+                                    task.isCompleted 
+                                      ? "w-7 opacity-100" 
+                                      : "w-0 opacity-0 group-hover/card:w-7 group-hover/card:opacity-100"
                                   )}
-                                </button>
+                                >
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onToggleComplete(task);
+                                    }}
+                                    className="mt-0.5"
+                                  >
+                                    {task.isCompleted ? (
+                                      <CheckCircle2 className="h-5 w-5 text-green-500" />
+                                    ) : (
+                                      <Circle className="h-5 w-5 text-muted-foreground hover:text-green-500 transition-colors" />
+                                    )}
+                                  </button>
+                                </div>
                                 <span
                                   className={cn(
-                                    'font-medium text-sm flex-1',
+                                    'font-medium text-sm flex-1 transition-transform duration-200',
                                     task.isCompleted && 'line-through text-muted-foreground'
                                   )}
                                 >
@@ -586,7 +606,10 @@ export function InboxBoardView({
 
                               {/* Notes on Card */}
                               {task.showNotesOnCard && task.description && (
-                                <div className="mb-2 pl-7">
+                                <div className={cn(
+                                  "mb-2 transition-all duration-200",
+                                  task.isCompleted ? "pl-7" : "pl-0 group-hover/card:pl-7"
+                                )}>
                                   <p className="text-xs text-muted-foreground line-clamp-2">
                                     {task.description.replace(/<[^>]*>/g, '')}
                                   </p>
@@ -594,7 +617,10 @@ export function InboxBoardView({
                               )}
 
                               {/* Meta Row */}
-                              <div className="flex items-center justify-between pl-7">
+                              <div className={cn(
+                                "flex items-center justify-between transition-all duration-200",
+                                task.isCompleted ? "pl-7" : "pl-0 group-hover/card:pl-7"
+                              )}>
                                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                   {totalSubtasks > 0 && (
                                     <div className="flex items-center gap-1">

@@ -14,6 +14,11 @@ import {
   Search,
   GripVertical,
   Clock,
+  Trash2,
+  Check,
+  Square,
+  CheckSquare,
+  Minus,
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Task, Section } from '@/types';
@@ -47,6 +52,9 @@ interface InboxGridViewProps {
   }) => Promise<string | undefined>;
   onUpdateTask: (taskId: string, data: Partial<Task>) => Promise<void>;
   onReorderTask?: (taskId: string, newOrder: number) => void;
+  onDeleteTask?: (taskId: string) => Promise<void>;
+  onBulkComplete?: (taskIds: string[]) => Promise<void>;
+  onBulkDelete?: (taskIds: string[]) => Promise<void>;
 }
 
 const priorityConfig: Record<string, { color: string; label: string; dotColor: string }> = {
@@ -84,6 +92,9 @@ export function InboxGridView({
   onAddTask,
   onUpdateTask,
   onReorderTask,
+  onDeleteTask,
+  onBulkComplete,
+  onBulkDelete,
 }: InboxGridViewProps) {
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -94,6 +105,10 @@ export function InboxGridView({
   const newTaskTitleRef = useRef<string>('');
   // Track pending task ID in state for filtering
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
+
+  // Multi-select state
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
 
   // Editing state for inline edits
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
@@ -131,6 +146,69 @@ export function InboxGridView({
         return dateA - dateB;
       });
   }, [tasks, pendingTaskId]);
+
+  // Selection handlers
+  const handleEnterSelectionMode = () => {
+    setIsSelectionMode(true);
+  };
+
+  const handleExitSelectionMode = () => {
+    setIsSelectionMode(false);
+    setSelectedTaskIds(new Set());
+  };
+
+  const handleToggleSelect = (taskId: string) => {
+    setSelectedTaskIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(taskId)) {
+        newSet.delete(taskId);
+      } else {
+        newSet.add(taskId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedTaskIds.size === sortedTasks.length) {
+      // Deselect all
+      setSelectedTaskIds(new Set());
+    } else {
+      // Select all
+      setSelectedTaskIds(new Set(sortedTasks.map((t) => t._id)));
+    }
+  };
+
+  const handleBulkMarkComplete = async () => {
+    if (onBulkComplete) {
+      await onBulkComplete(Array.from(selectedTaskIds));
+    } else {
+      // Fallback: complete tasks one by one
+      const tasksToComplete = tasks.filter((t) => selectedTaskIds.has(t._id) && !t.isCompleted);
+      for (const task of tasksToComplete) {
+        await onToggleComplete(task);
+      }
+    }
+    setSelectedTaskIds(new Set());
+    setIsSelectionMode(false);
+  };
+
+  const handleBulkDelete = async () => {
+    if (onBulkDelete) {
+      await onBulkDelete(Array.from(selectedTaskIds));
+    } else if (onDeleteTask) {
+      // Fallback: delete tasks one by one
+      for (const taskId of selectedTaskIds) {
+        await onDeleteTask(taskId);
+      }
+    }
+    setSelectedTaskIds(new Set());
+    setIsSelectionMode(false);
+  };
+
+  const isAllSelected = sortedTasks.length > 0 && selectedTaskIds.size === sortedTasks.length;
+  const isSomeSelected = selectedTaskIds.size > 0 && selectedTaskIds.size < sortedTasks.length;
+  const hasSelection = selectedTaskIds.size > 0;
 
   const handleStartAddTask = () => {
     setIsAddingTask(true);
@@ -313,8 +391,8 @@ export function InboxGridView({
   );
 
   const columns = [
-    { key: 'drag', label: '', width: 'w-6' },
-    { key: 'checkbox', label: '', width: 'w-8' },
+    ...(isSelectionMode ? [{ key: 'select', label: '', width: 'w-10' }] : []),
+    { key: 'hoverActions', label: '', width: 'w-0' }, // Expands on hover for drag + complete
     { key: 'title', label: 'Task Name', width: 'flex-1 min-w-[200px]' },
     { key: 'startDate', label: 'Start date', width: 'w-[110px]' },
     { key: 'dueDate', label: 'Due date', width: 'w-[110px]' },
@@ -328,9 +406,93 @@ export function InboxGridView({
 
   return (
     <div className="overflow-x-auto">
+      {/* Selection Mode Bar - Fixed above the table */}
+      {isSelectionMode && (
+        <div className="flex items-center justify-between px-4 py-2 bg-primary/5 border-b sticky top-0 z-10">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSelectAll}
+              className="p-1 rounded hover:bg-muted/50 transition-colors flex items-center gap-2"
+            >
+              {isAllSelected ? (
+                <CheckSquare className="h-4 w-4 text-primary" />
+              ) : isSomeSelected ? (
+                <div className="relative">
+                  <Square className="h-4 w-4 text-muted-foreground" />
+                  <Minus className="h-2.5 w-2.5 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-primary" />
+                </div>
+              ) : (
+                <Square className="h-4 w-4 text-muted-foreground" />
+              )}
+              <span className="text-sm text-muted-foreground">
+                {hasSelection ? `${selectedTaskIds.size} selected` : 'Select all'}
+              </span>
+            </button>
+          </div>
+          <div className="flex items-center gap-1">
+            {hasSelection && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleBulkMarkComplete}
+                  className="h-8 gap-1.5"
+                >
+                  <Check className="h-4 w-4" />
+                  Complete
+                </Button>
+                {(onDeleteTask || onBulkDelete) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleBulkDelete}
+                    className="h-8 gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </Button>
+                )}
+              </>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleExitSelectionMode}
+              className="h-8"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Header Row */}
-      <div className="flex items-center gap-0 px-4 py-3 border-b bg-background/50 backdrop-blur-sm min-w-max">
-        {columns.map((col) => (
+      <div className="flex items-center gap-0 px-4 py-3 border-b bg-background/50 backdrop-blur-sm min-w-max group/header">
+        {/* Selection Mode - Checkbox column */}
+        {isSelectionMode && (
+          <div className="w-10 shrink-0" />
+        )}
+
+        {/* Select Button - shows on hover (only when not in selection mode) */}
+        {!isSelectionMode && (
+          <div className="w-0 overflow-hidden opacity-0 group-hover/header:w-[70px] group-hover/header:opacity-100 transition-all duration-200 ease-out shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleEnterSelectionMode}
+              className="h-7 px-2 text-xs gap-1"
+            >
+              <Square className="h-3.5 w-3.5" />
+              Select
+            </Button>
+          </div>
+        )}
+
+        {/* Hover actions placeholder */}
+        <div className="w-0 shrink-0" />
+
+        {/* Column Headers */}
+        {columns.filter(col => col.key !== 'select' && col.key !== 'hoverActions').map((col) => (
           <div
             key={col.key}
             className={cn(
@@ -385,32 +547,59 @@ export function InboxGridView({
                           !dragSnapshot.isDragging && "transition-colors"
                         )}
                       >
-                        {/* Drag Handle */}
-                        <div
-                          {...dragProvided.dragHandleProps}
+                        {/* Select Checkbox - only in selection mode */}
+                        {isSelectionMode && (
+                          <div className="w-10 shrink-0 flex items-center">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleSelect(task._id);
+                              }}
+                              className="p-0.5 rounded transition-colors"
+                            >
+                              {selectedTaskIds.has(task._id) ? (
+                                <CheckSquare className="h-4 w-4 text-primary" />
+                              ) : (
+                                <Square className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                              )}
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Hover Actions - Drag Handle + Complete Button */}
+                        <div 
                           className={cn(
-                            "w-6 shrink-0 flex items-center justify-center transition-all duration-150",
-                            dragSnapshot.isDragging 
-                              ? "cursor-grabbing opacity-100" 
-                              : "cursor-grab opacity-0 group-hover:opacity-100"
+                            "shrink-0 overflow-hidden transition-all duration-200 ease-out flex items-center",
+                            (task.isCompleted || dragSnapshot.isDragging)
+                              ? "w-[54px] opacity-100" 
+                              : "w-0 opacity-0 group-hover:w-[54px] group-hover:opacity-100"
                           )}
                         >
-                          <GripVertical className={cn(
-                            "h-4 w-4 transition-colors",
-                            dragSnapshot.isDragging ? "text-primary" : "text-muted-foreground"
-                          )} />
-                        </div>
+                          {/* Drag Handle */}
+                          <div
+                            {...dragProvided.dragHandleProps}
+                            className={cn(
+                              "w-6 flex items-center justify-center",
+                              dragSnapshot.isDragging 
+                                ? "cursor-grabbing" 
+                                : "cursor-grab"
+                            )}
+                          >
+                            <GripVertical className={cn(
+                              "h-4 w-4 transition-colors",
+                              dragSnapshot.isDragging ? "text-primary" : "text-muted-foreground"
+                            )} />
+                          </div>
 
-                        {/* Checkbox */}
-                        <div className="w-8 shrink-0 px-1">
+                          {/* Mark Complete Button */}
                           <button
                             onClick={() => onToggleComplete(task)}
-                            className="cursor-pointer"
+                            className="cursor-pointer w-7 flex items-center justify-center"
                           >
                             {task.isCompleted ? (
                               <CheckCircle2 className="h-5 w-5 text-green-500" />
                             ) : (
-                              <Circle className="h-5 w-5 text-muted-foreground hover:text-foreground transition-colors" />
+                              <Circle className="h-5 w-5 text-muted-foreground hover:text-green-500 transition-colors" />
                             )}
                           </button>
                         </div>
@@ -783,10 +972,19 @@ export function InboxGridView({
 
       {/* Add Task Row */}
       {isAddingTask ? (
-        <div className="flex items-center gap-0 px-4 py-2.5 hover:bg-muted/20 min-w-max border-t">
-          <div className="w-6 shrink-0" />
-          <div className="w-8 shrink-0 px-1">
-            <Circle className="h-5 w-5 text-muted-foreground" />
+        <div className="flex items-center gap-0 px-4 py-2.5 hover:bg-muted/20 min-w-max border-t group">
+          {/* Select checkbox placeholder - only in selection mode */}
+          {isSelectionMode && (
+            <div className="w-10 shrink-0 flex items-center">
+              <Square className="h-4 w-4 text-muted-foreground/30" />
+            </div>
+          )}
+          {/* Hover actions placeholder - slides in on hover */}
+          <div className="w-0 group-hover:w-[54px] overflow-hidden transition-all duration-200 ease-out flex items-center opacity-0 group-hover:opacity-100">
+            <div className="w-6" />
+            <div className="w-7 flex items-center justify-center">
+              <Circle className="h-5 w-5 text-muted-foreground/50" />
+            </div>
           </div>
           <div className="flex-1 min-w-[200px] shrink-0 px-1">
             <Input
