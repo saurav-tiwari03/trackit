@@ -361,3 +361,26 @@ export interface FitLogWeeklyStats {
   daysLogged: number;
 }
 
+// Grocery List Types
+export interface GroceryItem {
+  _id: string;
+  name: string;
+  quantity?: number;
+  unit?: string;
+  isCompleted: boolean;
+  order: number;
+  createdAt: string;
+}
+
+export interface GroceryList {
+  _id: string;
+  name: string;
+  user: string;
+  items: GroceryItem[];
+  color?: string;
+  icon?: string;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+

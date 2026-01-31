@@ -588,5 +588,32 @@ export const uploadAPI = {
   },
 };
 
+// Grocery List API
+export const groceryAPI = {
+  // Lists
+  getLists: () => api.get('/grocery'),
+  getList: (id: string) => api.get(`/grocery/${id}`),
+  createList: (data: { name: string; color?: string; icon?: string }) =>
+    api.post('/grocery', data),
+  updateList: (id: string, data: { name?: string; color?: string; icon?: string; order?: number }) =>
+    api.put(`/grocery/${id}`, data),
+  deleteList: (id: string) => api.delete(`/grocery/${id}`),
+  
+  // Items
+  addItem: (listId: string, data: { name: string; quantity?: number; unit?: string }) =>
+    api.post(`/grocery/${listId}/items`, data),
+  updateItem: (
+    listId: string,
+    itemId: string,
+    data: { name?: string; quantity?: number; unit?: string; isCompleted?: boolean; order?: number }
+  ) => api.put(`/grocery/${listId}/items/${itemId}`, data),
+  deleteItem: (listId: string, itemId: string) =>
+    api.delete(`/grocery/${listId}/items/${itemId}`),
+  moveItem: (listId: string, itemId: string, targetListId: string) =>
+    api.post(`/grocery/${listId}/items/${itemId}/move`, { targetListId }),
+  clearCompleted: (listId: string) =>
+    api.post(`/grocery/${listId}/clear-completed`),
+};
+
 export default api;
 
