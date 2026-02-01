@@ -30,8 +30,12 @@ import {
   Upload,
   Link,
   ImageIcon,
+  FolderPlus,
+  Folder,
+  Share2,
+  CheckCircle2,
 } from 'lucide-react';
-import { Movie, MovieStatus, MoviePlatform, TMDBMovie, MovieStats } from '@/types';
+import { Movie, MovieStatus, MoviePlatform, TMDBMovie, MovieStats, MovieList } from '@/types';
 import { moviesAPI, tmdbAPI } from '@/lib/api';
 import { useMoviesStore } from '@/store/movies';
 import { Button } from '@/components/ui/button';
@@ -110,17 +114,24 @@ type ViewMode = 'grid' | 'list' | 'timeline';
 export default function MoviesPage() {
   const {
     movies,
+    lists,
     stats,
     isLoading,
     filter,
     fetchMovies,
     fetchStats,
+    fetchLists,
     addMovie,
     updateMovie,
     deleteMovie,
     toggleFavorite,
     markWatched,
     setFilter,
+    createList,
+    updateList,
+    deleteList,
+    addToList,
+    removeFromList,
   } = useMoviesStore();
 
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -135,8 +146,10 @@ export default function MoviesPage() {
   });
   const [showAddModal, setShowAddModal] = useState(false);
   const [showMovieModal, setShowMovieModal] = useState(false);
+  const [showCollectionModal, setShowCollectionModal] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeCollection, setActiveCollection] = useState<string | null>(null);
 
   // Persist viewMode to localStorage
   useEffect(() => {
@@ -146,9 +159,11 @@ export default function MoviesPage() {
   useEffect(() => {
     fetchMovies();
     fetchStats();
-  }, [fetchMovies, fetchStats]);
+    fetchLists();
+  }, [fetchMovies, fetchStats, fetchLists]);
 
   const handleStatusFilter = (status: MovieStatus | 'all' | 'favorites') => {
+    setActiveCollection(null); // Clear collection filter when using status filter
     if (status === 'favorites') {
       setFilter({ status: undefined, isFavorite: true });
     } else if (status === 'all') {
@@ -157,6 +172,19 @@ export default function MoviesPage() {
       setFilter({ status, isFavorite: undefined });
     }
   };
+
+  const handleCollectionFilter = (collectionId: string | null) => {
+    setActiveCollection(collectionId);
+    if (collectionId) {
+      // Clear status filters when filtering by collection
+      setFilter({ status: undefined, isFavorite: undefined });
+    }
+  };
+
+  // Filter movies by collection if one is selected
+  const displayedMovies = activeCollection
+    ? movies.filter(m => m.lists?.includes(activeCollection))
+    : movies;
 
   const handleToggleFavorite = async (id: string) => {
     const movie = movies.find(m => m._id === id);
@@ -319,6 +347,37 @@ export default function MoviesPage() {
             Favorites
             <Badge variant="outline" className="ml-1 text-xs">{stats?.favorites || 0}</Badge>
           </Button>
+
+          {/* Separator */}
+          {lists.length > 0 && (
+            <div className="w-px h-6 bg-border mx-1" />
+          )}
+
+          {/* Collections */}
+          {lists.map((collection) => (
+            <Button
+              key={collection._id}
+              variant={activeCollection === collection._id ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => handleCollectionFilter(activeCollection === collection._id ? null : collection._id)}
+              className="gap-2"
+            >
+              <span className="text-base">{collection.icon || '📁'}</span>
+              {collection.name}
+              <Badge variant="outline" className="ml-1 text-xs">{collection.movieCount || 0}</Badge>
+            </Button>
+          ))}
+
+          {/* Create Collection Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowCollectionModal(true)}
+            className="gap-2 text-muted-foreground hover:text-foreground"
+          >
+            <FolderPlus className="w-4 h-4" />
+            New Collection
+          </Button>
         </div>
 
         {/* Search & View Toggle */}
@@ -363,30 +422,36 @@ export default function MoviesPage() {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
           </div>
-        ) : movies.length === 0 ? (
+        ) : displayedMovies.length === 0 ? (
           <Card>
             <CardContent className="p-12 text-center">
               <Popcorn className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
-              <h3 className="text-lg font-semibold mb-2">No movies yet</h3>
+              <h3 className="text-lg font-semibold mb-2">
+                {activeCollection ? 'No movies in this collection' : 'No movies yet'}
+              </h3>
               <p className="text-muted-foreground mb-4">
-                Start tracking your movie journey by adding your first movie
+                {activeCollection
+                  ? 'Add movies to this collection from the movie details'
+                  : 'Start tracking your movie journey by adding your first movie'}
               </p>
-              <Button onClick={() => setShowAddModal(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Movie
-              </Button>
+              {!activeCollection && (
+                <Button onClick={() => setShowAddModal(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Movie
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
           <>
             {viewMode === 'grid' && (
-              <MovieGrid movies={movies} onMovieClick={handleMovieClick} onToggleFavorite={handleToggleFavorite} />
+              <MovieGrid movies={displayedMovies} onMovieClick={handleMovieClick} onToggleFavorite={handleToggleFavorite} />
             )}
             {viewMode === 'list' && (
-              <MovieList movies={movies} onMovieClick={handleMovieClick} onToggleFavorite={handleToggleFavorite} formatRuntime={formatRuntime} />
+              <MovieListView movies={displayedMovies} onMovieClick={handleMovieClick} onToggleFavorite={handleToggleFavorite} formatRuntime={formatRuntime} />
             )}
             {viewMode === 'timeline' && (
-              <MovieTimeline movies={movies.filter(m => m.status === 'watched' && m.watchedDate)} onMovieClick={handleMovieClick} />
+              <MovieTimeline movies={displayedMovies.filter(m => m.status === 'watched' && m.watchedDate)} onMovieClick={handleMovieClick} />
             )}
           </>
         )}
@@ -408,6 +473,19 @@ export default function MoviesPage() {
         onDelete={deleteMovie}
         onToggleFavorite={handleToggleFavorite}
         onMarkWatched={markWatched}
+        lists={lists}
+        onAddToList={addToList}
+        onRemoveFromList={removeFromList}
+      />
+
+      {/* Create Collection Modal */}
+      <CreateCollectionModal
+        open={showCollectionModal}
+        onOpenChange={setShowCollectionModal}
+        onCreateCollection={async (data) => {
+          await createList(data);
+          toast.success('Collection created!');
+        }}
       />
     </div>
   );
@@ -509,8 +587,8 @@ function MovieGrid({
   );
 }
 
-// Movie List Component
-function MovieList({
+// Movie List View Component
+function MovieListView({
   movies,
   onMovieClick,
   onToggleFavorite,
@@ -1282,6 +1360,9 @@ function MovieDetailModal({
   onDelete,
   onToggleFavorite,
   onMarkWatched,
+  lists,
+  onAddToList,
+  onRemoveFromList,
 }: {
   movie: Movie | null;
   open: boolean;
@@ -1290,6 +1371,9 @@ function MovieDetailModal({
   onDelete: (id: string) => Promise<void>;
   onToggleFavorite: (id: string) => Promise<void>;
   onMarkWatched: (id: string, data?: { watchedDate?: string; rating?: number; platform?: string }) => Promise<void>;
+  lists: MovieList[];
+  onAddToList: (listId: string, movieId: string) => Promise<void>;
+  onRemoveFromList: (listId: string, movieId: string) => Promise<void>;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [rating, setRating] = useState<number | undefined>();
@@ -1304,6 +1388,18 @@ function MovieDetailModal({
   }, [movie]);
 
   if (!movie) return null;
+
+  const isInList = (listId: string) => movie.lists?.includes(listId) || false;
+
+  const handleToggleList = async (listId: string) => {
+    if (isInList(listId)) {
+      await onRemoveFromList(listId, movie._id);
+      toast.success('Removed from collection');
+    } else {
+      await onAddToList(listId, movie._id);
+      toast.success('Added to collection');
+    }
+  };
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -1468,6 +1564,36 @@ function MovieDetailModal({
             </div>
           </div>
 
+          {/* Collections */}
+          {lists.length > 0 && (
+            <div className="mt-6">
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <Folder className="w-4 h-4" />
+                Collections
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {lists.map((list) => (
+                  <button
+                    key={list._id}
+                    onClick={() => handleToggleList(list._id)}
+                    className={cn(
+                      'flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm transition-all',
+                      isInList(list._id)
+                        ? 'bg-violet-500/10 border-violet-500/50 text-violet-600 dark:text-violet-400'
+                        : 'border-muted-foreground/30 text-muted-foreground hover:border-muted-foreground/50'
+                    )}
+                  >
+                    <span>{list.icon || '📁'}</span>
+                    <span>{list.name}</span>
+                    {isInList(list._id) && (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-violet-500" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Overview */}
           {movie.overview && (
             <div className="mt-6">
@@ -1548,6 +1674,126 @@ function MovieDetailModal({
               </Button>
             </div>
           )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Create Collection Modal Component
+function CreateCollectionModal({
+  open,
+  onOpenChange,
+  onCreateCollection,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreateCollection: (data: { name: string; description?: string; color?: string; icon?: string }) => Promise<void>;
+}) {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [icon, setIcon] = useState('🎬');
+  const [isCreating, setIsCreating] = useState(false);
+
+  const COLLECTION_ICONS = ['🎬', '🍿', '⭐', '🎯', '💡', '🔥', '💎', '🎭', '🎪', '📺', '🎥', '📽️'];
+
+  const handleCreate = async () => {
+    if (!name.trim()) {
+      toast.error('Please enter a collection name');
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      await onCreateCollection({
+        name: name.trim(),
+        description: description.trim() || undefined,
+        icon,
+      });
+      onOpenChange(false);
+      resetForm();
+    } catch (error) {
+      toast.error('Failed to create collection');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const resetForm = () => {
+    setName('');
+    setDescription('');
+    setIcon('🎬');
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) resetForm(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FolderPlus className="w-5 h-5 text-violet-500" />
+            Create Collection
+          </DialogTitle>
+          <DialogDescription>
+            Create a custom collection to organize your movies
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          <div>
+            <label className="text-sm font-medium mb-2 block">Icon</label>
+            <div className="flex flex-wrap gap-2">
+              {COLLECTION_ICONS.map((i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setIcon(i)}
+                  className={cn(
+                    'w-10 h-10 rounded-lg flex items-center justify-center text-xl transition-all',
+                    icon === i
+                      ? 'ring-2 ring-violet-500 bg-violet-500/10'
+                      : 'bg-muted hover:bg-accent'
+                  )}
+                >
+                  {i}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium mb-2 block">Name *</label>
+            <Input
+              placeholder="e.g., My Recommendations, Must Watch"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium mb-2 block">Description (optional)</label>
+            <Textarea
+              placeholder="What's this collection about?"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+            />
+          </div>
+
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
+            <Share2 className="w-4 h-4 shrink-0" />
+            <span>Sharing collections will be available in a future update</span>
+          </div>
+        </div>
+
+        <div className="flex gap-2 justify-end">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleCreate} disabled={isCreating || !name.trim()}>
+            {isCreating && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+            Create Collection
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
