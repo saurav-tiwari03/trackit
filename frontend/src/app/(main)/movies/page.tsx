@@ -756,8 +756,8 @@ function AddMovieModal({
         originalTitle: selectedTMDB.original_title,
         overview: selectedTMDB.overview || undefined,
         // Use manual poster URL for manual entries, TMDB path for TMDB entries
-        posterPath: isManualEntry ? manualPosterUrl || null : selectedTMDB.poster_path,
-        backdropPath: selectedTMDB.backdrop_path,
+        posterPath: isManualEntry ? (manualPosterUrl || undefined) : (selectedTMDB.poster_path || undefined),
+        backdropPath: selectedTMDB.backdrop_path || undefined,
         releaseDate: selectedTMDB.release_date || undefined,
         // Use manual runtime for manual entries
         runtime: isManualEntry ? (manualRuntime ? Number(manualRuntime) : undefined) : selectedTMDB.runtime,
