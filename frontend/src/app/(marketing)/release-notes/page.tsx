@@ -26,6 +26,64 @@ export const metadata: Metadata = {
 // Release notes data - add new releases at the top
 const releases = [
   {
+    version: '2.9.0',
+    date: 'February 1, 2026',
+    title: 'Movie Timeline - Track Your Cinematic Journey',
+    type: 'major',
+    changes: [
+      {
+        type: 'feature',
+        title: 'Movie Timeline',
+        description: 'Track movies you\'ve watched, are currently watching, and plan to watch. Your personal movie diary with beautiful timeline views.',
+      },
+      {
+        type: 'feature',
+        title: 'TMDB Integration',
+        description: 'Search and add movies from The Movie Database. Auto-fetch posters, ratings, runtime, genres, and more.',
+      },
+      {
+        type: 'feature',
+        title: 'Manual Movie Entry',
+        description: 'Can\'t find a movie in TMDB? Add it manually with custom poster URL, genres, runtime, and reviews.',
+      },
+      {
+        type: 'feature',
+        title: 'Multiple View Modes',
+        description: 'View your movies in Grid, List, or Timeline views. Timeline groups watched movies by month for easy browsing.',
+      },
+      {
+        type: 'feature',
+        title: 'Smart Filters',
+        description: 'Filter by status (Watched, Watching, Watchlist) or view only your Favorites. Each filter shows count badges.',
+      },
+      {
+        type: 'feature',
+        title: 'Personal Ratings & Reviews',
+        description: 'Rate movies on a 1-10 scale and write personal reviews. Track your opinions alongside TMDB ratings.',
+      },
+      {
+        type: 'feature',
+        title: 'Platform Tracking',
+        description: 'Remember where you watched each movie - Netflix, Prime, Disney+, HBO, Apple TV+, Theater, or Blu-ray.',
+      },
+      {
+        type: 'feature',
+        title: 'Favorites Collection',
+        description: 'Mark movies as favorites with a heart icon. Quick toast notifications confirm your selections.',
+      },
+      {
+        type: 'improvement',
+        title: 'Watch Time Statistics',
+        description: 'Dashboard shows total watch time in hours and minutes format (e.g., "1h 44m" instead of just hours).',
+      },
+      {
+        type: 'improvement',
+        title: 'Calendar Date Picker',
+        description: 'Pick watch dates with a calendar dropdown featuring Today and Yesterday quick-select buttons.',
+      },
+    ],
+  },
+  {
     version: '2.8.0',
     date: 'January 14, 2026',
     title: 'Enhanced Inbox & Whiteboard with SSR',
