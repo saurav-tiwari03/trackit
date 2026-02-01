@@ -123,11 +123,25 @@ export default function MoviesPage() {
     setFilter,
   } = useMoviesStore();
 
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    // Initialize from localStorage on client
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('trackit-movies-view');
+      if (saved === 'grid' || saved === 'list' || saved === 'timeline') {
+        return saved;
+      }
+    }
+    return 'grid';
+  });
   const [showAddModal, setShowAddModal] = useState(false);
   const [showMovieModal, setShowMovieModal] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Persist viewMode to localStorage
+  useEffect(() => {
+    localStorage.setItem('trackit-movies-view', viewMode);
+  }, [viewMode]);
 
   useEffect(() => {
     fetchMovies();
