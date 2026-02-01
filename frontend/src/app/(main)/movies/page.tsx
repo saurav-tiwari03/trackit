@@ -134,8 +134,22 @@ export default function MoviesPage() {
     fetchStats();
   }, [fetchMovies, fetchStats]);
 
-  const handleStatusFilter = (status: MovieStatus | 'all') => {
-    setFilter({ status: status === 'all' ? undefined : status });
+  const handleStatusFilter = (status: MovieStatus | 'all' | 'favorites') => {
+    if (status === 'favorites') {
+      setFilter({ status: undefined, isFavorite: true });
+    } else if (status === 'all') {
+      setFilter({ status: undefined, isFavorite: undefined });
+    } else {
+      setFilter({ status, isFavorite: undefined });
+    }
+  };
+
+  const handleToggleFavorite = async (id: string) => {
+    const movie = movies.find(m => m._id === id);
+    await toggleFavorite(id);
+    if (movie) {
+      toast.success(movie.isFavorite ? 'Removed from favorites' : 'Added to favorites');
+    }
   };
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -252,7 +266,48 @@ export default function MoviesPage() {
           </Card>
         </motion.div>
 
-        {/* Filters & View Toggle */}
+        {/* Filter Tabs */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          <Button
+            variant={!filter.status && !filter.isFavorite ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => handleStatusFilter('all')}
+            className="gap-2"
+          >
+            <Film className="w-4 h-4" />
+            All
+            <Badge variant="outline" className="ml-1 text-xs">{stats?.total || 0}</Badge>
+          </Button>
+          {STATUS_CONFIG.map((s) => (
+            <Button
+              key={s.value}
+              variant={filter.status === s.value ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => handleStatusFilter(s.value)}
+              className="gap-2"
+            >
+              <s.icon className={cn('w-4 h-4', s.color)} />
+              {s.label}
+              <Badge variant="outline" className="ml-1 text-xs">
+                {s.value === 'watched' ? stats?.watched || 0 : 
+                 s.value === 'watching' ? stats?.watching || 0 : 
+                 stats?.watchlist || 0}
+              </Badge>
+            </Button>
+          ))}
+          <Button
+            variant={filter.isFavorite ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => handleStatusFilter('favorites')}
+            className="gap-2"
+          >
+            <Heart className={cn('w-4 h-4', filter.isFavorite ? 'fill-red-500 text-red-500' : 'text-red-500')} />
+            Favorites
+            <Badge variant="outline" className="ml-1 text-xs">{stats?.favorites || 0}</Badge>
+          </Button>
+        </div>
+
+        {/* Search & View Toggle */}
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -264,50 +319,28 @@ export default function MoviesPage() {
             />
           </div>
 
-          <div className="flex gap-2">
-            <Select
-              value={filter.status || 'all'}
-              onValueChange={(value) => handleStatusFilter(value as MovieStatus | 'all')}
+          <div className="flex rounded-lg border bg-muted/50 p-1">
+            <Button
+              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('grid')}
             >
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                {STATUS_CONFIG.map((status) => (
-                  <SelectItem key={status.value} value={status.value}>
-                    <div className="flex items-center gap-2">
-                      <status.icon className={cn('w-4 h-4', status.color)} />
-                      {status.label}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <div className="flex rounded-lg border bg-muted/50 p-1">
-              <Button
-                variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('grid')}
-              >
-                <Grid3X3 className="w-4 h-4" />
-              </Button>
-              <Button
-                variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('list')}
-              >
-                <List className="w-4 h-4" />
-              </Button>
-              <Button
-                variant={viewMode === 'timeline' ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('timeline')}
-              >
-                <CalendarIcon className="w-4 h-4" />
-              </Button>
-            </div>
+              <Grid3X3 className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+            >
+              <List className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'timeline' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('timeline')}
+            >
+              <CalendarIcon className="w-4 h-4" />
+            </Button>
           </div>
         </div>
 
@@ -333,10 +366,10 @@ export default function MoviesPage() {
         ) : (
           <>
             {viewMode === 'grid' && (
-              <MovieGrid movies={movies} onMovieClick={handleMovieClick} onToggleFavorite={toggleFavorite} />
+              <MovieGrid movies={movies} onMovieClick={handleMovieClick} onToggleFavorite={handleToggleFavorite} />
             )}
             {viewMode === 'list' && (
-              <MovieList movies={movies} onMovieClick={handleMovieClick} onToggleFavorite={toggleFavorite} formatRuntime={formatRuntime} />
+              <MovieList movies={movies} onMovieClick={handleMovieClick} onToggleFavorite={handleToggleFavorite} formatRuntime={formatRuntime} />
             )}
             {viewMode === 'timeline' && (
               <MovieTimeline movies={movies.filter(m => m.status === 'watched' && m.watchedDate)} onMovieClick={handleMovieClick} />
@@ -359,7 +392,7 @@ export default function MoviesPage() {
         onOpenChange={setShowMovieModal}
         onUpdate={updateMovie}
         onDelete={deleteMovie}
-        onToggleFavorite={toggleFavorite}
+        onToggleFavorite={handleToggleFavorite}
         onMarkWatched={markWatched}
       />
     </div>
