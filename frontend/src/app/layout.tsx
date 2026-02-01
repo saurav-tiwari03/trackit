@@ -60,7 +60,7 @@ export const metadata: Metadata = {
       'A clean, minimalist task and project manager with inbox, calendar scheduling, attachments, mentions, and notifications.',
     images: [
       {
-        url: '/opengraph-image.png',
+        url: '/og-image.jpg',
         width: 1200,
         height: 630,
         alt: 'TrackIt - Clean Task & Project Manager',
@@ -72,7 +72,7 @@ export const metadata: Metadata = {
     title: 'TrackIt - Clean Task & Project Manager | Free Productivity App',
     description:
       'A clean, minimalist task and project manager with inbox, calendar scheduling, attachments, mentions, and notifications.',
-    images: ['/twitter-image.png'],
+    images: ['/og-image.jpg'],
   },
 };
 
