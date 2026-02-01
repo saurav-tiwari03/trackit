@@ -107,13 +107,16 @@ export default function ProjectsPage() {
     if (!projectToDelete) return;
     try {
       await deleteProject(projectToDelete.id);
-      await fetchProjects();
       toast.success('Project deleted successfully');
       setDeleteDialogOpen(false);
       setProjectToDelete(null);
+      // Refresh projects list
+      await fetchProjects();
     } catch (error) {
       console.error('Failed to delete project:', error);
       toast.error('Failed to delete project');
+      setDeleteDialogOpen(false);
+      setProjectToDelete(null);
     }
   };
 
@@ -121,14 +124,17 @@ export default function ProjectsPage() {
     if (!projectToLeave) return;
     try {
       await leaveProject(projectToLeave.id);
-      await fetchProjects();
       toast.success('Left project');
       setLeaveDialogOpen(false);
       setProjectToLeave(null);
+      // Refresh projects list
+      await fetchProjects();
     } catch (error: any) {
       const message =
         error?.response?.data?.message || error?.message || 'Failed to leave project';
       toast.error(message);
+      setLeaveDialogOpen(false);
+      setProjectToLeave(null);
     }
   };
 

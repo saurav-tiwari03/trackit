@@ -131,6 +131,10 @@ export function ProjectSettingsModal({ project, isOpen, onClose }: ProjectSettin
       toast.success('Project deleted');
       setDeleteOpen(false);
       onClose();
+      // Navigate away from deleted project page
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/projects/')) {
+        window.location.href = '/projects';
+      }
     } catch (error) {
       console.error('Failed to delete project:', error);
       toast.error('Failed to delete project');
