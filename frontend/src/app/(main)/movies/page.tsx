@@ -462,6 +462,8 @@ export default function MoviesPage() {
         open={showAddModal}
         onOpenChange={setShowAddModal}
         onAddMovie={addMovie}
+        lists={lists}
+        onAddToList={addToList}
       />
 
       {/* Movie Detail Modal */}
@@ -802,10 +804,14 @@ function AddMovieModal({
   open,
   onOpenChange,
   onAddMovie,
+  lists,
+  onAddToList,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddMovie: (data: Partial<Movie>) => Promise<Movie>;
+  lists: MovieList[];
+  onAddToList: (listId: string, movieId: string) => Promise<void>;
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<TMDBMovie[]>([]);
@@ -819,6 +825,7 @@ function AddMovieModal({
   const [platform, setPlatform] = useState<MoviePlatform | undefined>();
   const [watchedDate, setWatchedDate] = useState<string>('');
   const [notes, setNotes] = useState('');
+  const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
   
   // Manual entry fields
   const [manualPosterUrl, setManualPosterUrl] = useState('');
@@ -874,7 +881,7 @@ function AddMovieModal({
     try {
       const isManualEntry = selectedTMDB.id === 0;
       
-      await onAddMovie({
+      const newMovie = await onAddMovie({
         // Only include tmdbId for TMDB entries
         ...(isManualEntry ? {} : { tmdbId: selectedTMDB.id }),
         title: selectedTMDB.title,
@@ -896,6 +903,13 @@ function AddMovieModal({
         platform: status === 'watched' ? platform : undefined,
         notes,
       });
+
+      // Add movie to selected collections
+      if (selectedCollections.length > 0 && newMovie._id) {
+        await Promise.all(
+          selectedCollections.map((listId) => onAddToList(listId, newMovie._id))
+        );
+      }
 
       toast.success('Movie added successfully!');
       onOpenChange(false);
@@ -921,6 +935,7 @@ function AddMovieModal({
     setManualGenres([]);
     setManualRuntime('');
     setReview('');
+    setSelectedCollections([]);
   };
 
   return (
@@ -1329,6 +1344,40 @@ function AddMovieModal({
                   rows={2}
                 />
               </div>
+
+              {/* Add to Collection */}
+              {lists.length > 0 && (
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Add to Collection (optional)</label>
+                  <div className="flex flex-wrap gap-2">
+                    {lists.map((list) => (
+                      <button
+                        key={list._id}
+                        type="button"
+                        onClick={() => {
+                          if (selectedCollections.includes(list._id)) {
+                            setSelectedCollections(selectedCollections.filter(id => id !== list._id));
+                          } else {
+                            setSelectedCollections([...selectedCollections, list._id]);
+                          }
+                        }}
+                        className={cn(
+                          'flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm transition-all',
+                          selectedCollections.includes(list._id)
+                            ? 'bg-violet-500/10 border-violet-500/50 text-violet-600 dark:text-violet-400'
+                            : 'border-muted-foreground/30 text-muted-foreground hover:border-muted-foreground/50'
+                        )}
+                      >
+                        <span>{list.icon || '📁'}</span>
+                        <span>{list.name}</span>
+                        {selectedCollections.includes(list._id) && (
+                          <Check className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-2 mt-6">
