@@ -45,3 +45,4 @@ export {
 } from './AIUsage';
 export { Whiteboard, IWhiteboard } from './Whiteboard';
 export { GroceryList, IGroceryList, IGroceryItem } from './GroceryList';
+export { Movie, IMovie, MovieList, IMovieList, MovieStatus, MoviePlatform } from './Movie';
