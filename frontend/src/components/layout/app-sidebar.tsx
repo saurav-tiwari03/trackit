@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -26,6 +26,7 @@ import {
   PenTool,
   ShoppingCart,
   Film,
+  LucideIcon,
 } from 'lucide-react';
 
 import {
@@ -62,23 +63,25 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuthStore } from '@/store/auth';
 import { useProjectsStore } from '@/store/projects';
 import { useNotificationsStore } from '@/store/notifications';
+import { useSidebarStore, SidebarItemId } from '@/store/sidebar';
 import { cn } from '@/lib/utils';
 
-const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard', color: 'text-blue-500' },
-  { icon: Inbox, label: 'Inbox', href: '/inbox', color: 'text-violet-500' },
-  { icon: ShoppingCart, label: 'Grocery', href: '/grocery', color: 'text-lime-500' },
-  { icon: Flame, label: 'Streaks', href: '/streaks', color: 'text-orange-500' },
-  { icon: Dumbbell, label: 'FitLog', href: '/fitlog', color: 'text-emerald-500' },
-  { icon: Film, label: 'Movies', href: '/movies', color: 'text-rose-500' },
-  { icon: CheckSquare, label: 'All Tasks', href: '/tasks', color: 'text-green-500' },
-  { icon: Calendar, label: 'Calendar', href: '/calendar', color: 'text-amber-500' },
-  { icon: StickyNote, label: 'Notes', href: '/notes', color: 'text-yellow-500' },
-  { icon: PenTool, label: 'Whiteboards', href: '/whiteboards', color: 'text-violet-500' },
-  { icon: Trophy, label: 'Achievements', href: '/achievements', color: 'text-teal-500' },
-  { icon: MessageCircle, label: 'Slack', href: '/slack', color: 'text-pink-500' },
-  { icon: Bell, label: 'Notifications', href: '/notifications', color: 'text-red-500' },
-];
+// Map of item id to nav item config
+const NAV_ITEMS_CONFIG: Record<SidebarItemId, { icon: LucideIcon; label: string; href: string; color: string }> = {
+  dashboard: { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard', color: 'text-blue-500' },
+  inbox: { icon: Inbox, label: 'Inbox', href: '/inbox', color: 'text-violet-500' },
+  grocery: { icon: ShoppingCart, label: 'Grocery', href: '/grocery', color: 'text-lime-500' },
+  streaks: { icon: Flame, label: 'Streaks', href: '/streaks', color: 'text-orange-500' },
+  fitlog: { icon: Dumbbell, label: 'FitLog', href: '/fitlog', color: 'text-emerald-500' },
+  movies: { icon: Film, label: 'Movies', href: '/movies', color: 'text-rose-500' },
+  tasks: { icon: CheckSquare, label: 'All Tasks', href: '/tasks', color: 'text-green-500' },
+  calendar: { icon: Calendar, label: 'Calendar', href: '/calendar', color: 'text-amber-500' },
+  notes: { icon: StickyNote, label: 'Notes', href: '/notes', color: 'text-yellow-500' },
+  whiteboards: { icon: PenTool, label: 'Whiteboards', href: '/whiteboards', color: 'text-violet-500' },
+  achievements: { icon: Trophy, label: 'Achievements', href: '/achievements', color: 'text-teal-500' },
+  slack: { icon: MessageCircle, label: 'Slack', href: '/slack', color: 'text-pink-500' },
+  notifications: { icon: Bell, label: 'Notifications', href: '/notifications', color: 'text-red-500' },
+};
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -86,8 +89,16 @@ export function AppSidebar() {
   const { user, logout } = useAuthStore();
   const { projects } = useProjectsStore();
   const { unreadCount, fetchUnreadCount } = useNotificationsStore();
+  const { visibleItems, itemOrder } = useSidebarStore();
   const { toggleSidebar, setOpen, setOpenMobile, isMobile } = useSidebar();
   const [projectsOpen, setProjectsOpen] = useState(true);
+
+  // Get visible nav items in the correct order
+  const navItems = useMemo(() => {
+    return itemOrder
+      .filter((id) => visibleItems[id])
+      .map((id) => ({ id, ...NAV_ITEMS_CONFIG[id] }));
+  }, [visibleItems, itemOrder]);
 
   // Auto-collapse on Slack page and expand on hover
   const isSlackPage = pathname === '/slack';
@@ -162,7 +173,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
+                <SidebarMenuItem key={item.id}>
                   <SidebarMenuButton
                     asChild
                     isActive={pathname === item.href}
@@ -176,7 +187,7 @@ export function AppSidebar() {
                     >
                       <item.icon className={cn('h-4 w-4', item.color)} />
                       <span>{item.label}</span>
-                      {item.href === '/notifications' && unreadCount > 0 && (
+                      {item.id === 'notifications' && unreadCount > 0 && (
                         <span className="ml-auto inline-flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] h-5 min-w-5 px-1.5 group-data-[collapsible=icon]:hidden">
                           {unreadCount > 99 ? '99+' : unreadCount}
                         </span>

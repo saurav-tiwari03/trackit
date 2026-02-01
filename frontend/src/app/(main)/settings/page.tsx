@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { User, Bell, Palette, Shield, LogOut, Calendar, Check, Loader2, ExternalLink, Unlink, Camera, Trash2, Zap, Crown, Sparkles, CreditCard, Receipt } from 'lucide-react';
+import { User, Bell, Palette, Shield, LogOut, Calendar, Check, Loader2, ExternalLink, Unlink, Camera, Trash2, Zap, Crown, Sparkles, CreditCard, Receipt, PanelLeft, Eye, EyeOff, RotateCcw, GripVertical } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,8 @@ import { Transaction } from '@/types';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { PushNotificationSettings } from '@/components/settings/push-notification-settings';
+import { useSidebarStore, SIDEBAR_ITEMS, SidebarItemId } from '@/store/sidebar';
+import { Switch } from '@/components/ui/switch';
 
 interface GoogleCalendarStatus {
   connected: boolean;
@@ -611,6 +613,15 @@ function SettingsContent() {
             <PushNotificationSettings />
           </motion.div>
 
+          {/* Sidebar Customization */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.22 }}
+          >
+            <SidebarSettings />
+          </motion.div>
+
           {/* Other Settings */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -659,6 +670,76 @@ function SettingsContent() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Sidebar Settings Component
+function SidebarSettings() {
+  const { visibleItems, toggleItem, resetToDefaults } = useSidebarStore();
+
+  const visibleCount = Object.values(visibleItems).filter(Boolean).length;
+  const totalCount = SIDEBAR_ITEMS.length;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <PanelLeft className="w-5 h-5" />
+            <div>
+              <CardTitle>Sidebar</CardTitle>
+              <CardDescription>
+                Customize which items appear in your sidebar
+              </CardDescription>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              resetToDefaults();
+              toast.success('Sidebar reset to defaults');
+            }}
+            className="gap-2"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Reset
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-4 flex items-center justify-between text-sm text-muted-foreground">
+          <span>{visibleCount} of {totalCount} items visible</span>
+          <span className="text-xs">Toggle items to show/hide in sidebar</span>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {SIDEBAR_ITEMS.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center justify-between p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                {visibleItems[item.id] ? (
+                  <Eye className="w-4 h-4 text-green-500" />
+                ) : (
+                  <EyeOff className="w-4 h-4 text-muted-foreground" />
+                )}
+                <span className={visibleItems[item.id] ? 'font-medium' : 'text-muted-foreground'}>
+                  {item.label}
+                </span>
+              </div>
+              <Switch
+                checked={visibleItems[item.id]}
+                onCheckedChange={() => toggleItem(item.id)}
+              />
+            </div>
+          ))}
+        </div>
+        <p className="mt-4 text-xs text-muted-foreground">
+          Changes are saved automatically and will reflect in your sidebar immediately.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
