@@ -1479,6 +1479,9 @@ function MovieDetailModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+        {/* Visually hidden title for accessibility */}
+        <DialogTitle className="sr-only">{movie.title}</DialogTitle>
+        
         {/* Backdrop */}
         {movie.backdropPath && (
           <div className="relative h-48 overflow-hidden">
