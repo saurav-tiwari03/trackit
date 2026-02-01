@@ -9,6 +9,8 @@ import {
   TrendingUp,
   ArrowRight,
   Plus,
+  Film,
+  Star,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +19,7 @@ import DotBackgroundDemo from '@/components/ui/dot-background-demo';
 import { StreakChart } from '@/components/charts/streak-chart';
 import { RecentNotes } from '@/components/dashboard/recent-notes';
 import { useProjectsStore } from '@/store/projects';
-import { tasksAPI } from '@/lib/api';
+import { tasksAPI, moviesAPI } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
@@ -61,9 +63,18 @@ interface ProjectProgress {
   inProgress: number;
 }
 
+interface MovieStats {
+  total: number;
+  watched: number;
+  watching: number;
+  watchlist: number;
+  thisMonth: number;
+}
+
 export default function DashboardPage() {
   const { stats, projects, fetchStats } = useProjectsStore();
   const [projectProgress, setProjectProgress] = useState<Record<string, ProjectProgress>>({});
+  const [movieStats, setMovieStats] = useState<MovieStats | null>(null);
 
   const fetchProjectProgress = useCallback(async () => {
     try {
@@ -118,10 +129,20 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const fetchMovieStats = useCallback(async () => {
+    try {
+      const response = await moviesAPI.getStats();
+      setMovieStats(response.data.data);
+    } catch (error) {
+      console.error('Failed to fetch movie stats:', error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStats();
     void fetchProjectProgress();
-  }, [fetchStats, fetchProjectProgress]);
+    void fetchMovieStats();
+  }, [fetchStats, fetchProjectProgress, fetchMovieStats]);
 
   const getProgressPercentage = (projectId: string) => {
     const progress = projectProgress[projectId];
@@ -214,6 +235,71 @@ export default function DashboardPage() {
         <div className="mb-8">
           <RecentNotes />
         </div>
+
+        {/* Movies Card */}
+        {movieStats && movieStats.total > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
+            className="mb-8"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Film className="w-5 h-5 text-rose-500" />
+                Movies
+              </h2>
+              <Link
+                href="/movies"
+                className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"
+              >
+                View all <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+            <Card className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-rose-500/10">
+                      <Film className="w-5 h-5 text-rose-500" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{movieStats.total}</p>
+                      <p className="text-xs text-muted-foreground">Total</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-green-500/10">
+                      <CheckCircle2 className="w-5 h-5 text-green-500" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{movieStats.watched}</p>
+                      <p className="text-xs text-muted-foreground">Watched</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-amber-500/10">
+                      <Clock className="w-5 h-5 text-amber-500" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{movieStats.watchlist}</p>
+                      <p className="text-xs text-muted-foreground">Watchlist</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-violet-500/10">
+                      <Star className="w-5 h-5 text-violet-500" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{movieStats.thisMonth}</p>
+                      <p className="text-xs text-muted-foreground">This Month</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Projects Grid */}
         <motion.div

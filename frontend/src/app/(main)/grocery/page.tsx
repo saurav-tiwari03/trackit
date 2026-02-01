@@ -1,0 +1,689 @@
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import {
+  ShoppingCart,
+  Plus,
+  Trash2,
+  Check,
+  X,
+  ChevronRight,
+  ChevronDown,
+  MoreHorizontal,
+  MoveRight,
+  Pencil,
+  Circle,
+  CheckCircle2,
+  Loader2,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+} from '@/components/ui/dropdown-menu';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { cn } from '@/lib/utils';
+import { groceryAPI } from '@/lib/api';
+import { GroceryList, GroceryItem } from '@/types';
+import { toast } from '@/components/ui/sonner';
+
+const listColors = [
+  { name: 'Gray', value: '#6b7280' },
+  { name: 'Red', value: '#ef4444' },
+  { name: 'Orange', value: '#f97316' },
+  { name: 'Yellow', value: '#eab308' },
+  { name: 'Green', value: '#22c55e' },
+  { name: 'Blue', value: '#3b82f6' },
+  { name: 'Purple', value: '#a855f7' },
+  { name: 'Pink', value: '#ec4899' },
+];
+
+const listIcons = [
+  { name: 'Shopping Cart', value: '🛒' },
+  { name: 'Grocery Bag', value: '🛍️' },
+  { name: 'Basket', value: '🧺' },
+  { name: 'Apple', value: '🍎' },
+  { name: 'Carrot', value: '🥕' },
+  { name: 'Bread', value: '🍞' },
+  { name: 'Milk', value: '🥛' },
+  { name: 'Egg', value: '🥚' },
+  { name: 'Meat', value: '🥩' },
+  { name: 'Fish', value: '🐟' },
+  { name: 'Cheese', value: '🧀' },
+  { name: 'Pizza', value: '🍕' },
+  { name: 'Salad', value: '🥗' },
+  { name: 'Coffee', value: '☕' },
+  { name: 'Wine', value: '🍷' },
+  { name: 'Home', value: '🏠' },
+  { name: 'Office', value: '🏢' },
+  { name: 'Heart', value: '❤️' },
+  { name: 'Star', value: '⭐' },
+  { name: 'Gift', value: '🎁' },
+  { name: 'Party', value: '🎉' },
+  { name: 'Baby', value: '👶' },
+  { name: 'Pet', value: '🐾' },
+  { name: 'Medicine', value: '💊' },
+];
+
+export default function GroceryPage() {
+  const [lists, setLists] = useState<GroceryList[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [expandedLists, setExpandedLists] = useState<Set<string>>(new Set());
+
+  // New list state
+  const [isAddingList, setIsAddingList] = useState(false);
+  const [newListName, setNewListName] = useState('');
+
+  // New item state
+  const [addingItemToList, setAddingItemToList] = useState<string | null>(null);
+  const [newItemName, setNewItemName] = useState('');
+
+  // Edit state
+  const [editingList, setEditingList] = useState<string | null>(null);
+  const [editingListName, setEditingListName] = useState('');
+  const [editingItem, setEditingItem] = useState<{ listId: string; itemId: string } | null>(null);
+  const [editingItemName, setEditingItemName] = useState('');
+
+  const newItemInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch lists on mount
+  useEffect(() => {
+    fetchLists();
+  }, []);
+
+  const fetchLists = async () => {
+    setIsLoading(true);
+    try {
+      const response = await groceryAPI.getLists();
+      setLists(response.data.data);
+      // Expand all lists by default
+      setExpandedLists(new Set(response.data.data.map((l: GroceryList) => l._id)));
+    } catch (error) {
+      console.error('Error fetching grocery lists:', error);
+      toast.error('Failed to load grocery lists');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateList = async () => {
+    if (!newListName.trim()) return;
+
+    try {
+      const response = await groceryAPI.createList({ name: newListName.trim() });
+      setLists((prev) => [...prev, response.data.data]);
+      setExpandedLists((prev) => new Set([...prev, response.data.data._id]));
+      setNewListName('');
+      setIsAddingList(false);
+      toast.success('List created');
+    } catch (error) {
+      console.error('Error creating list:', error);
+      toast.error('Failed to create list');
+    }
+  };
+
+  const handleDeleteList = async (listId: string) => {
+    try {
+      await groceryAPI.deleteList(listId);
+      setLists((prev) => prev.filter((l) => l._id !== listId));
+      toast.success('List deleted');
+    } catch (error) {
+      console.error('Error deleting list:', error);
+      toast.error('Failed to delete list');
+    }
+  };
+
+  const handleUpdateListName = async (listId: string) => {
+    if (!editingListName.trim()) {
+      setEditingList(null);
+      return;
+    }
+
+    try {
+      const response = await groceryAPI.updateList(listId, { name: editingListName.trim() });
+      setLists((prev) =>
+        prev.map((l) => (l._id === listId ? response.data.data : l))
+      );
+      setEditingList(null);
+      setEditingListName('');
+    } catch (error) {
+      console.error('Error updating list:', error);
+      toast.error('Failed to update list');
+    }
+  };
+
+  const handleUpdateListColor = async (listId: string, color: string) => {
+    try {
+      const response = await groceryAPI.updateList(listId, { color });
+      setLists((prev) =>
+        prev.map((l) => (l._id === listId ? response.data.data : l))
+      );
+    } catch (error) {
+      console.error('Error updating list color:', error);
+      toast.error('Failed to update color');
+    }
+  };
+
+  const handleUpdateListIcon = async (listId: string, icon: string) => {
+    try {
+      const response = await groceryAPI.updateList(listId, { icon });
+      setLists((prev) =>
+        prev.map((l) => (l._id === listId ? response.data.data : l))
+      );
+    } catch (error) {
+      console.error('Error updating list icon:', error);
+      toast.error('Failed to update icon');
+    }
+  };
+
+  const handleAddItem = async (listId: string) => {
+    if (!newItemName.trim()) return;
+
+    try {
+      const response = await groceryAPI.addItem(listId, { name: newItemName.trim() });
+      setLists((prev) =>
+        prev.map((l) => (l._id === listId ? response.data.data : l))
+      );
+      setNewItemName('');
+      // Keep focus on input for quick entry
+      newItemInputRef.current?.focus();
+    } catch (error) {
+      console.error('Error adding item:', error);
+      toast.error('Failed to add item');
+    }
+  };
+
+  const handleToggleItem = async (listId: string, item: GroceryItem) => {
+    try {
+      const response = await groceryAPI.updateItem(listId, item._id, {
+        isCompleted: !item.isCompleted,
+      });
+      setLists((prev) =>
+        prev.map((l) => (l._id === listId ? response.data.data : l))
+      );
+    } catch (error) {
+      console.error('Error toggling item:', error);
+      toast.error('Failed to update item');
+    }
+  };
+
+  const handleDeleteItem = async (listId: string, itemId: string) => {
+    try {
+      const response = await groceryAPI.deleteItem(listId, itemId);
+      setLists((prev) =>
+        prev.map((l) => (l._id === listId ? response.data.data : l))
+      );
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      toast.error('Failed to delete item');
+    }
+  };
+
+  const handleUpdateItemName = async (listId: string, itemId: string) => {
+    if (!editingItemName.trim()) {
+      setEditingItem(null);
+      return;
+    }
+
+    try {
+      const response = await groceryAPI.updateItem(listId, itemId, {
+        name: editingItemName.trim(),
+      });
+      setLists((prev) =>
+        prev.map((l) => (l._id === listId ? response.data.data : l))
+      );
+      setEditingItem(null);
+      setEditingItemName('');
+    } catch (error) {
+      console.error('Error updating item:', error);
+      toast.error('Failed to update item');
+    }
+  };
+
+  const handleMoveItem = async (
+    sourceListId: string,
+    itemId: string,
+    targetListId: string
+  ) => {
+    try {
+      const response = await groceryAPI.moveItem(sourceListId, itemId, targetListId);
+      const { sourceList, targetList } = response.data.data;
+      setLists((prev) =>
+        prev.map((l) => {
+          if (l._id === sourceListId) return sourceList;
+          if (l._id === targetListId) return targetList;
+          return l;
+        })
+      );
+      toast.success('Item moved');
+    } catch (error) {
+      console.error('Error moving item:', error);
+      toast.error('Failed to move item');
+    }
+  };
+
+  const handleClearCompleted = async (listId: string) => {
+    try {
+      const response = await groceryAPI.clearCompleted(listId);
+      setLists((prev) =>
+        prev.map((l) => (l._id === listId ? response.data.data : l))
+      );
+      toast.success('Completed items cleared');
+    } catch (error) {
+      console.error('Error clearing completed:', error);
+      toast.error('Failed to clear completed items');
+    }
+  };
+
+  const toggleExpanded = (listId: string) => {
+    setExpandedLists((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(listId)) {
+        newSet.delete(listId);
+      } else {
+        newSet.add(listId);
+      }
+      return newSet;
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Loading grocery lists...</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b">
+        <div className="flex items-center gap-3">
+          <ShoppingCart className="h-6 w-6 text-lime-500" />
+          <div>
+            <h1 className="text-xl font-semibold">Grocery Lists</h1>
+            <p className="text-sm text-muted-foreground">
+              Manage your shopping lists
+            </p>
+          </div>
+        </div>
+        <Button onClick={() => setIsAddingList(true)} className="gap-2">
+          <Plus className="h-4 w-4" />
+          New List
+        </Button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-6xl mx-auto space-y-4">
+          {/* Add New List Form */}
+          {isAddingList && (
+            <div className="flex items-center gap-2 p-4 border rounded-lg bg-card">
+              <Input
+                value={newListName}
+                onChange={(e) => setNewListName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleCreateList();
+                  if (e.key === 'Escape') {
+                    setIsAddingList(false);
+                    setNewListName('');
+                  }
+                }}
+                placeholder="List name..."
+                className="flex-1"
+                autoFocus
+              />
+              <Button onClick={handleCreateList} disabled={!newListName.trim()}>
+                Create
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setIsAddingList(false);
+                  setNewListName('');
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+
+          {/* Lists */}
+          {lists.map((list) => {
+            const isExpanded = expandedLists.has(list._id);
+            const completedCount = list.items.filter((i) => i.isCompleted).length;
+            const totalCount = list.items.length;
+
+            return (
+              <Collapsible
+                key={list._id}
+                open={isExpanded}
+                onOpenChange={() => toggleExpanded(list._id)}
+              >
+                <div className="border rounded-lg overflow-hidden bg-card">
+                  {/* List Header */}
+                  <div
+                    className="flex items-center gap-3 px-4 py-3 group"
+                    style={{ borderLeft: `4px solid ${list.color || '#6b7280'}` }}
+                  >
+                    <CollapsibleTrigger asChild>
+                      <button className="p-1 hover:bg-muted rounded transition-colors">
+                        {isExpanded ? (
+                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        )}
+                      </button>
+                    </CollapsibleTrigger>
+
+                    {/* List Icon */}
+                    <span className="text-2xl" title="Click menu to change icon">
+                      {list.icon || '🛒'}
+                    </span>
+
+                    {editingList === list._id ? (
+                      <Input
+                        value={editingListName}
+                        onChange={(e) => setEditingListName(e.target.value)}
+                        onBlur={() => handleUpdateListName(list._id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleUpdateListName(list._id);
+                          if (e.key === 'Escape') setEditingList(null);
+                        }}
+                        className="h-8 flex-1 text-lg font-semibold"
+                        autoFocus
+                      />
+                    ) : (
+                      <h2
+                        className="text-lg font-semibold flex-1 cursor-pointer hover:text-primary transition-colors"
+                        onClick={() => {
+                          setEditingList(list._id);
+                          setEditingListName(list.name);
+                        }}
+                      >
+                        {list.name}
+                      </h2>
+                    )}
+
+                    <span className="text-sm text-muted-foreground">
+                      {completedCount}/{totalCount} items
+                    </span>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="p-2 opacity-0 group-hover:opacity-100 hover:bg-muted rounded transition-all">
+                          <MoreHorizontal className="h-5 w-5 text-muted-foreground" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setEditingList(list._id);
+                            setEditingListName(list.name);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Rename
+                        </DropdownMenuItem>
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <span className="mr-2 text-base">{list.icon || '🛒'}</span>
+                            Icon
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent className="max-h-[300px] overflow-y-auto">
+                            <div className="grid grid-cols-6 gap-1 p-2">
+                              {listIcons.map((icon) => (
+                                <button
+                                  key={icon.value}
+                                  onClick={() => handleUpdateListIcon(list._id, icon.value)}
+                                  className={cn(
+                                    "h-8 w-8 flex items-center justify-center text-xl rounded hover:bg-muted transition-colors",
+                                    list.icon === icon.value && "bg-primary/20 ring-1 ring-primary"
+                                  )}
+                                  title={icon.name}
+                                >
+                                  {icon.value}
+                                </button>
+                              ))}
+                            </div>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <div
+                              className="h-4 w-4 rounded mr-2"
+                              style={{ backgroundColor: list.color || '#6b7280' }}
+                            />
+                            Color
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            {listColors.map((color) => (
+                              <DropdownMenuItem
+                                key={color.value}
+                                onClick={() => handleUpdateListColor(list._id, color.value)}
+                              >
+                                <div
+                                  className="h-4 w-4 rounded mr-2"
+                                  style={{ backgroundColor: color.value }}
+                                />
+                                {color.name}
+                                {list.color === color.value && (
+                                  <Check className="h-4 w-4 ml-auto" />
+                                )}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        {completedCount > 0 && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleClearCompleted(list._id)}>
+                              <Check className="h-4 w-4 mr-2" />
+                              Clear completed
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => handleDeleteList(list._id)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete list
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+
+                  {/* List Items */}
+                  <CollapsibleContent>
+                    <div className="divide-y border-t">
+                      {list.items
+                        .sort((a, b) => a.order - b.order)
+                        .map((item) => (
+                          <div
+                            key={item._id}
+                            className="flex items-center gap-3 px-4 py-3 group/item hover:bg-muted/30"
+                          >
+                            <button
+                              onClick={() => handleToggleItem(list._id, item)}
+                              className="shrink-0"
+                            >
+                              {item.isCompleted ? (
+                                <CheckCircle2 className="h-6 w-6 text-green-500" />
+                              ) : (
+                                <Circle className="h-6 w-6 text-muted-foreground hover:text-green-500 transition-colors" />
+                              )}
+                            </button>
+
+                            {editingItem?.listId === list._id &&
+                            editingItem?.itemId === item._id ? (
+                              <Input
+                                value={editingItemName}
+                                onChange={(e) => setEditingItemName(e.target.value)}
+                                onBlur={() => handleUpdateItemName(list._id, item._id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter')
+                                    handleUpdateItemName(list._id, item._id);
+                                  if (e.key === 'Escape') setEditingItem(null);
+                                }}
+                                className="h-8 flex-1"
+                                autoFocus
+                              />
+                            ) : (
+                              <span
+                                className={cn(
+                                  'flex-1 cursor-pointer',
+                                  item.isCompleted && 'line-through text-muted-foreground'
+                                )}
+                                onClick={() => {
+                                  setEditingItem({ listId: list._id, itemId: item._id });
+                                  setEditingItemName(item.name);
+                                }}
+                              >
+                                {item.name}
+                                {item.quantity && item.quantity > 1 && (
+                                  <span className="text-muted-foreground ml-2">
+                                    x{item.quantity}
+                                  </span>
+                                )}
+                                {item.unit && (
+                                  <span className="text-muted-foreground ml-1">
+                                    {item.unit}
+                                  </span>
+                                )}
+                              </span>
+                            )}
+
+                            <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                              {lists.length > 1 && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <button className="p-1.5 hover:bg-muted rounded transition-colors">
+                                      <MoveRight className="h-4 w-4 text-muted-foreground" />
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <div className="px-2 py-1.5 text-xs text-muted-foreground font-medium">
+                                      Move to...
+                                    </div>
+                                    {lists
+                                      .filter((l) => l._id !== list._id)
+                                      .map((targetList) => (
+                                        <DropdownMenuItem
+                                          key={targetList._id}
+                                          onClick={() =>
+                                            handleMoveItem(list._id, item._id, targetList._id)
+                                          }
+                                        >
+                                          <div
+                                            className="h-3 w-3 rounded mr-2"
+                                            style={{
+                                              backgroundColor: targetList.color || '#6b7280',
+                                            }}
+                                          />
+                                          {targetList.name}
+                                        </DropdownMenuItem>
+                                      ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
+                              <button
+                                onClick={() => handleDeleteItem(list._id, item._id)}
+                                className="p-1.5 hover:bg-muted rounded transition-colors"
+                              >
+                                <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+
+                      {/* Add Item Input */}
+                      {addingItemToList === list._id ? (
+                        <div className="flex items-center gap-3 px-4 py-3">
+                          <Circle className="h-6 w-6 text-muted-foreground/50 shrink-0" />
+                          <Input
+                            ref={newItemInputRef}
+                            value={newItemName}
+                            onChange={(e) => setNewItemName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleAddItem(list._id);
+                              }
+                              if (e.key === 'Escape') {
+                                setAddingItemToList(null);
+                                setNewItemName('');
+                              }
+                            }}
+                            onBlur={() => {
+                              if (!newItemName.trim()) {
+                                setAddingItemToList(null);
+                              }
+                            }}
+                            placeholder="Add item..."
+                            className="h-8 flex-1 border-0 bg-transparent focus-visible:ring-0"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => {
+                              setAddingItemToList(null);
+                              setNewItemName('');
+                            }}
+                            className="p-1.5 hover:bg-muted rounded"
+                          >
+                            <X className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setAddingItemToList(list._id);
+                            setNewItemName('');
+                          }}
+                          className="flex items-center gap-3 px-4 py-3 w-full text-sm text-primary hover:bg-muted/30 transition-colors"
+                        >
+                          <Plus className="h-5 w-5" />
+                          Add item
+                        </button>
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                </div>
+              </Collapsible>
+            );
+          })}
+
+          {/* Empty State */}
+          {lists.length === 0 && !isAddingList && (
+            <div className="text-center py-16">
+              <ShoppingCart className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
+              <h2 className="text-xl font-semibold mb-2">No grocery lists yet</h2>
+              <p className="text-muted-foreground mb-6">
+                Create your first list to start organizing your shopping
+              </p>
+              <Button onClick={() => setIsAddingList(true)} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Create your first list
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

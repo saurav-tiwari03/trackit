@@ -55,6 +55,33 @@ const listColors = [
   { name: 'Pink', value: '#ec4899' },
 ];
 
+const listIcons = [
+  { name: 'Shopping Cart', value: '🛒' },
+  { name: 'Grocery Bag', value: '🛍️' },
+  { name: 'Basket', value: '🧺' },
+  { name: 'Apple', value: '🍎' },
+  { name: 'Carrot', value: '🥕' },
+  { name: 'Bread', value: '🍞' },
+  { name: 'Milk', value: '🥛' },
+  { name: 'Egg', value: '🥚' },
+  { name: 'Meat', value: '🥩' },
+  { name: 'Fish', value: '🐟' },
+  { name: 'Cheese', value: '🧀' },
+  { name: 'Pizza', value: '🍕' },
+  { name: 'Salad', value: '🥗' },
+  { name: 'Coffee', value: '☕' },
+  { name: 'Wine', value: '🍷' },
+  { name: 'Home', value: '🏠' },
+  { name: 'Office', value: '🏢' },
+  { name: 'Heart', value: '❤️' },
+  { name: 'Star', value: '⭐' },
+  { name: 'Gift', value: '🎁' },
+  { name: 'Party', value: '🎉' },
+  { name: 'Baby', value: '👶' },
+  { name: 'Pet', value: '🐾' },
+  { name: 'Medicine', value: '💊' },
+];
+
 export function GroceryListPopover() {
   const [isOpen, setIsOpen] = useState(false);
   const [lists, setLists] = useState<GroceryList[]>([]);
@@ -155,6 +182,18 @@ export function GroceryListPopover() {
     } catch (error) {
       console.error('Error updating list color:', error);
       toast.error('Failed to update color');
+    }
+  };
+
+  const handleUpdateListIcon = async (listId: string, icon: string) => {
+    try {
+      const response = await groceryAPI.updateList(listId, { icon });
+      setLists((prev) =>
+        prev.map((l) => (l._id === listId ? response.data.data : l))
+      );
+    } catch (error) {
+      console.error('Error updating list icon:', error);
+      toast.error('Failed to update icon');
     }
   };
 
@@ -277,7 +316,7 @@ export function GroceryListPopover() {
           <span className="hidden sm:inline">Grocery</span>
         </Button>
       </SheetTrigger>
-      <SheetContent className="w-[400px] sm:w-[450px] overflow-y-auto">
+      <SheetContent className="w-[90vw] sm:w-[500px] md:w-[30vw] md:min-w-[500px] overflow-y-auto">
         <SheetHeader className="mb-4">
           <SheetTitle className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5" />
@@ -318,6 +357,9 @@ export function GroceryListPopover() {
                           )}
                         </button>
                       </CollapsibleTrigger>
+
+                      {/* List Icon */}
+                      <span className="text-lg">{list.icon || '🛒'}</span>
 
                       {editingList === list._id ? (
                         <Input
@@ -363,6 +405,29 @@ export function GroceryListPopover() {
                             <Pencil className="h-4 w-4 mr-2" />
                             Rename
                           </DropdownMenuItem>
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                              <span className="mr-2">{list.icon || '🛒'}</span>
+                              Icon
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent className="max-h-[250px] overflow-y-auto">
+                              <div className="grid grid-cols-6 gap-1 p-2">
+                                {listIcons.map((icon) => (
+                                  <button
+                                    key={icon.value}
+                                    onClick={() => handleUpdateListIcon(list._id, icon.value)}
+                                    className={cn(
+                                      "h-7 w-7 flex items-center justify-center text-lg rounded hover:bg-muted transition-colors",
+                                      list.icon === icon.value && "bg-primary/20 ring-1 ring-primary"
+                                    )}
+                                    title={icon.name}
+                                  >
+                                    {icon.value}
+                                  </button>
+                                ))}
+                              </div>
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
                           <DropdownMenuSub>
                             <DropdownMenuSubTrigger>
                               <div

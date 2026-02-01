@@ -361,6 +361,88 @@ export interface FitLogWeeklyStats {
   daysLogged: number;
 }
 
+// Movie Types
+export type MovieStatus = 'watched' | 'watching' | 'watchlist';
+export type MoviePlatform = 'netflix' | 'prime' | 'disney' | 'hbo' | 'apple' | 'theater' | 'bluray' | 'other';
+
+export interface Movie {
+  _id: string;
+  user: string;
+  tmdbId?: number;
+  title: string;
+  originalTitle?: string;
+  overview?: string;
+  posterPath?: string;
+  backdropPath?: string;
+  releaseDate?: string;
+  runtime?: number;
+  genres?: string[];
+  voteAverage?: number;
+  status: MovieStatus;
+  rating?: number;
+  review?: string;
+  watchedDate?: string;
+  plannedDate?: string;
+  platform?: MoviePlatform;
+  rewatchCount: number;
+  isFavorite: boolean;
+  tags?: string[];
+  notes?: string;
+  lists?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MovieList {
+  _id: string;
+  user: string;
+  name: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  isPublic: boolean;
+  order: number;
+  movieCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MovieStats {
+  total: number;
+  watched: number;
+  watching: number;
+  watchlist: number;
+  favorites: number;
+  totalRuntime: number;
+  avgRating: number | null;
+  thisMonth: number;
+  topGenres: { genre: string; count: number }[];
+  platforms: { platform: string; count: number }[];
+}
+
+export interface TMDBMovie {
+  id: number;
+  title: string;
+  original_title: string;
+  overview: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  release_date: string;
+  runtime?: number;
+  genre_ids?: number[];
+  genres?: { id: number; name: string }[];
+  vote_average: number;
+  vote_count: number;
+  popularity: number;
+}
+
+export interface TMDBSearchResult {
+  page: number;
+  results: TMDBMovie[];
+  total_pages: number;
+  total_results: number;
+}
+
 // Grocery List Types
 export interface GroceryItem {
   _id: string;
@@ -383,4 +465,3 @@ export interface GroceryList {
   createdAt: string;
   updatedAt: string;
 }
-

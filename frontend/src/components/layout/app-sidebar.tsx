@@ -24,6 +24,8 @@ import {
   Sparkles,
   Dumbbell,
   PenTool,
+  ShoppingCart,
+  Film,
 } from 'lucide-react';
 
 import {
@@ -65,8 +67,10 @@ import { cn } from '@/lib/utils';
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard', color: 'text-blue-500' },
   { icon: Inbox, label: 'Inbox', href: '/inbox', color: 'text-violet-500' },
+  { icon: ShoppingCart, label: 'Grocery', href: '/grocery', color: 'text-lime-500' },
   { icon: Flame, label: 'Streaks', href: '/streaks', color: 'text-orange-500' },
   { icon: Dumbbell, label: 'FitLog', href: '/fitlog', color: 'text-emerald-500' },
+  { icon: Film, label: 'Movies', href: '/movies', color: 'text-rose-500' },
   { icon: CheckSquare, label: 'All Tasks', href: '/tasks', color: 'text-green-500' },
   { icon: Calendar, label: 'Calendar', href: '/calendar', color: 'text-amber-500' },
   { icon: StickyNote, label: 'Notes', href: '/notes', color: 'text-yellow-500' },

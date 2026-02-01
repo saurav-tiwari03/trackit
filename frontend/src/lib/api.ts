@@ -615,5 +615,139 @@ export const groceryAPI = {
     api.post(`/grocery/${listId}/clear-completed`),
 };
 
+// Movies API
+export const moviesAPI = {
+  // Movies
+  getAll: (params?: {
+    status?: string;
+    isFavorite?: boolean;
+    search?: string;
+    sortBy?: string;
+    sortOrder?: string;
+    limit?: number;
+    skip?: number;
+  }) => api.get('/movies', { params }),
+  
+  getOne: (id: string) => api.get(`/movies/${id}`),
+  
+  getStats: () => api.get('/movies/stats'),
+  
+  getTimeline: (params?: { year?: number; month?: number }) =>
+    api.get('/movies/timeline', { params }),
+  
+  create: (data: {
+    tmdbId?: number;
+    title: string;
+    originalTitle?: string;
+    overview?: string;
+    posterPath?: string;
+    backdropPath?: string;
+    releaseDate?: string;
+    runtime?: number;
+    genres?: string[];
+    voteAverage?: number;
+    status?: string;
+    rating?: number;
+    review?: string;
+    watchedDate?: string;
+    plannedDate?: string;
+    platform?: string;
+    tags?: string[];
+    notes?: string;
+  }) => api.post('/movies', data),
+  
+  update: (id: string, data: {
+    status?: string;
+    rating?: number;
+    review?: string;
+    watchedDate?: string;
+    plannedDate?: string;
+    platform?: string;
+    rewatchCount?: number;
+    isFavorite?: boolean;
+    tags?: string[];
+    notes?: string;
+  }) => api.put(`/movies/${id}`, data),
+  
+  delete: (id: string) => api.delete(`/movies/${id}`),
+  
+  toggleFavorite: (id: string) => api.patch(`/movies/${id}/favorite`),
+  
+  markWatched: (id: string, data?: {
+    watchedDate?: string;
+    rating?: number;
+    platform?: string;
+  }) => api.patch(`/movies/${id}/watched`, data),
+  
+  // Movie Lists
+  getLists: () => api.get('/movies/lists/all'),
+  
+  createList: (data: {
+    name: string;
+    description?: string;
+    color?: string;
+    icon?: string;
+    isPublic?: boolean;
+  }) => api.post('/movies/lists', data),
+  
+  updateList: (id: string, data: {
+    name?: string;
+    description?: string;
+    color?: string;
+    icon?: string;
+    isPublic?: boolean;
+    order?: number;
+  }) => api.put(`/movies/lists/${id}`, data),
+  
+  deleteList: (id: string) => api.delete(`/movies/lists/${id}`),
+  
+  getListMovies: (listId: string) => api.get(`/movies/lists/${listId}/movies`),
+  
+  addToList: (listId: string, movieId: string) =>
+    api.post(`/movies/lists/${listId}/movies/${movieId}`),
+  
+  removeFromList: (listId: string, movieId: string) =>
+    api.delete(`/movies/lists/${listId}/movies/${movieId}`),
+};
+
+// TMDB API (client-side - using public API key)
+const TMDB_API_KEY = process.env.NEXT_PUBLIC_TMDB_API_KEY;
+const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+
+export const tmdbAPI = {
+  search: async (query: string, page = 1) => {
+    const response = await fetch(
+      `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&page=${page}`
+    );
+    return response.json();
+  },
+  
+  getMovie: async (tmdbId: number) => {
+    const response = await fetch(
+      `${TMDB_BASE_URL}/movie/${tmdbId}?api_key=${TMDB_API_KEY}`
+    );
+    return response.json();
+  },
+  
+  getPopular: async (page = 1) => {
+    const response = await fetch(
+      `${TMDB_BASE_URL}/movie/popular?api_key=${TMDB_API_KEY}&page=${page}`
+    );
+    return response.json();
+  },
+  
+  getTrending: async (timeWindow: 'day' | 'week' = 'week') => {
+    const response = await fetch(
+      `${TMDB_BASE_URL}/trending/movie/${timeWindow}?api_key=${TMDB_API_KEY}`
+    );
+    return response.json();
+  },
+  
+  getImageUrl: (path: string | null, size: 'w92' | 'w154' | 'w185' | 'w342' | 'w500' | 'w780' | 'original' = 'w342') => {
+    if (!path) return null;
+    return `https://image.tmdb.org/t/p/${size}${path}`;
+  },
+};
+
 export default api;
 
