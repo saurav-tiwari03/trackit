@@ -18,7 +18,7 @@ export const metadata: Metadata = {
       'http://localhost:3000').replace(/\/$/, '')
   ),
   title: {
-    default: 'TrackIt',
+    default: 'TrackIt - Clean Task & Project Manager | Free Productivity App',
     template: '%s · TrackIt',
   },
   description:
@@ -55,24 +55,24 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'TrackIt',
-    title: 'TrackIt',
+    title: 'TrackIt - Clean Task & Project Manager | Free Productivity App',
     description:
       'A clean, minimalist task and project manager with inbox, calendar scheduling, attachments, mentions, and notifications.',
     images: [
       {
-        url: '/opengraph-image',
+        url: '/opengraph-image.png',
         width: 1200,
         height: 630,
-        alt: 'TrackIt',
+        alt: 'TrackIt - Clean Task & Project Manager',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'TrackIt',
+    title: 'TrackIt - Clean Task & Project Manager | Free Productivity App',
     description:
       'A clean, minimalist task and project manager with inbox, calendar scheduling, attachments, mentions, and notifications.',
-    images: ['/opengraph-image'],
+    images: ['/twitter-image.png'],
   },
 };
 

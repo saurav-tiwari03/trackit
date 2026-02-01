@@ -1,19 +1,11 @@
 import { ImageResponse } from 'next/og';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
+export const alt = 'TrackIt - Clean Task & Project Manager';
 
 export default async function OpenGraphImage() {
-  let logo: ArrayBuffer | null = null;
-  try {
-    logo = await fetch(new URL('../../public/logo.png', import.meta.url)).then((r) =>
-      r.arrayBuffer()
-    );
-  } catch {
-    logo = null;
-  }
-
   return new ImageResponse(
     (
       <div
@@ -32,47 +24,28 @@ export default async function OpenGraphImage() {
           fontFamily: 'Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif',
         }}
       >
+        {/* Top: Logo and brand */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div
             style={{
               width: 64,
               height: 64,
               borderRadius: 18,
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.12)',
+              background: 'linear-gradient(135deg, #6366f1 0%, #22c55e 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              overflow: 'hidden',
             }}
           >
-            {logo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={logo as any}
-                alt="TrackIt"
-                width={52}
-                height={52}
-                style={{ borderRadius: 14 }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: 52,
-                  height: 52,
-                  borderRadius: 14,
-                  background: 'white',
-                  color: '#0b0b0f',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 800,
-                  fontSize: 28,
-                }}
-              >
-                T
-              </div>
-            )}
+            <div
+              style={{
+                fontSize: 36,
+                fontWeight: 800,
+                color: 'white',
+              }}
+            >
+              T
+            </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <div style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.1 }}>TrackIt</div>
@@ -80,6 +53,7 @@ export default async function OpenGraphImage() {
           </div>
         </div>
 
+        {/* Middle: Main headline */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div
             style={{
@@ -90,17 +64,18 @@ export default async function OpenGraphImage() {
               lineHeight: 1.05,
             }}
           >
-            <div>A clean workspace</div>
-            <div>for focused work.</div>
+            <div>The Task Manager</div>
+            <div>That Actually Gets Used</div>
           </div>
           <div style={{ fontSize: 22, opacity: 0.82, maxWidth: 820, lineHeight: 1.35 }}>
-            Inbox, projects, calendar scheduling, attachments, mentions and notifications.
+            Inbox, projects, calendar, habits, notes & team collaboration — all in one clean workspace.
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {['Inbox', 'Projects', 'Calendar', 'Attachments', 'Mentions', 'Notifications'].map(
-            (t) => (
+        {/* Bottom: Features + CTA */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {['Inbox', 'Projects', 'Calendar', 'Habits', 'Notes'].map((t) => (
               <div
                 key={t}
                 style={{
@@ -114,8 +89,21 @@ export default async function OpenGraphImage() {
               >
                 {t}
               </div>
-            )
-          )}
+            ))}
+          </div>
+          {/* CTA Button */}
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 600,
+              padding: '14px 28px',
+              borderRadius: 12,
+              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+              color: 'white',
+            }}
+          >
+            Try Free →
+          </div>
         </div>
       </div>
     ),
