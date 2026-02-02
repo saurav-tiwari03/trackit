@@ -248,7 +248,7 @@ export default function MoviesPage() {
               <Button
                 variant="outline"
                 onClick={() => setShowRecommendModal(true)}
-                className="bg-gradient-to-r from-violet-500/10 to-purple-500/10 border-violet-500/30 hover:border-violet-500/50"
+                className="bg-linear-to-r from-violet-500/10 to-purple-500/10 border-violet-500/30 hover:border-violet-500/50"
               >
                 <Sparkles className="w-4 h-4 mr-2 text-violet-500" />
                 Recommend
@@ -609,7 +609,7 @@ function MovieGrid({
             className="group cursor-pointer overflow-hidden hover:shadow-lg transition-all"
             onClick={() => onMovieClick(movie)}
           >
-            <div className="relative aspect-[2/3]">
+            <div className="relative aspect-2/3">
               {movie.posterPath ? (
                 <img
                   src={getPosterUrl(movie.posterPath, 'w342') || ''}
@@ -623,7 +623,7 @@ function MovieGrid({
               )}
 
               {/* Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
               {/* Status Badge */}
               <div className="absolute top-2 left-2">
@@ -1092,7 +1092,7 @@ function AddMovieModal({
                             </div>
                           )}
                         </div>
-                        <ChevronDown className="w-4 h-4 text-muted-foreground rotate-[-90deg]" />
+                        <ChevronDown className="w-4 h-4 text-muted-foreground -rotate-90" />
                       </CardContent>
                     </Card>
                   ))}
@@ -1143,7 +1143,7 @@ function AddMovieModal({
               <div className="w-32 shrink-0">
                 {selectedTMDB.id === 0 ? (
                   <div className="space-y-2">
-                    <div className="aspect-[2/3] rounded-lg overflow-hidden bg-muted flex items-center justify-center relative group">
+                    <div className="aspect-2/3 rounded-lg overflow-hidden bg-muted flex items-center justify-center relative group">
                       {manualPosterUrl ? (
                         <>
                           <img
@@ -1183,7 +1183,7 @@ function AddMovieModal({
                         className="w-full h-auto"
                       />
                     ) : (
-                      <div className="aspect-[2/3] bg-muted flex items-center justify-center">
+                      <div className="aspect-2/3 bg-muted flex items-center justify-center">
                         <Film className="w-12 h-12 text-muted-foreground/30" />
                       </div>
                     )}
@@ -1595,7 +1595,7 @@ function MovieDetailModal({
                     className="w-full h-auto"
                   />
                 ) : (
-                  <div className="aspect-[2/3] bg-muted flex items-center justify-center">
+                  <div className="aspect-2/3 bg-muted flex items-center justify-center">
                     <Film className="w-12 h-12 text-muted-foreground/30" />
                   </div>
                 )}
@@ -2477,7 +2477,7 @@ function RecommendationModal({
 
                   <Button
                     onClick={() => handleGetRecommendation()}
-                    className="w-full bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600"
+                    className="w-full bg-linear-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600"
                   >
                     <Sparkles className="w-4 h-4 mr-2" />
                     Get Recommendation
@@ -2779,7 +2779,7 @@ function RecommendationModal({
                         transition={{ delay: 0.9 + index * 0.1 }}
                         className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted/80 transition-colors"
                       >
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-linear-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center shrink-0">
                           <Film className="w-4 h-4 text-violet-500" />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -2833,7 +2833,7 @@ function RecommendationModal({
                     onOpenChange(false);
                     resetModal();
                   }}
-                  className="flex-1 bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600"
+                  className="flex-1 bg-linear-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600"
                 >
                   <Check className="w-4 h-4 mr-2" />
                   Done
