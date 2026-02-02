@@ -12,6 +12,11 @@ export type SubscriptionPlanType = 'free' | 'plus' | 'pro';
 
 export type SubscriptionStatusType = 'active' | 'authenticated' | 'pending' | 'halted' | 'cancelled' | 'paused' | 'expired' | 'completed';
 
+export interface IShownRecommendation {
+  title: string;
+  shownAt: Date;
+}
+
 export interface IUser extends Document {
   _id: Types.ObjectId;
   name: string;
@@ -19,6 +24,9 @@ export interface IUser extends Document {
   password: string;
   avatar?: string;
   labels: string[];
+  geminiApiKey?: string;
+  geminiModel?: string;
+  shownRecommendations?: IShownRecommendation[];
   googleCalendar?: IGoogleCalendarTokens;
   // Subscription fields for quick access
   subscriptionPlan: SubscriptionPlanType;
@@ -59,6 +67,19 @@ const userSchema = new Schema<IUser>(
       type: [String],
       default: [],
     },
+    geminiApiKey: {
+      type: String,
+      default: '',
+      select: false, // Don't include in queries by default for security
+    },
+    geminiModel: {
+      type: String,
+      default: 'gemini-2.5-flash',
+    },
+    shownRecommendations: [{
+      title: { type: String, required: true },
+      shownAt: { type: Date, default: Date.now },
+    }],
     googleCalendar: {
       accessToken: { type: String },
       refreshToken: { type: String },

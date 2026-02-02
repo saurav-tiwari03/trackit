@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { Movie, MovieList } from '../models';
 import { protect, AuthRequest } from '../middleware/auth';
+import { getMovieRecommendation } from '../service/gemini.service';
 
 const router = Router();
 
@@ -9,11 +10,11 @@ const router = Router();
 // Get all movies for the user with filters
 router.get('/', protect, async (req: AuthRequest, res: Response) => {
   try {
-    const { 
-      status, 
-      isFavorite, 
-      search, 
-      sortBy = 'createdAt', 
+    const {
+      status,
+      isFavorite,
+      search,
+      sortBy = 'createdAt',
       sortOrder = 'desc',
       limit,
       skip,
@@ -71,23 +72,23 @@ router.get('/stats', protect, async (req: AuthRequest, res: Response) => {
           watching: { $sum: { $cond: [{ $eq: ['$status', 'watching'] }, 1, 0] } },
           watchlist: { $sum: { $cond: [{ $eq: ['$status', 'watchlist'] }, 1, 0] } },
           favorites: { $sum: { $cond: ['$isFavorite', 1, 0] } },
-          totalRuntime: { 
-            $sum: { 
+          totalRuntime: {
+            $sum: {
               $cond: [
-                { $eq: ['$status', 'watched'] }, 
-                { $ifNull: ['$runtime', 0] }, 
+                { $eq: ['$status', 'watched'] },
+                { $ifNull: ['$runtime', 0] },
                 0
-              ] 
-            } 
+              ]
+            }
           },
-          avgRating: { 
-            $avg: { 
+          avgRating: {
+            $avg: {
               $cond: [
-                { $ne: ['$rating', null] }, 
-                '$rating', 
+                { $ne: ['$rating', null] },
+                '$rating',
                 null
-              ] 
-            } 
+              ]
+            }
           },
         },
       },
@@ -147,7 +148,7 @@ router.get('/timeline', protect, async (req: AuthRequest, res: Response) => {
     const { year, month } = req.query;
     const userId = req.user!._id;
 
-    const query: Record<string, unknown> = { 
+    const query: Record<string, unknown> = {
       user: userId,
       status: 'watched',
       watchedDate: { $exists: true, $ne: null },
@@ -237,8 +238,8 @@ router.post('/', protect, async (req: AuthRequest, res: Response) => {
       });
 
       if (existing) {
-        return res.status(400).json({ 
-          success: false, 
+        return res.status(400).json({
+          success: false,
           message: 'This movie is already in your collection',
           existingId: existing._id,
         });
@@ -385,6 +386,134 @@ router.delete('/:id', protect, async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Error deleting movie:', error);
     res.status(500).json({ success: false, message: 'Failed to delete movie' });
+  }
+});
+
+// ==================== AI RECOMMENDATIONS ====================
+
+// Get AI-powered movie recommendation
+router.post('/recommend', protect, async (req: AuthRequest, res: Response) => {
+  console.log('📥 /recommend endpoint called');
+  try {
+    const { contentType = 'movie', mood, excludedTitles = [] } = req.body;
+    console.log('📋 Request body:', { contentType, mood, excludedTitlesCount: excludedTitles?.length || 0 });
+
+    // Validate contentType
+    if (!['movie', 'series', 'any'].includes(contentType)) {
+      console.log('❌ Invalid content type:', contentType);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid content type. Must be "movie", "series", or "any"'
+      });
+    }
+
+    // Get user with their Gemini API key, model preference, and shown recommendations
+    console.log('👤 Fetching user data for:', req.user!._id);
+    const { User } = await import('../models');
+    const user = await User.findById(req.user!._id).select('+geminiApiKey geminiModel shownRecommendations');
+
+    if (!user) {
+      console.log('❌ User not found');
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const userApiKey = user?.geminiApiKey;
+    const validModels = (await import('../service/gemini.service')).GEMINI_MODELS.map(m => m.id) as string[];
+    const rawUserModel = user?.geminiModel || 'gemini-2.5-flash';
+    const userModel = validModels.includes(rawUserModel) ? rawUserModel : 'gemini-2.5-flash';
+    if (user && rawUserModel !== userModel) {
+      // Auto-migrate invalid/expired saved model to prevent recurring 404s
+      await User.findByIdAndUpdate(req.user!._id, { geminiModel: userModel });
+    }
+
+    console.log('🔑 API Key status:', {
+      hasUserApiKey: !!userApiKey,
+      keyLength: userApiKey?.length || 0,
+      model: userModel,
+    });
+
+    // Combine session excluded titles with DB stored shown recommendations
+    // Get recommendations shown in last 30 days to avoid repeats
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const dbExcludedTitles = (user?.shownRecommendations || [])
+      .filter((r: { title: string; shownAt: Date }) => new Date(r.shownAt) > thirtyDaysAgo)
+      .map((r: { title: string }) => r.title);
+
+    const allExcludedTitles = [...new Set([...excludedTitles, ...dbExcludedTitles])];
+    console.log('🚫 Excluded titles count:', allExcludedTitles.length);
+
+    // Get user's watched movies for context
+    console.log('🎥 Fetching watched movies...');
+    const watchedMovies = await Movie.find({
+      user: req.user!._id,
+      status: 'watched',
+    })
+      .sort({ watchedDate: -1, createdAt: -1 })
+      .limit(50)
+      .select('title genres rating releaseDate isFavorite');
+
+    console.log('🎥 Found watched movies:', watchedMovies.length);
+
+    if (watchedMovies.length === 0) {
+      console.log('❌ No watched movies found');
+      return res.status(400).json({
+        success: false,
+        message: 'You need to have watched movies to get personalized recommendations. Add some movies to your watched list first!',
+      });
+    }
+
+    // Prepare data for Gemini
+    const watchedData = watchedMovies.map(movie => ({
+      title: movie.title,
+      genres: movie.genres || [],
+      rating: movie.rating,
+      releaseDate: movie.releaseDate,
+      isFavorite: movie.isFavorite,
+    }));
+
+    console.log('🤖 Calling Gemini API...');
+    // Get recommendation from Gemini (use user's key and model preference if available)
+    const result = await getMovieRecommendation({
+      contentType,
+      watchedMovies: watchedData,
+      mood,
+      userApiKey,
+      modelId: userModel,
+      excludedTitles: allExcludedTitles,
+    });
+
+    console.log('🤖 Gemini result:', { success: result.success, error: result.error, hasData: !!result.data });
+
+    if (!result.success) {
+      console.error('❌ Gemini recommendation failed:', result.error);
+      return res.status(500).json({
+        success: false,
+        message: result.error || 'Failed to get recommendation',
+      });
+    }
+
+    // Save the recommendation to user's shown history (for future exclusion)
+    if (result.data?.title) {
+      await User.findByIdAndUpdate(req.user!._id, {
+        $push: {
+          shownRecommendations: {
+            $each: [{ title: result.data.title, shownAt: new Date() }],
+            $slice: -100, // Keep only last 100 recommendations
+          },
+        },
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.data,
+      watchHistoryCount: watchedMovies.length,
+    });
+  } catch (error) {
+    console.error('❌ Error getting movie recommendation:', error);
+    console.error('❌ Error type:', typeof error);
+    console.error('❌ Error message:', error instanceof Error ? error.message : String(error));
+    res.status(500).json({ success: false, message: 'Failed to get recommendation' });
   }
 });
 

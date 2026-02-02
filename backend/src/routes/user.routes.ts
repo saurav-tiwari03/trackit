@@ -3,6 +3,7 @@ import multer from 'multer';
 import { protect, AuthRequest } from '../middleware/auth';
 import { User } from '../models';
 import { uploadToS3, deleteFromS3, getSignedS3Url } from '../utils/fileUpload';
+import { validateGeminiApiKey, GEMINI_MODELS, GeminiModelId } from '../service/gemini.service';
 
 // Helper to get avatar URL (signed if S3 key, or original if external URL)
 const getAvatarUrl = async (avatar?: string): Promise<string> => {
@@ -316,6 +317,224 @@ router.delete(
       res.status(500).json({
         success: false,
         message: 'Failed to remove avatar',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+);
+
+// @route   PUT /api/users/gemini-key
+// @desc    Update user's Gemini API key and model (validates before saving)
+// @access  Private
+router.put(
+  '/gemini-key',
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { geminiApiKey, geminiModel, skipValidation } = req.body;
+      const userId = req.user?._id;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'User not authenticated',
+        });
+        return;
+      }
+
+      // If removing the key, just update and return
+      if (!geminiApiKey?.trim()) {
+        await User.findByIdAndUpdate(userId, { geminiApiKey: '' });
+        res.json({
+          success: true,
+          message: 'Gemini API key removed',
+          data: {
+            hasGeminiKey: false,
+            valid: false,
+          },
+        });
+        return;
+      }
+
+      // Use provided model or default (and normalize to supported models)
+      const validModels = GEMINI_MODELS.map(m => m.id) as string[];
+      const requestedModel = geminiModel || 'gemini-2.5-flash';
+      const modelToUse = validModels.includes(requestedModel) ? requestedModel : 'gemini-2.5-flash';
+
+      // Validate the API key before saving (unless skipped)
+      if (!skipValidation) {
+        const validation = await validateGeminiApiKey(geminiApiKey.trim(), modelToUse);
+
+        if (!validation.valid) {
+          res.status(400).json({
+            success: false,
+            message: validation.error || 'Invalid API key',
+            data: {
+              valid: false,
+              error: validation.error,
+            },
+          });
+          return;
+        }
+      }
+
+      // Save the validated key and model preference
+      await User.findByIdAndUpdate(userId, {
+        geminiApiKey: geminiApiKey.trim(),
+        geminiModel: modelToUse,
+      });
+
+      res.json({
+        success: true,
+        message: 'Gemini API key saved and validated',
+        data: {
+          hasGeminiKey: true,
+          valid: true,
+          geminiModel: modelToUse,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update Gemini API key',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+);
+
+// @route   POST /api/users/gemini-key/validate
+// @desc    Validate a Gemini API key without saving
+// @access  Private
+router.post(
+  '/gemini-key/validate',
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { geminiApiKey } = req.body;
+
+      if (!geminiApiKey?.trim()) {
+        res.status(400).json({
+          success: false,
+          message: 'API key is required',
+        });
+        return;
+      }
+
+      const validation = await validateGeminiApiKey(geminiApiKey.trim());
+
+      res.json({
+        success: true,
+        data: {
+          valid: validation.valid,
+          error: validation.error,
+          modelsTested: validation.modelsTested,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to validate API key',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+);
+
+// @route   GET /api/users/gemini-key/status
+// @desc    Check if user has a Gemini API key configured and get model preference
+// @access  Private
+router.get(
+  '/gemini-key/status',
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?._id;
+      const validModels = GEMINI_MODELS.map(m => m.id) as string[];
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'User not authenticated',
+        });
+        return;
+      }
+
+      const user = await User.findById(userId).select('+geminiApiKey geminiModel');
+
+      // Mask the API key for display (show first 4 and last 4 characters)
+      const apiKey = user?.geminiApiKey?.trim();
+      let maskedKey = '';
+      if (apiKey && apiKey.length > 8) {
+        maskedKey = `${apiKey.slice(0, 4)}${'•'.repeat(Math.min(apiKey.length - 8, 20))}${apiKey.slice(-4)}`;
+      } else if (apiKey) {
+        maskedKey = '••••••••••••';
+      }
+
+      // If user's saved model is invalid/expired, migrate to default to stop 404s
+      const currentModel = user?.geminiModel || 'gemini-2.5-flash';
+      const normalizedModel = validModels.includes(currentModel) ? currentModel : 'gemini-2.5-flash';
+      if (user && currentModel !== normalizedModel) {
+        await User.findByIdAndUpdate(userId, { geminiModel: normalizedModel });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          hasGeminiKey: !!apiKey,
+          maskedKey,
+          geminiModel: normalizedModel,
+          availableModels: GEMINI_MODELS,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to check Gemini API key status',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+);
+
+// @route   PUT /api/users/gemini-model
+// @desc    Update user's preferred Gemini model
+// @access  Private
+router.put(
+  '/gemini-model',
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { geminiModel } = req.body;
+      const userId = req.user?._id;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'User not authenticated',
+        });
+        return;
+      }
+
+      // Validate model ID
+      const validModels = GEMINI_MODELS.map(m => m.id) as string[];
+      if (!validModels.includes(geminiModel)) {
+        res.status(400).json({
+          success: false,
+          message: `Invalid model. Must be one of: ${validModels.join(', ')}`,
+        });
+        return;
+      }
+
+      await User.findByIdAndUpdate(userId, { geminiModel });
+
+      res.json({
+        success: true,
+        message: 'Gemini model preference updated',
+        data: {
+          geminiModel,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update Gemini model',
         error: error instanceof Error ? error.message : 'Unknown error',
       });
     }
