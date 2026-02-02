@@ -26,17 +26,17 @@ const handleUnauthorized = () => {
   if (typeof window !== 'undefined') {
     // Clear all localStorage
     localStorage.clear();
-    
+
     // Clear all sessionStorage
     sessionStorage.clear();
-    
+
     // Clear any cookies if needed (for httpOnly cookies, backend should handle)
     document.cookie.split(';').forEach(cookie => {
       const eqPos = cookie.indexOf('=');
       const name = eqPos > -1 ? cookie.substring(0, eqPos) : cookie;
       document.cookie = name.trim() + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
     });
-    
+
     // Redirect to login if not already there
     if (!window.location.pathname.includes('/login')) {
       window.location.href = '/login';
@@ -48,8 +48,8 @@ const handleUnauthorized = () => {
 api.interceptors.response.use(
   response => {
     // Check for unauthorized response even on successful HTTP status
-    if (response.data?.success === false && 
-        response.data?.message === 'Not authorized to access this route') {
+    if (response.data?.success === false &&
+      response.data?.message === 'Not authorized to access this route') {
       handleUnauthorized();
       return Promise.reject(new Error('Unauthorized'));
     }
@@ -60,13 +60,13 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       handleUnauthorized();
     }
-    
+
     // Also check for unauthorized message in error response
-    if (error.response?.data?.success === false && 
-        error.response?.data?.message === 'Not authorized to access this route') {
+    if (error.response?.data?.success === false &&
+      error.response?.data?.message === 'Not authorized to access this route') {
       handleUnauthorized();
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -214,6 +214,12 @@ export const usersAPI = {
     });
   },
   removeAvatar: () => api.delete('/users/avatar'),
+  // Gemini API key management
+  updateGeminiKey: (geminiApiKey: string, geminiModel?: string, skipValidation?: boolean) =>
+    api.put('/users/gemini-key', { geminiApiKey, geminiModel, skipValidation }),
+  getGeminiKeyStatus: () => api.get('/users/gemini-key/status'),
+  updateGeminiModel: (geminiModel: string) =>
+    api.put('/users/gemini-model', { geminiModel }),
 };
 
 // Chats API (attachments are uploaded via HTTP; messages via sockets)
@@ -598,7 +604,7 @@ export const groceryAPI = {
   updateList: (id: string, data: { name?: string; color?: string; icon?: string; order?: number }) =>
     api.put(`/grocery/${id}`, data),
   deleteList: (id: string) => api.delete(`/grocery/${id}`),
-  
+
   // Items
   addItem: (listId: string, data: { name: string; quantity?: number; unit?: string }) =>
     api.post(`/grocery/${listId}/items`, data),
@@ -627,14 +633,14 @@ export const moviesAPI = {
     limit?: number;
     skip?: number;
   }) => api.get('/movies', { params }),
-  
+
   getOne: (id: string) => api.get(`/movies/${id}`),
-  
+
   getStats: () => api.get('/movies/stats'),
-  
+
   getTimeline: (params?: { year?: number; month?: number }) =>
     api.get('/movies/timeline', { params }),
-  
+
   create: (data: {
     tmdbId?: number;
     title: string;
@@ -655,7 +661,7 @@ export const moviesAPI = {
     tags?: string[];
     notes?: string;
   }) => api.post('/movies', data),
-  
+
   update: (id: string, data: {
     status?: string;
     rating?: number;
@@ -668,20 +674,20 @@ export const moviesAPI = {
     tags?: string[];
     notes?: string;
   }) => api.put(`/movies/${id}`, data),
-  
+
   delete: (id: string) => api.delete(`/movies/${id}`),
-  
+
   toggleFavorite: (id: string) => api.patch(`/movies/${id}/favorite`),
-  
+
   markWatched: (id: string, data?: {
     watchedDate?: string;
     rating?: number;
     platform?: string;
   }) => api.patch(`/movies/${id}/watched`, data),
-  
+
   // Movie Lists
   getLists: () => api.get('/movies/lists/all'),
-  
+
   createList: (data: {
     name: string;
     description?: string;
@@ -689,7 +695,7 @@ export const moviesAPI = {
     icon?: string;
     isPublic?: boolean;
   }) => api.post('/movies/lists', data),
-  
+
   updateList: (id: string, data: {
     name?: string;
     description?: string;
@@ -698,16 +704,23 @@ export const moviesAPI = {
     isPublic?: boolean;
     order?: number;
   }) => api.put(`/movies/lists/${id}`, data),
-  
+
   deleteList: (id: string) => api.delete(`/movies/lists/${id}`),
-  
+
   getListMovies: (listId: string) => api.get(`/movies/lists/${listId}/movies`),
-  
+
   addToList: (listId: string, movieId: string) =>
     api.post(`/movies/lists/${listId}/movies/${movieId}`),
-  
+
   removeFromList: (listId: string, movieId: string) =>
     api.delete(`/movies/lists/${listId}/movies/${movieId}`),
+
+  // AI Recommendations
+  getRecommendation: (data: {
+    contentType: 'movie' | 'series' | 'any';
+    mood?: string;
+    excludedTitles?: string[];
+  }) => api.post('/movies/recommend', data),
 };
 
 // TMDB API (client-side - using public API key)
@@ -721,28 +734,28 @@ export const tmdbAPI = {
     );
     return response.json();
   },
-  
+
   getMovie: async (tmdbId: number) => {
     const response = await fetch(
       `${TMDB_BASE_URL}/movie/${tmdbId}?api_key=${TMDB_API_KEY}`
     );
     return response.json();
   },
-  
+
   getPopular: async (page = 1) => {
     const response = await fetch(
       `${TMDB_BASE_URL}/movie/popular?api_key=${TMDB_API_KEY}&page=${page}`
     );
     return response.json();
   },
-  
+
   getTrending: async (timeWindow: 'day' | 'week' = 'week') => {
     const response = await fetch(
       `${TMDB_BASE_URL}/trending/movie/${timeWindow}?api_key=${TMDB_API_KEY}`
     );
     return response.json();
   },
-  
+
   getImageUrl: (path: string | null, size: 'w92' | 'w154' | 'w185' | 'w342' | 'w500' | 'w780' | 'original' = 'w342') => {
     if (!path) return null;
     return `https://image.tmdb.org/t/p/${size}${path}`;

@@ -13,6 +13,8 @@ export interface User {
   subscriptionPlan?: SubscriptionPlan;
   subscriptionStatus?: SubscriptionStatus;
   subscriptionExpiresAt?: string;
+  // AI API keys
+  hasGeminiKey?: boolean;
 }
 
 export interface SubscriptionPlanDetails {

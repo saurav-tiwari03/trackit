@@ -2,7 +2,14 @@
 
 import { useState, useEffect, Suspense, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { User, Bell, Palette, Shield, LogOut, Calendar, Check, Loader2, ExternalLink, Unlink, Camera, Trash2, Zap, Crown, Sparkles, CreditCard, Receipt, PanelLeft, Eye, EyeOff, RotateCcw, GripVertical } from 'lucide-react';
+import { User, Bell, Palette, Shield, LogOut, Calendar, Check, Loader2, ExternalLink, Unlink, Camera, Trash2, Zap, Crown, Sparkles, CreditCard, Receipt, PanelLeft, Eye, EyeOff, RotateCcw, GripVertical, Key, Bot, ChevronDown } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +52,17 @@ function SettingsContent() {
   // Subscription state
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
+
+  // Gemini API key state
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [hasGeminiKey, setHasGeminiKey] = useState(false);
+  const [maskedKey, setMaskedKey] = useState('');
+  const [isLoadingGeminiStatus, setIsLoadingGeminiStatus] = useState(true);
+  const [isUpdatingGemini, setIsUpdatingGemini] = useState(false);
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [geminiUpdateError, setGeminiUpdateError] = useState<string | null>(null);
+  const [geminiModel, setGeminiModel] = useState('gemini-2.5-flash');
+  const [availableModels, setAvailableModels] = useState<Array<{ id: string; name: string; description: string }>>([]);
 
   // Update local state when user changes
   useEffect(() => {
@@ -90,6 +108,7 @@ function SettingsContent() {
     refreshUser();
     fetchGoogleCalendarStatus();
     fetchTransactions();
+    fetchGeminiKeyStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -102,6 +121,90 @@ function SettingsContent() {
       console.error('Failed to fetch transactions:', error);
     } finally {
       setIsLoadingTransactions(false);
+    }
+  };
+
+  const fetchGeminiKeyStatus = async () => {
+    try {
+      setIsLoadingGeminiStatus(true);
+      const response = await usersAPI.getGeminiKeyStatus();
+      const hasKey = response.data.data.hasGeminiKey;
+      const masked = response.data.data.maskedKey || '';
+      setHasGeminiKey(hasKey);
+      setMaskedKey(masked);
+      // Autofill the masked key if one exists
+      if (hasKey && masked) {
+        setGeminiApiKey(masked);
+      }
+      setGeminiModel(response.data.data.geminiModel || 'gemini-2.5-flash');
+      setAvailableModels(response.data.data.availableModels || []);
+    } catch (error) {
+      console.error('Failed to fetch Gemini key status:', error);
+    } finally {
+      setIsLoadingGeminiStatus(false);
+    }
+  };
+
+  const handleUpdateGeminiSettings = async () => {
+    const isKeyUnchanged = geminiApiKey === maskedKey;
+
+    // If no key and no existing key, require one
+    if (!geminiApiKey.trim() && !hasGeminiKey) {
+      toast.error('Please enter an API key');
+      return;
+    }
+
+    try {
+      setIsUpdatingGemini(true);
+      setGeminiUpdateError(null);
+
+      // If key is unchanged (still masked), only update the model
+      if (isKeyUnchanged && hasGeminiKey) {
+        const response = await usersAPI.updateGeminiModel(geminiModel);
+        if (response.data.success) {
+          toast.success('Model updated!');
+        }
+      } else {
+        // New key entered, validate and save
+        const response = await usersAPI.updateGeminiKey(geminiApiKey, geminiModel);
+        if (response.data.success) {
+          setHasGeminiKey(true);
+          // Refresh to get new masked key
+          const statusResponse = await usersAPI.getGeminiKeyStatus();
+          const newMasked = statusResponse.data.data.maskedKey || '';
+          setMaskedKey(newMasked);
+          setGeminiApiKey(newMasked);
+          setShowGeminiKey(false);
+          if (response.data.data.geminiModel) {
+            setGeminiModel(response.data.data.geminiModel);
+          }
+          toast.success('API key validated and saved!');
+        }
+      }
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string; data?: { error?: string } } } };
+      const errorMsg = err.response?.data?.data?.error || err.response?.data?.message || 'Failed to update settings';
+      setGeminiUpdateError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setIsUpdatingGemini(false);
+    }
+  };
+
+  const handleRemoveGeminiKey = async () => {
+    try {
+      setIsUpdatingGemini(true);
+      await usersAPI.updateGeminiKey('');
+      setHasGeminiKey(false);
+      setGeminiApiKey('');
+      setMaskedKey('');
+      setGeminiUpdateError(null);
+      toast.success('Gemini API key removed');
+    } catch (error) {
+      console.error('Failed to remove Gemini key:', error);
+      toast.error('Failed to remove Gemini API key');
+    } finally {
+      setIsUpdatingGemini(false);
     }
   };
 
@@ -485,6 +588,170 @@ function SettingsContent() {
             </Card>
           </motion.div>
 
+          {/* AI API Keys Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.12 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bot className="w-5 h-5" />
+                  AI Integration
+                </CardTitle>
+                <CardDescription>
+                  Configure your AI API keys for personalized features
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* Gemini API Key */}
+                  <div className="p-4 rounded-lg border bg-muted/30">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-sm">
+                          <Sparkles className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold">Google Gemini API</h3>
+                          {isLoadingGeminiStatus ? (
+                            <p className="text-sm text-muted-foreground">
+                              Checking status...
+                            </p>
+                          ) : hasGeminiKey ? (
+                            <div className="flex items-center gap-2">
+                              <Check className="w-4 h-4 text-green-500" />
+                              <span className="text-sm text-green-600">API key configured</span>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              Required for AI movie recommendations
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 space-y-4">
+                      {/* API Key Input */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">
+                          {hasGeminiKey ? 'Update API Key' : 'Enter API Key'}
+                        </label>
+                        <div className="relative">
+                          <Input
+                            type={showGeminiKey ? 'text' : 'password'}
+                            value={geminiApiKey}
+                            onChange={(e) => {
+                              setGeminiApiKey(e.target.value);
+                              setGeminiUpdateError(null);
+                            }}
+                            onFocus={() => {
+                              // Clear the masked key when user focuses to enter a new key
+                              if (geminiApiKey === maskedKey && maskedKey) {
+                                setGeminiApiKey('');
+                              }
+                            }}
+                            placeholder="Enter your Gemini API key"
+                            className="pr-10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowGeminiKey(!showGeminiKey)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          >
+                            {showGeminiKey ? (
+                              <EyeOff className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Model Selection Dropdown */}
+                      {availableModels.length > 0 && (
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Model</label>
+                          <Select
+                            value={geminiModel}
+                            onValueChange={setGeminiModel}
+                          >
+                            <SelectTrigger className="w-full h-10">
+                              <SelectValue placeholder="Select a model">
+                                {availableModels.find(m => m.id === geminiModel)?.name || 'Select a model'}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableModels.map((model) => (
+                                <SelectItem key={model.id} value={model.id}>
+                                  <div className="flex items-center justify-between gap-4 w-full">
+                                    <span>{model.name}</span>
+                                    <span className="text-xs text-muted-foreground">{model.description}</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {/* Error message */}
+                      {geminiUpdateError && (
+                        <p className="text-xs text-red-600">
+                          {geminiUpdateError}
+                        </p>
+                      )}
+
+                      {/* Update Button */}
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={handleUpdateGeminiSettings}
+                          disabled={isUpdatingGemini || !geminiApiKey.trim()}
+                          className="flex-1"
+                        >
+                          {isUpdatingGemini ? (
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          ) : null}
+                          Update
+                        </Button>
+                        {hasGeminiKey && (
+                          <Button
+                            variant="outline"
+                            onClick={handleRemoveGeminiKey}
+                            disabled={isUpdatingGemini}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="pt-2 border-t">
+                        <p className="text-xs text-muted-foreground">
+                          Get your free API key from{' '}
+                          <a
+                            href="https://aistudio.google.com/apikey"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-violet-500 hover:underline inline-flex items-center gap-1"
+                          >
+                            Google AI Studio
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Your API key is stored securely and only used for AI features like movie recommendations.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
           {/* Subscription Section */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -505,13 +772,12 @@ function SettingsContent() {
                 {/* Current Plan */}
                 <div className="flex items-center justify-between p-4 rounded-lg border bg-gradient-to-r from-muted/30 to-muted/10">
                   <div className="flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center shadow-sm ${
-                      user?.subscriptionPlan === 'pro' 
-                        ? 'bg-gradient-to-br from-amber-500 to-orange-600' 
-                        : user?.subscriptionPlan === 'plus' 
+                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center shadow-sm ${user?.subscriptionPlan === 'pro'
+                      ? 'bg-gradient-to-br from-amber-500 to-orange-600'
+                      : user?.subscriptionPlan === 'plus'
                         ? 'bg-gradient-to-br from-violet-500 to-purple-600'
                         : 'bg-gradient-to-br from-slate-400 to-slate-500'
-                    }`}>
+                      }`}>
                       {user?.subscriptionPlan === 'pro' ? (
                         <Crown className="w-6 h-6 text-white" />
                       ) : user?.subscriptionPlan === 'plus' ? (
@@ -568,11 +834,10 @@ function SettingsContent() {
                             className="flex items-center justify-between p-3 rounded-lg border bg-muted/20"
                           >
                             <div className="flex items-center gap-3">
-                              <div className={`w-2 h-2 rounded-full ${
-                                transaction.status === 'completed' ? 'bg-green-500' :
+                              <div className={`w-2 h-2 rounded-full ${transaction.status === 'completed' ? 'bg-green-500' :
                                 transaction.status === 'pending' ? 'bg-yellow-500' :
-                                transaction.status === 'failed' ? 'bg-red-500' : 'bg-gray-500'
-                              }`} />
+                                  transaction.status === 'failed' ? 'bg-red-500' : 'bg-gray-500'
+                                }`} />
                               <div>
                                 <p className="text-sm font-medium">
                                   {transaction.plan.charAt(0).toUpperCase() + transaction.plan.slice(1)} Plan
@@ -586,11 +851,10 @@ function SettingsContent() {
                               <p className="text-sm font-semibold">
                                 {formatAmount(transaction.amount)}
                               </p>
-                              <p className={`text-xs capitalize ${
-                                transaction.status === 'completed' ? 'text-green-600' :
+                              <p className={`text-xs capitalize ${transaction.status === 'completed' ? 'text-green-600' :
                                 transaction.status === 'pending' ? 'text-yellow-600' :
-                                transaction.status === 'failed' ? 'text-red-600' : 'text-gray-600'
-                              }`}>
+                                  transaction.status === 'failed' ? 'text-red-600' : 'text-gray-600'
+                                }`}>
                                 {transaction.status}
                               </p>
                             </div>

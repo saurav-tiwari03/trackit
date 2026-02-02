@@ -34,6 +34,12 @@ import {
   Folder,
   Share2,
   CheckCircle2,
+  Sparkles,
+  Wand2,
+  RefreshCw,
+  Settings2,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import { Movie, MovieStatus, MoviePlatform, TMDBMovie, MovieStats, MovieList } from '@/types';
 import { moviesAPI, tmdbAPI } from '@/lib/api';
@@ -147,6 +153,8 @@ export default function MoviesPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showMovieModal, setShowMovieModal] = useState(false);
   const [showCollectionModal, setShowCollectionModal] = useState(false);
+  const [showManageCollectionsModal, setShowManageCollectionsModal] = useState(false);
+  const [showRecommendModal, setShowRecommendModal] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCollection, setActiveCollection] = useState<string | null>(null);
@@ -236,10 +244,20 @@ export default function MoviesPage() {
               </h1>
               <p className="text-sm text-muted-foreground">Track your movie journey</p>
             </div>
-            <Button onClick={() => setShowAddModal(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Movie
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowRecommendModal(true)}
+                className="bg-gradient-to-r from-violet-500/10 to-purple-500/10 border-violet-500/30 hover:border-violet-500/50"
+              >
+                <Sparkles className="w-4 h-4 mr-2 text-violet-500" />
+                Recommend
+              </Button>
+              <Button onClick={() => setShowAddModal(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Movie
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -300,8 +318,8 @@ export default function MoviesPage() {
                   <Timer className="w-5 h-5 text-blue-500" />
                 </div>
                 <div>
-<p className="text-2xl font-bold">{formattedWatchTime}</p>
-                      <p className="text-xs text-muted-foreground">Watch Time</p>
+                  <p className="text-2xl font-bold">{formattedWatchTime}</p>
+                  <p className="text-xs text-muted-foreground">Watch Time</p>
                 </div>
               </div>
             </CardContent>
@@ -331,9 +349,9 @@ export default function MoviesPage() {
               <s.icon className={cn('w-4 h-4', s.color)} />
               {s.label}
               <Badge variant="outline" className="ml-1 text-xs">
-                {s.value === 'watched' ? stats?.watched || 0 : 
-                 s.value === 'watching' ? stats?.watching || 0 : 
-                 stats?.watchlist || 0}
+                {s.value === 'watched' ? stats?.watched || 0 :
+                  s.value === 'watching' ? stats?.watching || 0 :
+                    stats?.watchlist || 0}
               </Badge>
             </Button>
           ))}
@@ -378,6 +396,19 @@ export default function MoviesPage() {
             <FolderPlus className="w-4 h-4" />
             New Collection
           </Button>
+
+          {/* Manage Collections Button */}
+          {lists.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowManageCollectionsModal(true)}
+              className="gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <Settings2 className="w-4 h-4" />
+              Manage
+            </Button>
+          )}
         </div>
 
         {/* Search & View Toggle */}
@@ -487,6 +518,64 @@ export default function MoviesPage() {
         onCreateCollection={async (data) => {
           await createList(data);
           toast.success('Collection created!');
+        }}
+      />
+
+      {/* Manage Collections Modal */}
+      <ManageCollectionsModal
+        open={showManageCollectionsModal}
+        onOpenChange={setShowManageCollectionsModal}
+        collections={lists}
+        onReorder={async (listId, direction) => {
+          const idx = lists.findIndex(l => l._id === listId);
+          const swapWith = direction === 'up' ? idx - 1 : idx + 1;
+          if (idx < 0 || swapWith < 0 || swapWith >= lists.length) return;
+
+          const current = lists[idx];
+          const other = lists[swapWith];
+          try {
+            // Swap order values
+            await updateList(current._id, { order: other.order });
+            await updateList(other._id, { order: current.order });
+            await fetchLists();
+          } catch (e) {
+            console.error('Failed to reorder collections:', e);
+            toast.error('Failed to reorder collections');
+          }
+        }}
+        onUpdate={async (id, data) => {
+          try {
+            await updateList(id, data);
+            toast.success('Collection updated');
+            await fetchLists();
+          } catch (e) {
+            console.error('Failed to update collection:', e);
+            toast.error('Failed to update collection');
+          }
+        }}
+        onDelete={async (id) => {
+          try {
+            await deleteList(id);
+            if (activeCollection === id) {
+              handleCollectionFilter(null);
+            }
+            toast.success('Collection deleted');
+            await fetchLists();
+          } catch (e) {
+            console.error('Failed to delete collection:', e);
+            toast.error('Failed to delete collection');
+          }
+        }}
+      />
+
+      {/* Recommendation Modal */}
+      <RecommendationModal
+        open={showRecommendModal}
+        onOpenChange={setShowRecommendModal}
+        watchedCount={stats?.watched || 0}
+        onAddToWatchlist={(movie) => {
+          toast.success(`"${movie.title}" added to your wishlist!`);
+          fetchMovies(); // Refresh the movie list
         }}
       />
     </div>
@@ -826,7 +915,7 @@ function AddMovieModal({
   const [watchedDate, setWatchedDate] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
-  
+
   // Manual entry fields
   const [manualPosterUrl, setManualPosterUrl] = useState('');
   const [manualGenres, setManualGenres] = useState<string[]>([]);
@@ -880,7 +969,7 @@ function AddMovieModal({
     setIsAdding(true);
     try {
       const isManualEntry = selectedTMDB.id === 0;
-      
+
       const newMovie = await onAddMovie({
         // Only include tmdbId for TMDB entries
         ...(isManualEntry ? {} : { tmdbId: selectedTMDB.id }),
@@ -1256,11 +1345,11 @@ function AddMovieModal({
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {watchedDate
                             ? new Date(watchedDate).toLocaleDateString('en-US', {
-                                weekday: 'short',
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric',
-                              })
+                              weekday: 'short',
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                            })
                             : 'Pick a date'}
                         </Button>
                       </PopoverTrigger>
@@ -1481,7 +1570,7 @@ function MovieDetailModal({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
         {/* Visually hidden title for accessibility */}
         <DialogTitle className="sr-only">{movie.title}</DialogTitle>
-        
+
         {/* Backdrop */}
         {movie.backdropPath && (
           <div className="relative h-48 overflow-hidden">
@@ -1847,6 +1936,912 @@ function CreateCollectionModal({
             Create Collection
           </Button>
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Recommendation Modal Component
+interface Recommendation {
+  title: string;
+  year?: string;
+  genres: string[];
+  reason: string;
+  tmdbSearchQuery: string;
+  alternativeRecommendations: Array<{
+    title: string;
+    year?: string;
+    reason: string;
+  }>;
+}
+
+// Manage Collections Modal Component
+function ManageCollectionsModal({
+  open,
+  onOpenChange,
+  collections,
+  onReorder,
+  onUpdate,
+  onDelete,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  collections: MovieList[];
+  onReorder: (id: string, direction: 'up' | 'down') => Promise<void>;
+  onUpdate: (id: string, data: Partial<MovieList>) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const COLLECTION_ICONS = ['🎬', '🍿', '⭐', '🎯', '💡', '🔥', '💎', '🎭', '🎪', '📺', '🎥', '📽️', '📁', '🧠', '👀'];
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [color, setColor] = useState('#6366f1');
+  const [icon, setIcon] = useState('🎬');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const startEdit = (c: MovieList) => {
+    setEditingId(c._id);
+    setName(c.name || '');
+    setDescription(c.description || '');
+    setColor(c.color || '#6366f1');
+    setIcon(c.icon || '🎬');
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setName('');
+    setDescription('');
+    setColor('#6366f1');
+    setIcon('🎬');
+  };
+
+  const saveEdit = async () => {
+    if (!editingId) return;
+    if (!name.trim()) {
+      toast.error('Please enter a collection name');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await onUpdate(editingId, {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        color,
+        icon,
+      });
+      cancelEdit();
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) cancelEdit(); }}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Settings2 className="w-5 h-5 text-violet-500" />
+            Manage Collections
+          </DialogTitle>
+          <DialogDescription>
+            Rename, reorder, and delete collections. Your movies stay safe — only the collection changes.
+          </DialogDescription>
+        </DialogHeader>
+
+        {collections.length === 0 ? (
+          <div className="py-8 text-center text-muted-foreground">
+            No collections yet. Create one first.
+          </div>
+        ) : (
+          <div className="space-y-3 py-2">
+            {collections
+              .slice()
+              .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+              .map((c, idx, arr) => (
+                <div key={c._id} className="rounded-xl border bg-muted/20">
+                  <div className="flex items-center justify-between gap-3 p-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className="w-10 h-10 rounded-lg flex items-center justify-center text-lg shrink-0"
+                        style={{ backgroundColor: `${c.color || '#6366f1'}22`, border: `1px solid ${c.color || '#6366f1'}44` }}
+                      >
+                        {c.icon || '📁'}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <p className="font-medium truncate">{c.name}</p>
+                          <Badge variant="outline" className="text-xs">{c.movieCount || 0}</Badge>
+                        </div>
+                        {c.description ? (
+                          <p className="text-xs text-muted-foreground line-clamp-1">{c.description}</p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">No description</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={idx === 0}
+                        onClick={() => onReorder(c._id, 'up')}
+                        className="h-8 w-8 p-0"
+                        title="Move up"
+                      >
+                        <ArrowUp className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={idx === arr.length - 1}
+                        onClick={() => onReorder(c._id, 'down')}
+                        className="h-8 w-8 p-0"
+                        title="Move down"
+                      >
+                        <ArrowDown className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => startEdit(c)}
+                        className="h-8 w-8 p-0"
+                        title="Edit"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          const ok = window.confirm(`Delete collection "${c.name}"? Movies will NOT be deleted.`);
+                          if (!ok) return;
+                          await onDelete(c._id);
+                          if (editingId === c._id) cancelEdit();
+                        }}
+                        className="h-8 w-8 p-0 text-red-500 hover:text-red-600"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {editingId === c._id && (
+                    <div className="border-t p-4 space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Name</label>
+                          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Collection name" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Color</label>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="color"
+                              value={color}
+                              onChange={(e) => setColor(e.target.value)}
+                              className="h-10 w-12 rounded-md border bg-transparent p-1"
+                            />
+                            <Input value={color} onChange={(e) => setColor(e.target.value)} />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Icon</label>
+                        <div className="flex flex-wrap gap-2">
+                          {COLLECTION_ICONS.map((i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setIcon(i)}
+                              className={cn(
+                                'w-10 h-10 rounded-lg border flex items-center justify-center text-lg transition-all',
+                                icon === i
+                                  ? 'border-violet-500 bg-violet-500/10'
+                                  : 'border-muted-foreground/30 hover:border-muted-foreground/50'
+                              )}
+                            >
+                              {i}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Description (optional)</label>
+                        <Textarea
+                          value={description}
+                          onChange={(e) => setDescription(e.target.value)}
+                          placeholder="What’s this collection about?"
+                          className="min-h-[80px]"
+                        />
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button variant="outline" className="flex-1" onClick={cancelEdit} disabled={isSaving}>
+                          Cancel
+                        </Button>
+                        <Button className="flex-1" onClick={saveEdit} disabled={isSaving}>
+                          {isSaving ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-4 h-4 mr-2" />
+                              Save Changes
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RecommendationModal({
+  open,
+  onOpenChange,
+  watchedCount,
+  onAddToWatchlist,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  watchedCount: number;
+  onAddToWatchlist?: (movie: TMDBMovie) => void;
+}) {
+  const [step, setStep] = useState<'select' | 'loading' | 'result'>('select');
+  const [contentType, setContentType] = useState<'movie' | 'series' | 'any'>('movie');
+  const [mood, setMood] = useState('');
+  const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [tmdbResult, setTmdbResult] = useState<TMDBMovie | null>(null);
+  const [excludedTitles, setExcludedTitles] = useState<string[]>([]);
+  const [isAddingToWishlist, setIsAddingToWishlist] = useState(false);
+  const [addedToWishlist, setAddedToWishlist] = useState(false);
+  const [addedAlternatives, setAddedAlternatives] = useState<Set<string>>(new Set());
+  const [addingAlternative, setAddingAlternative] = useState<string | null>(null);
+  const [loadingPhase, setLoadingPhase] = useState(0);
+
+  const loadingMessages = [
+    { text: 'Analyzing your taste...', icon: '🎬' },
+    { text: 'Scanning genres you love...', icon: '🎭' },
+    { text: 'Finding hidden gems...', icon: '💎' },
+    { text: 'Matching your mood...', icon: '✨' },
+    { text: 'Almost there...', icon: '🍿' },
+  ];
+
+  const handleGetRecommendation = async (additionalExcluded?: unknown) => {
+    // Defensive: React onClick can pass a click event as first argument.
+    const additionalExcludedArr = Array.isArray(additionalExcluded) ? additionalExcluded : [];
+    setStep('loading');
+    setError(null);
+    setTmdbResult(null);
+    setAddedToWishlist(false);
+    setLoadingPhase(0);
+
+    // Cycle through loading messages
+    const loadingInterval = setInterval(() => {
+      setLoadingPhase(prev => (prev + 1) % loadingMessages.length);
+    }, 1500);
+
+    try {
+      const allExcluded = [...excludedTitles, ...additionalExcludedArr];
+
+      const response = await moviesAPI.getRecommendation({
+        contentType,
+        mood: mood.trim() || undefined,
+        excludedTitles: allExcluded.length > 0 ? allExcluded : undefined,
+      });
+      clearInterval(loadingInterval);
+
+      if (response.data.success && response.data.data) {
+        const newRec = response.data.data;
+        setRecommendation(newRec);
+        // Add to excluded list for next "Try Another"
+        setExcludedTitles(prev => [...prev, newRec.title]);
+        setStep('result');
+
+        // Try to fetch TMDB data for the recommendation
+        try {
+          const tmdbSearch = await tmdbAPI.search(newRec.tmdbSearchQuery || newRec.title);
+          if (tmdbSearch.results && tmdbSearch.results.length > 0) {
+            const tmdbDetails = await tmdbAPI.getMovie(tmdbSearch.results[0].id);
+            setTmdbResult(tmdbDetails);
+          }
+        } catch (tmdbError) {
+          console.error('TMDB search failed:', tmdbError);
+        }
+      } else {
+        setError(response.data.message || 'Failed to get recommendation');
+        setStep('select');
+      }
+    } catch (err: unknown) {
+      console.error('❌ Recommendation API error:', err);
+      console.error('❌ Error details:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
+      clearInterval(loadingInterval);
+      const error = err as { response?: { data?: { message?: string }; status?: number }; message?: string };
+      console.error('❌ Response data:', error.response?.data);
+      console.error('❌ Response status:', error.response?.status);
+      console.error('❌ Error message:', error.message);
+      setError(error.response?.data?.message || error.message || 'Failed to get recommendation');
+      setStep('select');
+    }
+  };
+
+  const handleTryAnother = () => {
+    // Pass current recommendation title to exclude
+    const currentTitle = recommendation?.title;
+    handleGetRecommendation(currentTitle ? [currentTitle] : []);
+  };
+
+  const handleAddToWishlist = async () => {
+    if (!recommendation || isAddingToWishlist) return;
+
+    setIsAddingToWishlist(true);
+    try {
+      // Use TMDB data if available, otherwise use recommendation data
+      await moviesAPI.create({
+        tmdbId: tmdbResult?.id,
+        title: tmdbResult?.title || recommendation.title,
+        originalTitle: tmdbResult?.original_title,
+        overview: tmdbResult?.overview || recommendation.reason,
+        posterPath: tmdbResult?.poster_path || undefined,
+        backdropPath: tmdbResult?.backdrop_path || undefined,
+        releaseDate: tmdbResult?.release_date || (recommendation.year ? `${recommendation.year}-01-01` : undefined),
+        runtime: tmdbResult?.runtime,
+        genres: tmdbResult?.genres?.map((g: { name: string }) => g.name) || recommendation.genres || [],
+        voteAverage: tmdbResult?.vote_average,
+        status: 'watchlist',
+      });
+      setAddedToWishlist(true);
+      if (tmdbResult) {
+        onAddToWatchlist?.(tmdbResult);
+      }
+    } catch (error) {
+      console.error('Failed to add to wishlist:', error);
+    } finally {
+      setIsAddingToWishlist(false);
+    }
+  };
+
+  const handleAddAlternativeToWishlist = async (alt: { title: string; year?: string; reason: string }) => {
+    if (addingAlternative || addedAlternatives.has(alt.title)) return;
+
+    setAddingAlternative(alt.title);
+    try {
+      // Try to fetch TMDB data for the alternative
+      let tmdbData: TMDBMovie | null = null;
+      try {
+        const searchResult = await tmdbAPI.search(alt.title);
+        if (searchResult.results && searchResult.results.length > 0) {
+          tmdbData = await tmdbAPI.getMovie(searchResult.results[0].id);
+        }
+      } catch {
+        // Continue without TMDB data
+      }
+
+      await moviesAPI.create({
+        tmdbId: tmdbData?.id,
+        title: tmdbData?.title || alt.title,
+        originalTitle: tmdbData?.original_title,
+        overview: tmdbData?.overview || alt.reason,
+        posterPath: tmdbData?.poster_path || undefined,
+        backdropPath: tmdbData?.backdrop_path || undefined,
+        releaseDate: tmdbData?.release_date || (alt.year ? `${alt.year}-01-01` : undefined),
+        runtime: tmdbData?.runtime,
+        genres: tmdbData?.genres?.map((g: { name: string }) => g.name) || [],
+        voteAverage: tmdbData?.vote_average,
+        status: 'watchlist',
+      });
+
+      setAddedAlternatives(prev => new Set([...prev, alt.title]));
+    } catch (error) {
+      console.error('Failed to add alternative to wishlist:', error);
+    } finally {
+      setAddingAlternative(null);
+    }
+  };
+
+  const resetModal = () => {
+    setStep('select');
+    setContentType('movie');
+    setMood('');
+    setRecommendation(null);
+    setError(null);
+    setTmdbResult(null);
+    setExcludedTitles([]);
+    setAddedToWishlist(false);
+    setAddedAlternatives(new Set());
+    setAddingAlternative(null);
+    setLoadingPhase(0);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) resetModal(); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-violet-500" />
+            AI Recommendation
+          </DialogTitle>
+          <DialogDescription>
+            Get a personalized recommendation based on your watch history
+          </DialogDescription>
+        </DialogHeader>
+
+        <AnimatePresence mode="wait">
+          {step === 'select' && (
+            <motion.div
+              key="select"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-6 py-4"
+            >
+              {watchedCount === 0 ? (
+                <div className="text-center py-6">
+                  <Popcorn className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
+                  <p className="text-muted-foreground mb-2">
+                    You haven&apos;t watched any movies yet
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Add some movies to your watched list to get personalized recommendations
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {error && (
+                    <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-sm">
+                      {error}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="text-sm font-medium mb-3 block">
+                      What do you want to watch?
+                    </label>
+                    <div className="grid grid-cols-3 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setContentType('movie')}
+                        className={cn(
+                          'flex flex-col items-center gap-2 p-4 rounded-xl border transition-all',
+                          contentType === 'movie'
+                            ? 'bg-violet-500/10 border-violet-500/50 text-violet-600 dark:text-violet-400'
+                            : 'border-muted-foreground/30 text-muted-foreground hover:border-muted-foreground/50'
+                        )}
+                      >
+                        <Film className="w-6 h-6" />
+                        <span className="text-sm font-medium">Movie</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setContentType('series')}
+                        className={cn(
+                          'flex flex-col items-center gap-2 p-4 rounded-xl border transition-all',
+                          contentType === 'series'
+                            ? 'bg-violet-500/10 border-violet-500/50 text-violet-600 dark:text-violet-400'
+                            : 'border-muted-foreground/30 text-muted-foreground hover:border-muted-foreground/50'
+                        )}
+                      >
+                        <Tv className="w-6 h-6" />
+                        <span className="text-sm font-medium">Series</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setContentType('any')}
+                        className={cn(
+                          'flex flex-col items-center gap-2 p-4 rounded-xl border transition-all',
+                          contentType === 'any'
+                            ? 'bg-violet-500/10 border-violet-500/50 text-violet-600 dark:text-violet-400'
+                            : 'border-muted-foreground/30 text-muted-foreground hover:border-muted-foreground/50'
+                        )}
+                      >
+                        <Wand2 className="w-6 h-6" />
+                        <span className="text-sm font-medium">Surprise Me</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      Current mood or preference (optional)
+                    </label>
+                    <Input
+                      placeholder="e.g., something light-hearted, a thriller, mind-bending..."
+                      value={mood}
+                      onChange={(e) => setMood(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Help the AI understand what you&apos;re in the mood for
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
+                    <BarChart3 className="w-4 h-4 shrink-0" />
+                    <span>
+                      Based on your {watchedCount} watched {watchedCount === 1 ? 'movie' : 'movies'}
+                    </span>
+                  </div>
+
+                  <Button
+                    onClick={() => handleGetRecommendation()}
+                    className="w-full bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600"
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Get Recommendation
+                  </Button>
+                </>
+              )}
+            </motion.div>
+          )}
+
+          {step === 'loading' && (
+            <motion.div
+              key="loading"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="flex flex-col items-center justify-center py-16"
+            >
+              {/* Animated orb with particles */}
+              <div className="relative w-32 h-32">
+                {/* Outer glow ring */}
+                <motion.div
+                  className="absolute inset-0 rounded-full bg-gradient-to-r from-violet-500 via-purple-500 to-pink-500 blur-2xl"
+                  animate={{
+                    opacity: [0.3, 0.6, 0.3],
+                    scale: [1, 1.2, 1],
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: 'easeInOut',
+                  }}
+                />
+
+                {/* Spinning ring */}
+                <motion.div
+                  className="absolute inset-2 rounded-full border-2 border-violet-500/30"
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                />
+
+                {/* Counter-spinning ring */}
+                <motion.div
+                  className="absolute inset-4 rounded-full border-2 border-purple-500/30 border-dashed"
+                  animate={{ rotate: -360 }}
+                  transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+                />
+
+                {/* Center orb */}
+                <motion.div
+                  className="absolute inset-6 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/50"
+                  animate={{
+                    scale: [1, 1.1, 1],
+                  }}
+                  transition={{
+                    duration: 1.5,
+                    repeat: Infinity,
+                    ease: 'easeInOut',
+                  }}
+                >
+                  <motion.div
+                    animate={{ rotate: [0, 10, -10, 0] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <Sparkles className="w-8 h-8 text-white" />
+                  </motion.div>
+                </motion.div>
+
+                {/* Floating particles */}
+                {[...Array(6)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    className="absolute w-2 h-2 rounded-full bg-violet-400"
+                    style={{
+                      left: '50%',
+                      top: '50%',
+                    }}
+                    animate={{
+                      x: [0, Math.cos(i * 60 * Math.PI / 180) * 50],
+                      y: [0, Math.sin(i * 60 * Math.PI / 180) * 50],
+                      opacity: [0, 1, 0],
+                      scale: [0, 1, 0],
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      delay: i * 0.3,
+                      ease: 'easeOut',
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* Loading text with animation */}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={loadingPhase}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="mt-8 text-center"
+                >
+                  <p className="text-2xl mb-2">{loadingMessages[loadingPhase].icon}</p>
+                  <p className="text-lg font-medium">{loadingMessages[loadingPhase].text}</p>
+                </motion.div>
+              </AnimatePresence>
+
+              {/* Progress dots */}
+              <div className="flex gap-2 mt-6">
+                {loadingMessages.map((_, i) => (
+                  <motion.div
+                    key={i}
+                    className={`w-2 h-2 rounded-full ${i <= loadingPhase ? 'bg-violet-500' : 'bg-muted'}`}
+                    animate={i === loadingPhase ? { scale: [1, 1.3, 1] } : {}}
+                    transition={{ duration: 0.5, repeat: Infinity }}
+                  />
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {step === 'result' && recommendation && (
+            <motion.div
+              key="result"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="space-y-4 py-4"
+            >
+              {/* Success badge */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ type: 'spring', bounce: 0.5, delay: 0.1 }}
+                className="flex justify-center"
+              >
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 text-sm font-medium">
+                  <motion.div
+                    animate={{ rotate: [0, 360] }}
+                    transition={{ duration: 0.5 }}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                  </motion.div>
+                  Perfect match found!
+                </div>
+              </motion.div>
+
+              {/* Main Recommendation */}
+              <motion.div
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ type: 'spring', bounce: 0.3, delay: 0.2 }}
+                className="relative rounded-xl border overflow-hidden"
+              >
+                {tmdbResult?.backdrop_path && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.4 }}
+                    className="absolute inset-0"
+                  >
+                    <img
+                      src={tmdbAPI.getImageUrl(tmdbResult.backdrop_path, 'w780') || ''}
+                      alt=""
+                      className="w-full h-full object-cover opacity-20"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
+                  </motion.div>
+                )}
+
+                <div className="relative p-4 flex gap-4">
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="w-28 shrink-0"
+                  >
+                    {tmdbResult?.poster_path ? (
+                      <div className="rounded-lg overflow-hidden shadow-xl shadow-violet-500/20 ring-2 ring-violet-500/20">
+                        <img
+                          src={tmdbAPI.getImageUrl(tmdbResult.poster_path, 'w185') || ''}
+                          alt={recommendation.title}
+                          className="w-full h-auto"
+                        />
+                      </div>
+                    ) : (
+                      <div className="aspect-[2/3] rounded-lg bg-muted flex items-center justify-center">
+                        <Film className="w-8 h-8 text-muted-foreground/30" />
+                      </div>
+                    )}
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="flex-1 min-w-0"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="text-xl font-bold">{recommendation.title}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {recommendation.year || tmdbResult?.release_date?.slice(0, 4)}
+                          {tmdbResult?.runtime && ` • ${Math.floor(tmdbResult.runtime / 60)}h ${tmdbResult.runtime % 60}m`}
+                        </p>
+                      </div>
+                      {tmdbResult?.vote_average && tmdbResult.vote_average > 0 && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: 'spring', delay: 0.5 }}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                        >
+                          <Star className="w-3.5 h-3.5 fill-current" />
+                          <span className="text-sm font-semibold">{tmdbResult.vote_average.toFixed(1)}</span>
+                        </motion.div>
+                      )}
+                    </div>
+
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.5 }}
+                      className="flex flex-wrap gap-1.5 mt-3"
+                    >
+                      {(recommendation.genres || []).slice(0, 3).map((genre, i) => (
+                        <motion.div
+                          key={genre}
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.5 + i * 0.1 }}
+                        >
+                          <Badge variant="secondary" className="text-xs">
+                            {genre}
+                          </Badge>
+                        </motion.div>
+                      ))}
+                    </motion.div>
+
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.6 }}
+                      className="text-sm text-muted-foreground mt-3 leading-relaxed"
+                    >
+                      {recommendation.reason}
+                    </motion.p>
+                  </motion.div>
+                </div>
+              </motion.div>
+
+              {/* Add to Wishlist Button */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.7 }}
+              >
+                <Button
+                  variant="outline"
+                  onClick={handleAddToWishlist}
+                  disabled={isAddingToWishlist || addedToWishlist}
+                  className={`w-full ${addedToWishlist ? 'bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400' : 'hover:bg-violet-500/10 hover:border-violet-500/30'}`}
+                >
+                  {isAddingToWishlist ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Adding...
+                    </>
+                  ) : addedToWishlist ? (
+                    <>
+                      <Check className="w-4 h-4 mr-2" />
+                      Added to Wishlist!
+                    </>
+                  ) : (
+                    <>
+                      <Heart className="w-4 h-4 mr-2" />
+                      Save to Wishlist
+                    </>
+                  )}
+                </Button>
+              </motion.div>
+
+              {/* Alternative Recommendations */}
+              {recommendation.alternativeRecommendations && recommendation.alternativeRecommendations.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.8 }}
+                >
+                  <h4 className="text-sm font-medium mb-2 text-muted-foreground flex items-center gap-2">
+                    <List className="w-4 h-4" />
+                    Also consider
+                  </h4>
+                  <div className="space-y-2">
+                    {recommendation.alternativeRecommendations.map((alt, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.9 + index * 0.1 }}
+                        className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted/80 transition-colors"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500/20 to-purple-500/20 flex items-center justify-center shrink-0">
+                          <Film className="w-4 h-4 text-violet-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">
+                            {alt.title}
+                            {alt.year && <span className="text-muted-foreground"> ({alt.year})</span>}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                            {alt.reason}
+                          </p>
+                        </div>
+                        {/* Wishlist button for alternative */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleAddAlternativeToWishlist(alt)}
+                          disabled={addingAlternative === alt.title || addedAlternatives.has(alt.title)}
+                          className={`shrink-0 h-8 px-2 ${addedAlternatives.has(alt.title) ? 'text-green-500' : 'text-muted-foreground hover:text-violet-500'}`}
+                        >
+                          {addingAlternative === alt.title ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : addedAlternatives.has(alt.title) ? (
+                            <Check className="w-4 h-4" />
+                          ) : (
+                            <Heart className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </motion.div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Actions */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1 }}
+                className="flex gap-2 pt-2"
+              >
+                <Button
+                  variant="outline"
+                  onClick={handleTryAnother}
+                  className="flex-1 group"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2 group-hover:rotate-180 transition-transform duration-500" />
+                  Try Another
+                </Button>
+                <Button
+                  onClick={() => {
+                    onOpenChange(false);
+                    resetModal();
+                  }}
+                  className="flex-1 bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600"
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Done
+                </Button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </DialogContent>
     </Dialog>
   );
