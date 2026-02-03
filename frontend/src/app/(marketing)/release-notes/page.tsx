@@ -26,6 +26,39 @@ export const metadata: Metadata = {
 // Release notes data - add new releases at the top
 const releases = [
   {
+    version: '2.10.0',
+    date: 'February 3, 2026',
+    title: 'AI Movie Recommendations (Gemini)',
+    type: 'major',
+    changes: [
+      {
+        type: 'feature',
+        title: 'AI Recommendation button on Movies',
+        description: 'Get a personalized movie or series suggestion based on your watched history. Choose Movie, Series, or Surprise Me.',
+      },
+      {
+        type: 'feature',
+        title: 'Bring your own Gemini API key',
+        description: 'Add your Gemini API key in Settings and select a preferred model. Keys are stored per user and used for all recommendation calls.',
+      },
+      {
+        type: 'feature',
+        title: 'Save recommendations to Wishlist',
+        description: 'Like the recommendation but not ready to watch? Save it to your Watchlist with one click.',
+      },
+      {
+        type: 'improvement',
+        title: 'No-repeat recommendations',
+        description: 'Trying again won’t re-suggest previously shown picks. We track shown recommendations and automatically exclude them from future results.',
+      },
+      {
+        type: 'improvement',
+        title: 'Enhanced recommendation animations',
+        description: 'Upgraded loading and result animations for a smoother, more delightful recommendation experience.',
+      },
+    ],
+  },
+  {
     version: '2.9.0',
     date: 'February 1, 2026',
     title: 'Movie Timeline - Track Your Cinematic Journey',
