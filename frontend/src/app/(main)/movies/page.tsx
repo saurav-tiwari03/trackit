@@ -117,6 +117,27 @@ const getPosterUrl = (posterPath: string | null | undefined, size: 'w92' | 'w154
 
 type ViewMode = 'grid' | 'list' | 'timeline';
 
+type TimelineSortOption = 
+  | 'releaseDate-asc' 
+  | 'releaseDate-desc' 
+  | 'watchedDate-desc' 
+  | 'watchedDate-asc' 
+  | 'duration-asc' 
+  | 'duration-desc' 
+  | 'rating-asc' 
+  | 'rating-desc';
+
+const TIMELINE_SORT_OPTIONS: { value: TimelineSortOption; label: string }[] = [
+  { value: 'watchedDate-desc', label: 'Watched Date (recent to old)' },
+  { value: 'watchedDate-asc', label: 'Watched Date (old to recent)' },
+  { value: 'releaseDate-desc', label: 'Release (high to low)' },
+  { value: 'releaseDate-asc', label: 'Release (low to high)' },
+  { value: 'duration-desc', label: 'Duration (high to low)' },
+  { value: 'duration-asc', label: 'Duration (low to high)' },
+  { value: 'rating-desc', label: 'Rating (high to low)' },
+  { value: 'rating-asc', label: 'Rating (low to high)' },
+];
+
 export default function MoviesPage() {
   const {
     movies,
@@ -158,6 +179,7 @@ export default function MoviesPage() {
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCollection, setActiveCollection] = useState<string | null>(null);
+  const [timelineSort, setTimelineSort] = useState<TimelineSortOption>('watchedDate-desc');
 
   // Persist viewMode to localStorage
   useEffect(() => {
@@ -190,9 +212,37 @@ export default function MoviesPage() {
   };
 
   // Filter movies by collection if one is selected
-  const displayedMovies = activeCollection
+  const filteredMovies = activeCollection
     ? movies.filter(m => m.lists?.includes(activeCollection))
     : movies;
+
+  // Sort movies based on selected sort option
+  const sortMovies = (moviesList: Movie[]): Movie[] => {
+    return [...moviesList].sort((a, b) => {
+      switch (timelineSort) {
+        case 'releaseDate-asc':
+          return new Date(a.releaseDate || 0).getTime() - new Date(b.releaseDate || 0).getTime();
+        case 'releaseDate-desc':
+          return new Date(b.releaseDate || 0).getTime() - new Date(a.releaseDate || 0).getTime();
+        case 'watchedDate-asc':
+          return new Date(a.watchedDate || 0).getTime() - new Date(b.watchedDate || 0).getTime();
+        case 'watchedDate-desc':
+          return new Date(b.watchedDate || 0).getTime() - new Date(a.watchedDate || 0).getTime();
+        case 'duration-asc':
+          return (a.runtime || 0) - (b.runtime || 0);
+        case 'duration-desc':
+          return (b.runtime || 0) - (a.runtime || 0);
+        case 'rating-asc':
+          return (a.rating || 0) - (b.rating || 0);
+        case 'rating-desc':
+          return (b.rating || 0) - (a.rating || 0);
+        default:
+          return new Date(b.watchedDate || 0).getTime() - new Date(a.watchedDate || 0).getTime();
+      }
+    });
+  };
+
+  const displayedMovies = sortMovies(filteredMovies);
 
   const handleToggleFavorite = async (id: string) => {
     const movie = movies.find(m => m._id === id);
@@ -446,6 +496,22 @@ export default function MoviesPage() {
               <CalendarIcon className="w-4 h-4" />
             </Button>
           </div>
+
+          {/* Sort Dropdown for Grid and List views */}
+          {(viewMode === 'grid' || viewMode === 'list') && (
+            <Select value={timelineSort} onValueChange={(value) => setTimelineSort(value as TimelineSortOption)}>
+              <SelectTrigger className="w-[220px] h-9">
+                <SelectValue placeholder="Sort by..." />
+              </SelectTrigger>
+              <SelectContent>
+                {TIMELINE_SORT_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         {/* Movies Content */}
@@ -821,10 +887,23 @@ function MovieTimeline({
             <Badge variant="secondary" className="text-xs">
               {groupedMovies[monthKey].length} movies
             </Badge>
+            <Badge variant="outline" className="text-xs">
+              {(() => {
+                const totalMinutes = groupedMovies[monthKey].reduce(
+                  (sum, movie) => sum + (movie.runtime || 0),
+                  0
+                );
+                const hours = Math.floor(totalMinutes / 60);
+                const minutes = totalMinutes % 60;
+                return hours > 0
+                  ? `${hours}h ${minutes}m watched`
+                  : `${minutes}m watched`;
+              })()}
+            </Badge>
           </div>
 
           <div className="ml-6 pl-6 border-l-2 border-muted space-y-4">
-            {groupedMovies[monthKey]
+            {[...groupedMovies[monthKey]]
               .sort((a, b) => new Date(b.watchedDate!).getTime() - new Date(a.watchedDate!).getTime())
               .map((movie) => (
                 <motion.div
