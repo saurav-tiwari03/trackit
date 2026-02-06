@@ -39,13 +39,18 @@ import {
   Redo,
   CodeSquare,
   ImageIcon,
-  ListTree,
+  Palette,
+  ChevronDown,
 } from 'lucide-react';
-import { DescriptionListKit } from './extensions/description-list';
 import { cn } from '@/lib/utils';
 import { compressImageToBlob } from '@/lib/image-compressor';
 import { uploadAPI } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import {
   Tooltip,
   TooltipContent,
@@ -104,6 +109,36 @@ const MenuButton = ({
 
 const MenuDivider = () => <div className="w-px h-6 bg-border mx-1" />;
 
+const TEXT_COLORS = [
+  { name: 'Default', color: '' },
+  { name: 'White', color: '#ffffff' },
+  { name: 'Gray', color: '#9ca3af' },
+  { name: 'Red', color: '#ef4444' },
+  { name: 'Orange', color: '#f97316' },
+  { name: 'Amber', color: '#f59e0b' },
+  { name: 'Green', color: '#22c55e' },
+  { name: 'Teal', color: '#14b8a6' },
+  { name: 'Blue', color: '#3b82f6' },
+  { name: 'Indigo', color: '#6366f1' },
+  { name: 'Purple', color: '#a855f7' },
+  { name: 'Pink', color: '#ec4899' },
+];
+
+const HIGHLIGHT_COLORS = [
+  { name: 'Remove', color: '', swatch: '' },
+  { name: 'White', color: 'rgba(255, 255, 255, 0.2)', swatch: '#ffffff' },
+  { name: 'Gray', color: 'rgba(156, 163, 175, 0.3)', swatch: '#9ca3af' },
+  { name: 'Red', color: 'rgba(239, 68, 68, 0.3)', swatch: '#ef4444' },
+  { name: 'Orange', color: 'rgba(249, 115, 22, 0.3)', swatch: '#f97316' },
+  { name: 'Amber', color: 'rgba(245, 158, 11, 0.3)', swatch: '#f59e0b' },
+  { name: 'Green', color: 'rgba(34, 197, 94, 0.3)', swatch: '#22c55e' },
+  { name: 'Teal', color: 'rgba(20, 184, 166, 0.3)', swatch: '#14b8a6' },
+  { name: 'Blue', color: 'rgba(59, 130, 246, 0.3)', swatch: '#3b82f6' },
+  { name: 'Indigo', color: 'rgba(99, 102, 241, 0.3)', swatch: '#6366f1' },
+  { name: 'Purple', color: 'rgba(168, 85, 247, 0.3)', swatch: '#a855f7' },
+  { name: 'Pink', color: 'rgba(236, 72, 153, 0.3)', swatch: '#ec4899' },
+];
+
 export function TiptapEditor({
   content,
   onChange,
@@ -160,7 +195,6 @@ export function TiptapEditor({
         inline: false,
         allowBase64: true,
       }),
-      ...DescriptionListKit,
     ],
     content,
     editable,
@@ -283,35 +317,6 @@ export function TiptapEditor({
     e.target.value = '';
   }, [editor]);
 
-  const insertDescriptionList = useCallback(() => {
-    if (!editor) return;
-
-    // If already in description list, lift out of it
-    if (editor.isActive('descriptionList')) {
-      editor.chain().focus().lift('descriptionList').run();
-      return;
-    }
-
-    // Insert a new description list with one term/details pair
-    editor
-      .chain()
-      .focus()
-      .insertContent({
-        type: 'descriptionList',
-        content: [
-          {
-            type: 'descriptionTerm',
-            content: [{ type: 'text', text: 'Term' }],
-          },
-          {
-            type: 'descriptionDetails',
-            content: [{ type: 'text', text: 'Description' }],
-          },
-        ],
-      })
-      .run();
-  }, [editor]);
-
   if (!editor) {
     return <div className="animate-pulse bg-muted/50 rounded-xl h-full min-h-[400px]" />;
   }
@@ -405,15 +410,129 @@ export function TiptapEditor({
         >
           <Code className="h-4 w-4" />
         </MenuButton>
-        <MenuButton
-          onClick={() =>
-            editor.chain().focus().toggleHighlight({ color: '#fef08a' }).run()
-          }
-          isActive={editor.isActive('highlight')}
-          tooltip="Highlight"
-        >
-          <Highlighter className="h-4 w-4" />
-        </MenuButton>
+        {/* Text Color */}
+        <Popover>
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      'h-8 gap-0.5 px-1.5 text-muted-foreground hover:text-foreground hover:bg-muted',
+                      editor.getAttributes('textStyle').color && 'bg-muted text-foreground'
+                    )}
+                  >
+                    <Palette className="h-4 w-4" />
+                    <div
+                      className="h-0.5 w-4 rounded-full"
+                      style={{
+                        backgroundColor: editor.getAttributes('textStyle').color || '#ffffff',
+                      }}
+                    />
+                    <ChevronDown className="h-3 w-3 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                Text Color
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <PopoverContent className="w-auto p-3" align="start">
+            <p className="text-xs font-medium text-muted-foreground mb-2">Text Color</p>
+            <div className="grid grid-cols-6 gap-1.5">
+              {TEXT_COLORS.map((item) => (
+                <button
+                  key={item.name}
+                  type="button"
+                  title={item.name}
+                  onClick={() => {
+                    if (item.color === '') {
+                      editor.chain().focus().unsetColor().run();
+                    } else {
+                      editor.chain().focus().setColor(item.color).run();
+                    }
+                  }}
+                  className={cn(
+                    'h-6 w-6 rounded-md border border-border/50 transition-all hover:scale-110 hover:border-foreground/50',
+                    item.color === '' && 'flex items-center justify-center bg-linear-to-br from-muted to-background',
+                    editor.getAttributes('textStyle').color === item.color && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
+                  )}
+                  style={item.color ? { backgroundColor: item.color } : undefined}
+                >
+                  {item.color === '' && (
+                    <span className="text-[10px] text-muted-foreground">↺</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        {/* Highlight Color */}
+        <Popover>
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      'h-8 gap-0.5 px-1.5 text-muted-foreground hover:text-foreground hover:bg-muted',
+                      editor.isActive('highlight') && 'bg-muted text-foreground'
+                    )}
+                  >
+                    <Highlighter className="h-4 w-4" />
+                    <div
+                      className="h-0.5 w-4 rounded-full"
+                      style={{
+                        backgroundColor: editor.getAttributes('highlight').color || '#facc15',
+                      }}
+                    />
+                    <ChevronDown className="h-3 w-3 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                Highlight
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <PopoverContent className="w-auto p-3" align="start">
+            <p className="text-xs font-medium text-muted-foreground mb-2">Highlight Color</p>
+            <div className="grid grid-cols-6 gap-1.5">
+              {HIGHLIGHT_COLORS.map((item) => (
+                <button
+                  key={item.name}
+                  type="button"
+                  title={item.name}
+                  onClick={() => {
+                    if (item.color === '') {
+                      editor.chain().focus().unsetHighlight().run();
+                    } else {
+                      editor.chain().focus().toggleHighlight({ color: item.color }).run();
+                    }
+                  }}
+                  className={cn(
+                    'h-6 w-6 rounded-md border border-border/50 transition-all hover:scale-110 hover:border-foreground/50',
+                    item.color === '' && 'flex items-center justify-center bg-linear-to-br from-muted to-background',
+                    item.color !== '' && editor.isActive('highlight', { color: item.color }) && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
+                  )}
+                  style={item.swatch ? { backgroundColor: item.swatch } : undefined}
+                >
+                  {item.color === '' && (
+                    <span className="text-[10px] text-muted-foreground">↺</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
 
         <MenuDivider />
 
@@ -464,14 +583,6 @@ export function TiptapEditor({
         >
           <ListTodo className="h-4 w-4" />
         </MenuButton>
-        <MenuButton
-          onClick={insertDescriptionList}
-          isActive={editor.isActive('descriptionList')}
-          tooltip="Description List"
-        >
-          <ListTree className="h-4 w-4" />
-        </MenuButton>
-
         <MenuDivider />
 
         {/* Block elements */}

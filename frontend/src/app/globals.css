@@ -252,8 +252,6 @@ input:-webkit-autofill {
 }
 
 .ProseMirror mark {
-  background-color: oklch(0.8 0.15 85);
-  color: oklch(0.2 0 0);
   padding: 0.125em 0.25em;
   border-radius: 0.25em;
 }
@@ -340,9 +338,9 @@ input:-webkit-autofill {
   color: oklch(0.5 0 0);
 }
 
-/* Ensure all ProseMirror elements have transparent background */
+/* Ensure all ProseMirror elements have transparent background (except highlights) */
 .ProseMirror,
-.ProseMirror * {
+.ProseMirror *:not(mark) {
   background: transparent;
 }
 
