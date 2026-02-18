@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import mongoose from 'mongoose';
-import { List } from '../models';
+import { List, IListItem } from '../models';
 import { protect, AuthRequest } from '../middleware/auth';
 
 const router = Router();
