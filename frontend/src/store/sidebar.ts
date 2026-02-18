@@ -7,7 +7,7 @@ import { persist } from 'zustand/middleware';
 export const SIDEBAR_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', defaultVisible: true },
   { id: 'inbox', label: 'Inbox', defaultVisible: true },
-  { id: 'grocery', label: 'Grocery', defaultVisible: true },
+  { id: 'lists', label: 'Lists', defaultVisible: true },
   { id: 'streaks', label: 'Streaks', defaultVisible: true },
   { id: 'fitlog', label: 'FitLog', defaultVisible: true },
   { id: 'movies', label: 'Movies', defaultVisible: true },

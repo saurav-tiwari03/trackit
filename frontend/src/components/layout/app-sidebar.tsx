@@ -24,7 +24,7 @@ import {
   Sparkles,
   Dumbbell,
   PenTool,
-  ShoppingCart,
+  List as ListIcon,
   Film,
   LucideIcon,
 } from 'lucide-react';
@@ -70,7 +70,7 @@ import { cn } from '@/lib/utils';
 const NAV_ITEMS_CONFIG: Record<SidebarItemId, { icon: LucideIcon; label: string; href: string; color: string }> = {
   dashboard: { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard', color: 'text-blue-500' },
   inbox: { icon: Inbox, label: 'Inbox', href: '/inbox', color: 'text-violet-500' },
-  grocery: { icon: ShoppingCart, label: 'Grocery', href: '/grocery', color: 'text-lime-500' },
+  lists: { icon: ListIcon, label: 'Lists', href: '/lists', color: 'text-lime-500' },
   streaks: { icon: Flame, label: 'Streaks', href: '/streaks', color: 'text-orange-500' },
   fitlog: { icon: Dumbbell, label: 'FitLog', href: '/fitlog', color: 'text-emerald-500' },
   movies: { icon: Film, label: 'Movies', href: '/movies', color: 'text-rose-500' },
@@ -93,10 +93,19 @@ export function AppSidebar() {
   const { toggleSidebar, setOpen, setOpenMobile, isMobile } = useSidebar();
   const [projectsOpen, setProjectsOpen] = useState(true);
 
-  // Get visible nav items in the correct order
+  // Get visible nav items in the correct order (normalize legacy 'grocery' -> 'lists')
   const navItems = useMemo(() => {
-    return itemOrder
-      .filter((id) => visibleItems[id])
+    const normalizedOrder = [
+      ...new Set(
+        itemOrder.map((id) => (id === 'grocery' ? 'lists' : id))
+      ),
+    ] as SidebarItemId[];
+    return normalizedOrder
+      .filter(
+        (id) =>
+          visibleItems[id] !== false ||
+          (id === 'lists' && visibleItems['grocery' as SidebarItemId])
+      )
       .map((id) => ({ id, ...NAV_ITEMS_CONFIG[id] }));
   }, [visibleItems, itemOrder]);
 

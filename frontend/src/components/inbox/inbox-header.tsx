@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { InboxSettingsSidebar } from './inbox-settings-sidebar';
-import { GroceryListPopover } from '@/components/grocery/grocery-list-popover';
+import { ListsPopover } from '@/components/lists/lists-popover';
 
 export type InboxViewMode = 'grid' | 'board' | 'schedule' | 'charts';
 export type InboxFilter = 'all' | 'not_started' | 'in_progress' | 'completed' | 'late';
@@ -203,7 +203,7 @@ export function InboxHeader({
 
         {/* Grocery List Button */}
         <div className="ml-2">
-          <GroceryListPopover />
+          <ListsPopover />
         </div>
 
         {/* Settings Button */}

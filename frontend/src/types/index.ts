@@ -445,22 +445,20 @@ export interface TMDBSearchResult {
   total_results: number;
 }
 
-// Grocery List Types
-export interface GroceryItem {
+// List Types (multiple lists with listName; each list has items with name + description)
+export interface ListItem {
   _id: string;
   name: string;
-  quantity?: number;
-  unit?: string;
-  isCompleted: boolean;
+  description?: string;
   order: number;
   createdAt: string;
 }
 
-export interface GroceryList {
+export interface List {
   _id: string;
   name: string;
   user: string;
-  items: GroceryItem[];
+  items: ListItem[];
   color?: string;
   icon?: string;
   order: number;

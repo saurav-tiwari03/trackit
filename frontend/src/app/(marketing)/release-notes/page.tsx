@@ -3,9 +3,9 @@ import { Calendar, Sparkles, Bug, Zap, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-  title: 'Release Notes | TrackIt - Latest Updates & Features',
+  title: 'Release Notes | trackIt - Latest Updates & Features',
   description:
-    'Stay updated with the latest TrackIt features, improvements, and bug fixes. See what\'s new in your favorite task and habit tracking app.',
+    'Stay updated with the latest trackIt features, improvements, and bug fixes. See what\'s new in your personal progress tracker.',
   keywords: [
     'trackit updates',
     'trackit release notes',
@@ -14,8 +14,8 @@ export const metadata: Metadata = {
     'app updates',
   ],
   openGraph: {
-    title: 'Release Notes - TrackIt Updates',
-    description: 'Discover the latest features and improvements in TrackIt.',
+    title: 'Release Notes - trackIt Updates',
+    description: 'Discover the latest features and improvements in trackIt.',
     url: 'https://trackit.app/release-notes',
   },
   alternates: {
@@ -25,6 +25,19 @@ export const metadata: Metadata = {
 
 // Release notes data - add new releases at the top
 const releases = [
+  {
+    version: '2.11.0',
+    date: 'February 6, 2026',
+    title: 'trackIt Rebrand & Lists UX',
+    type: 'major',
+    changes: [
+      {
+        type: 'improvement',
+        title: 'Lists: Add item at top and after last item',
+        description: 'In the Lists kanban view, "Add item" now appears at the top of each column and again after the last list item for a clearer, more convenient flow.',
+      },
+    ],
+  },
   {
     version: '2.10.0',
     date: 'February 3, 2026',
@@ -467,7 +480,7 @@ export default function ReleaseNotesPage() {
           <h1 className="text-4xl sm:text-5xl font-bold mb-4">Release Notes</h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Stay up to date with the latest features, improvements, and bug fixes
-            in TrackIt. We&apos;re constantly working to make your experience better.
+            in trackIt. We&apos;re constantly working to make your experience better.
           </p>
         </div>
 

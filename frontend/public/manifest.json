@@ -1,7 +1,7 @@
 {
-  "name": "TrackIt - Task & Habit Tracker",
-  "short_name": "TrackIt",
-  "description": "Track your tasks, habits, and streaks with TrackIt. Works offline!",
+  "name": "trackIt - Personal Progress Tracker",
+  "short_name": "trackIt",
+  "description": "Your personal progress tracker. Tasks, lists, habits, notes, and more. Works offline!",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#0a0a0a",

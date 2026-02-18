@@ -594,31 +594,31 @@ export const uploadAPI = {
   },
 };
 
-// Grocery List API
-export const groceryAPI = {
-  // Lists
-  getLists: () => api.get('/grocery'),
-  getList: (id: string) => api.get(`/grocery/${id}`),
+// Lists API (multiple lists; each list has items with name + description)
+export const listsAPI = {
+  getLists: () => api.get('/lists'),
+  getList: (id: string) => api.get(`/lists/${id}`),
   createList: (data: { name: string; color?: string; icon?: string }) =>
-    api.post('/grocery', data),
-  updateList: (id: string, data: { name?: string; color?: string; icon?: string; order?: number }) =>
-    api.put(`/grocery/${id}`, data),
-  deleteList: (id: string) => api.delete(`/grocery/${id}`),
+    api.post('/lists', data),
+  updateList: (
+    id: string,
+    data: { name?: string; color?: string; icon?: string; order?: number }
+  ) => api.put(`/lists/${id}`, data),
+  deleteList: (id: string) => api.delete(`/lists/${id}`),
 
-  // Items
-  addItem: (listId: string, data: { name: string; quantity?: number; unit?: string }) =>
-    api.post(`/grocery/${listId}/items`, data),
+  addItem: (listId: string, data: { name: string; description?: string }) =>
+    api.post(`/lists/${listId}/items`, data),
   updateItem: (
     listId: string,
     itemId: string,
-    data: { name?: string; quantity?: number; unit?: string; isCompleted?: boolean; order?: number }
-  ) => api.put(`/grocery/${listId}/items/${itemId}`, data),
+    data: { name?: string; description?: string; order?: number }
+  ) => api.put(`/lists/${listId}/items/${itemId}`, data),
   deleteItem: (listId: string, itemId: string) =>
-    api.delete(`/grocery/${listId}/items/${itemId}`),
+    api.delete(`/lists/${listId}/items/${itemId}`),
+  reorderItems: (listId: string, orderedItemIds: string[]) =>
+    api.post(`/lists/${listId}/items/reorder`, { orderedItemIds }),
   moveItem: (listId: string, itemId: string, targetListId: string) =>
-    api.post(`/grocery/${listId}/items/${itemId}/move`, { targetListId }),
-  clearCompleted: (listId: string) =>
-    api.post(`/grocery/${listId}/clear-completed`),
+    api.post(`/lists/${listId}/items/${itemId}/move`, { targetListId }),
 };
 
 // Movies API

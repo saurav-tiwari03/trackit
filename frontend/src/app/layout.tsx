@@ -18,14 +18,14 @@ export const metadata: Metadata = {
       'http://localhost:3000').replace(/\/$/, '')
   ),
   title: {
-    default: 'TrackIt - Clean Task & Project Manager | Free Productivity App',
-    template: '%s · TrackIt',
+    default: 'trackIt - Personal Progress Tracker',
+    template: '%s · trackIt',
   },
   description:
-    'A clean, minimalist task and project manager with inbox, calendar scheduling, attachments, mentions, and notifications.',
-  applicationName: 'TrackIt',
+    'Your personal progress tracker. Tasks, lists, habits, notes, calendar, and more in one place.',
+  applicationName: 'trackIt',
   keywords: [
-    'TrackIt',
+    'trackIt',
     'todo',
     'tasks',
     'project management',
@@ -54,24 +54,24 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   openGraph: {
     type: 'website',
-    siteName: 'TrackIt',
-    title: 'TrackIt - Clean Task & Project Manager | Free Productivity App',
+    siteName: 'trackIt',
+    title: 'trackIt - Personal Progress Tracker',
     description:
-      'A clean, minimalist task and project manager with inbox, calendar scheduling, attachments, mentions, and notifications.',
+      'Your personal progress tracker. Tasks, lists, habits, notes, calendar, and more in one place.',
     images: [
       {
         url: '/og-image.jpg',
         width: 1200,
         height: 630,
-        alt: 'TrackIt - Clean Task & Project Manager',
+        alt: 'trackIt - Personal Progress Tracker',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'TrackIt - Clean Task & Project Manager | Free Productivity App',
+    title: 'trackIt - Personal Progress Tracker',
     description:
-      'A clean, minimalist task and project manager with inbox, calendar scheduling, attachments, mentions, and notifications.',
+      'Your personal progress tracker. Tasks, lists, habits, notes, calendar, and more in one place.',
     images: ['/og-image.jpg'],
   },
 };
