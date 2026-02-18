@@ -97,15 +97,14 @@ export function AppSidebar() {
   const navItems = useMemo(() => {
     const normalizedOrder = [
       ...new Set(
-        itemOrder.map((id) => (id === 'grocery' ? 'lists' : id))
+        itemOrder.map((id) => ((id as string) === 'grocery' ? 'lists' : id))
       ),
     ] as SidebarItemId[];
+    const visible = (id: SidebarItemId) =>
+      visibleItems[id] !== false ||
+      (id === 'lists' && (visibleItems as Record<string, boolean>)['grocery']);
     return normalizedOrder
-      .filter(
-        (id) =>
-          visibleItems[id] !== false ||
-          (id === 'lists' && visibleItems['grocery' as SidebarItemId])
-      )
+      .filter((id) => visible(id))
       .map((id) => ({ id, ...NAV_ITEMS_CONFIG[id] }));
   }, [visibleItems, itemOrder]);
 
