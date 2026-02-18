@@ -44,5 +44,5 @@ export {
   SubscriptionPlanForLimits,
 } from './AIUsage';
 export { Whiteboard, IWhiteboard } from './Whiteboard';
-export { GroceryList, IGroceryList, IGroceryItem } from './GroceryList';
+export { List, IList, IListItem } from './List';
 export { Movie, IMovie, MovieList, IMovieList, MovieStatus, MoviePlatform } from './Movie';

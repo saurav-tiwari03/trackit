@@ -15,7 +15,7 @@ import paymentRoutes from './payment.routes';
 import uploadRoutes from './upload.routes';
 import fitlogRoutes from './fitlog.routes';
 import whiteboardRoutes from './whiteboard.routes';
-import groceryRoutes from './grocery.routes';
+import listsRoutes from './lists.routes';
 import movieRoutes from './movie.routes';
 
 const router = Router();
@@ -36,7 +36,7 @@ router.use('/payments', paymentRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/fitlog', fitlogRoutes);
 router.use('/whiteboards', whiteboardRoutes);
-router.use('/grocery', groceryRoutes);
+router.use('/lists', listsRoutes);
 router.use('/movies', movieRoutes);
 
 export default router;
