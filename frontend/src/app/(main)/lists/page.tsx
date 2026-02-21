@@ -47,9 +47,7 @@ export default function ListsPage() {
   const [isAddingList, setIsAddingList] = useState(false);
   const [newListName, setNewListName] = useState('');
 
-  const [addingItemToList, setAddingItemToList] = useState<string | null>(null);
-  const [newItemName, setNewItemName] = useState('');
-  const [newItemDescription, setNewItemDescription] = useState('');
+  const [addItemToListId, setAddItemToListId] = useState<string | null>(null);
 
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [editingListName, setEditingListName] = useState('');
@@ -123,19 +121,19 @@ export default function ListsPage() {
     }
   };
 
-  const handleAddItem = async (listId: string) => {
-    if (!newItemName.trim()) return;
+  const handleAddItemFromModal = async () => {
+    if (!addItemToListId || !editingItemName.trim()) return;
     try {
-      const res = await listsAPI.addItem(listId, {
-        name: newItemName.trim(),
-        description: newItemDescription.trim() || undefined,
+      const res = await listsAPI.addItem(addItemToListId, {
+        name: editingItemName.trim(),
+        description: editingItemDescription.trim() || undefined,
       });
       setLists((prev) =>
-        prev.map((l) => (l._id === listId ? res.data.data : l))
+        prev.map((l) => (l._id === addItemToListId ? res.data.data : l))
       );
-      setNewItemName('');
-      setNewItemDescription('');
-      setAddingItemToList(null);
+      setAddItemToListId(null);
+      setEditingItemName('');
+      setEditingItemDescription('');
       toast.success('Item added');
     } catch (err) {
       console.error(err);
@@ -162,6 +160,7 @@ export default function ListsPage() {
         prev.map((l) => (l._id === editingItem.listId ? res.data.data : l))
       );
       setEditingItem(null);
+      setAddItemToListId(null);
       setEditingItemName('');
       setEditingItemDescription('');
       toast.success('Item updated');
@@ -355,65 +354,19 @@ export default function ListsPage() {
                     </div>
 
                     {/* Add item at top */}
-                    {addingItemToList === list._id ? (
-                      <div className="mb-2 space-y-2 p-2 border rounded-lg bg-muted/30">
-                        <Input
-                          placeholder="Item name"
-                          value={newItemName}
-                          onChange={(e) => setNewItemName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleAddItem(list._id);
-                            if (e.key === 'Escape') {
-                              setAddingItemToList(null);
-                              setNewItemName('');
-                              setNewItemDescription('');
-                            }
-                          }}
-                          className="h-8 text-sm"
-                          autoFocus
-                        />
-                        <Input
-                          placeholder="Description (optional)"
-                          value={newItemDescription}
-                          onChange={(e) =>
-                            setNewItemDescription(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleAddItem(list._id);
-                          }}
-                          className="h-8 text-sm"
-                        />
-                        <div className="flex gap-1">
-                          <Button
-                            size="sm"
-                            onClick={() => handleAddItem(list._id)}
-                            disabled={!newItemName.trim()}
-                          >
-                            Add
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setAddingItemToList(null);
-                              setNewItemName('');
-                              setNewItemDescription('');
-                            }}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-start mb-2 text-muted-foreground hover:text-foreground h-8 px-2"
-                        onClick={() => setAddingItemToList(list._id)}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add item
-                      </Button>
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start mb-2 text-muted-foreground hover:text-foreground h-8 px-2"
+                      onClick={() => {
+                        setAddItemToListId(list._id);
+                        setEditingItemName('');
+                        setEditingItemDescription('');
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add item
+                    </Button>
 
                     <Droppable droppableId={list._id} type="ITEM">
                       {(provided, snapshot) => (
@@ -479,17 +432,19 @@ export default function ListsPage() {
                     </Droppable>
 
                     {/* Add item after last list item */}
-                    {addingItemToList === list._id ? null : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-start mt-2 text-muted-foreground hover:text-foreground h-8 px-2"
-                        onClick={() => setAddingItemToList(list._id)}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add item
-                      </Button>
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start mt-2 text-muted-foreground hover:text-foreground h-8 px-2"
+                      onClick={() => {
+                        setAddItemToListId(list._id);
+                        setEditingItemName('');
+                        setEditingItemDescription('');
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add item
+                    </Button>
                   </div>
                 </motion.div>
               );
@@ -557,14 +512,21 @@ export default function ListsPage() {
       </div>
 
       <Dialog
-        open={!!editingItem}
-        onOpenChange={(open) => !open && setEditingItem(null)}
+        open={!!editingItem || !!addItemToListId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingItem(null);
+            setAddItemToListId(null);
+          }
+        }}
       >
         <DialogContent className="max-h-[90vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Edit item</DialogTitle>
+            <DialogTitle>
+              {editingItem ? 'Edit item' : 'Add item'}
+            </DialogTitle>
           </DialogHeader>
-          {editingItem && (
+          {(editingItem || addItemToListId) && (
             <div className="space-y-4 py-2 overflow-y-auto flex-1 min-h-0">
               <div>
                 <label className="text-sm font-medium">Name</label>
@@ -590,14 +552,22 @@ export default function ListsPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingItem(null)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditingItem(null);
+                setAddItemToListId(null);
+              }}
+            >
               Cancel
             </Button>
             <Button
-              onClick={handleUpdateItem}
+              onClick={() =>
+                editingItem ? handleUpdateItem() : handleAddItemFromModal()
+              }
               disabled={!editingItemName.trim()}
             >
-              Save
+              {editingItem ? 'Save' : 'Add'}
             </Button>
             {editingItem && (
               <Button
