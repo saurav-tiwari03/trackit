@@ -33,6 +33,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { TipTapEditor } from '@/components/ui/tiptap-editor';
 import { cn } from '@/lib/utils';
 import { listsAPI } from '@/lib/api';
 import { List, ListItem } from '@/types';
@@ -452,7 +453,11 @@ export default function ListsPage() {
                                         });
                                         setEditingItemName(item.name);
                                         setEditingItemDescription(
-                                          item.description || ''
+                                          (() => {
+                                            const d = item.description || '';
+                                            if (!d.trim()) return '';
+                                            return d.trim().startsWith('<') ? d : `<p>${d}</p>`;
+                                          })()
                                         );
                                       }}
                                       onDelete={() =>
@@ -555,12 +560,12 @@ export default function ListsPage() {
         open={!!editingItem}
         onOpenChange={(open) => !open && setEditingItem(null)}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Edit item</DialogTitle>
           </DialogHeader>
           {editingItem && (
-            <div className="space-y-4 py-2">
+            <div className="space-y-4 py-2 overflow-y-auto flex-1 min-h-0">
               <div>
                 <label className="text-sm font-medium">Name</label>
                 <Input
@@ -572,12 +577,15 @@ export default function ListsPage() {
               </div>
               <div>
                 <label className="text-sm font-medium">Description</label>
-                <Input
-                  value={editingItemDescription}
-                  onChange={(e) => setEditingItemDescription(e.target.value)}
-                  className="mt-1"
-                  placeholder="Description (optional)"
-                />
+                <div className="mt-1 rounded-lg border border-input overflow-hidden bg-card min-h-[140px]">
+                  <TipTapEditor
+                    content={editingItemDescription}
+                    onChange={(html) => setEditingItemDescription(html)}
+                    placeholder="Description (optional)"
+                    editable={true}
+                    className="min-h-[120px]"
+                  />
+                </div>
               </div>
             </div>
           )}
