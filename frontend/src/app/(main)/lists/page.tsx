@@ -59,6 +59,11 @@ export default function ListsPage() {
   const [editingItemName, setEditingItemName] = useState('');
   const [editingItemDescription, setEditingItemDescription] = useState('');
 
+  const [viewingItem, setViewingItem] = useState<{
+    listId: string;
+    item: ListItem;
+  } | null>(null);
+
   const fetchLists = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -399,6 +404,9 @@ export default function ListsPage() {
                                     <ListItemCard
                                       item={item}
                                       isDragging={snapshot.isDragging}
+                                      onView={() =>
+                                        setViewingItem({ listId: list._id, item })
+                                      }
                                       onEdit={() => {
                                         setEditingItem({
                                           listId: list._id,
@@ -545,6 +553,7 @@ export default function ListsPage() {
                     onChange={(html) => setEditingItemDescription(html)}
                     placeholder="Description (optional)"
                     editable={true}
+                    allowImages={true}
                     className="min-h-[120px]"
                   />
                 </div>
@@ -577,6 +586,63 @@ export default function ListsPage() {
                 }
               >
                 Delete
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!viewingItem}
+        onOpenChange={(open) => !open && setViewingItem(null)}
+      >
+        <DialogContent className="max-h-[90vh] flex flex-col max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {viewingItem?.item.name ?? 'View item'}
+            </DialogTitle>
+          </DialogHeader>
+          {viewingItem && (
+            <div className="space-y-3 py-2 overflow-y-auto flex-1 min-h-0">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Name</p>
+                <p className="font-medium mt-0.5">{viewingItem.item.name}</p>
+              </div>
+              {viewingItem.item.description?.trim() ? (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">
+                    Description
+                  </p>
+                  <div
+                    className="text-sm text-foreground prose prose-sm prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-1 prose-img:rounded-lg prose-img:max-w-full"
+                    dangerouslySetInnerHTML={{
+                      __html: viewingItem.item.description,
+                    }}
+                  />
+                </div>
+              ) : null}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewingItem(null)}>
+              Close
+            </Button>
+            {viewingItem && (
+              <Button
+                onClick={() => {
+                  setViewingItem(null);
+                  setEditingItem({ listId: viewingItem.listId, item: viewingItem.item });
+                  setEditingItemName(viewingItem.item.name);
+                  setEditingItemDescription(
+                    (() => {
+                      const d = viewingItem.item.description || '';
+                      if (!d.trim()) return '';
+                      return d.trim().startsWith('<') ? d : `<p>${d}</p>`;
+                    })()
+                  );
+                }}
+              >
+                Edit
               </Button>
             )}
           </DialogFooter>

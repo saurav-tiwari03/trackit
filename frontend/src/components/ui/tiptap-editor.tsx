@@ -9,6 +9,7 @@ import TaskItem from '@tiptap/extension-task-item';
 import Link from '@tiptap/extension-link';
 import Highlight from '@tiptap/extension-highlight';
 import TextAlign from '@tiptap/extension-text-align';
+import Image from '@tiptap/extension-image';
 import {
   Bold,
   Italic,
@@ -27,6 +28,7 @@ import {
   MoreHorizontal,
   Undo,
   Redo,
+  ImageIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from './button';
@@ -36,7 +38,9 @@ import {
   PopoverTrigger,
 } from './popover';
 import { Input } from './input';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { uploadAPI } from '@/lib/api';
+import { compressImageToBlob } from '@/lib/image-compressor';
 
 interface TipTapEditorProps {
   content: string;
@@ -44,6 +48,7 @@ interface TipTapEditorProps {
   placeholder?: string;
   editable?: boolean;
   className?: string;
+  allowImages?: boolean;
 }
 
 interface ToolbarButtonProps {
@@ -81,9 +86,11 @@ export function TipTapEditor({
   placeholder = 'Write something...',
   editable = true,
   className,
+  allowImages = false,
 }: TipTapEditorProps) {
   const [linkUrl, setLinkUrl] = useState('');
   const [isLinkOpen, setIsLinkOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
     extensions: [
@@ -112,6 +119,7 @@ export function TipTapEditor({
       TextAlign.configure({
         types: ['heading', 'paragraph'],
       }),
+      ...(allowImages ? [Image.configure({ allowBase64: true })] : []),
     ],
     content,
     editable,
@@ -128,9 +136,59 @@ export function TipTapEditor({
           'prose-blockquote:border-l-primary prose-blockquote:bg-muted/50 prose-blockquote:py-1 prose-blockquote:px-4',
           'prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-sm',
           'prose-a:text-primary prose-a:no-underline hover:prose-a:underline',
+          'prose-img:rounded-lg prose-img:max-w-full',
           className
         ),
       },
+      ...(allowImages && {
+        handlePaste(view, event) {
+          const items = event.clipboardData?.items;
+          if (!items) return false;
+          for (const item of items) {
+            if (item.type.startsWith('image/')) {
+              event.preventDefault();
+              const file = item.getAsFile();
+              if (!file) return false;
+              compressImageToBlob(file, 1200, 1200, 0.8)
+                .then((blob) => uploadAPI.uploadImage(blob as File))
+                .then((url) => {
+                  view.dispatch(
+                    view.state.tr.replaceSelectionWith(
+                      view.state.schema.nodes.image.create({ src: url })
+                    )
+                  );
+                })
+                .catch((e) => console.error('Image upload failed', e));
+              return true;
+            }
+          }
+          return false;
+        },
+        handleDrop(view, event) {
+          const files = event.dataTransfer?.files;
+          if (!files?.length) return false;
+          for (const file of files) {
+            if (file.type.startsWith('image/')) {
+              event.preventDefault();
+              const pos = view.posAtCoords({
+                left: event.clientX,
+                top: event.clientY,
+              });
+              compressImageToBlob(file, 1200, 1200, 0.8)
+                .then((blob) => uploadAPI.uploadImage(blob as File))
+                .then((url) => {
+                  const insertPos = pos ? pos.pos : view.state.selection.from;
+                  view.dispatch(
+                    view.state.tr.insert(insertPos, view.state.schema.nodes.image.create({ src: url }))
+                  );
+                })
+                .catch((e) => console.error('Image upload failed', e));
+              return true;
+            }
+          }
+          return false;
+        },
+      }),
     },
   });
 
@@ -316,6 +374,33 @@ export function TipTapEditor({
               </div>
             </PopoverContent>
           </Popover>
+
+          {allowImages && (
+            <>
+              <ToolbarDivider />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file || !editor) return;
+                  compressImageToBlob(file, 1200, 1200, 0.8)
+                    .then((blob) => uploadAPI.uploadImage(blob as File))
+                    .then((url) => editor.chain().focus().setImage({ src: url }).run())
+                    .catch((err) => console.error('Image upload failed', err));
+                  e.target.value = '';
+                }}
+              />
+              <ToolbarButton
+                onClick={() => fileInputRef.current?.click()}
+                tooltip="Upload image"
+              >
+                <ImageIcon className="w-4 h-4" />
+              </ToolbarButton>
+            </>
+          )}
 
           <ToolbarDivider />
 
