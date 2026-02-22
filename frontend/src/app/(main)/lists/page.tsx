@@ -265,7 +265,7 @@ export default function ListsPage() {
   }
 
   return (
-    <div className="h-full flex flex-col relative">
+    <div className="h-full min-h-0 flex flex-col relative overflow-hidden">
       <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
         <div className="flex items-center gap-3">
           <ListIcon className="h-6 w-6 text-lime-500" />
@@ -278,10 +278,10 @@ export default function ListsPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-x-auto overflow-y-hidden p-6">
+      <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-6">
         {(lists.length > 0 || isAddingList) && (
         <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="flex gap-4 h-full min-h-[calc(100vh-140px)]">
+          <div className="flex gap-4 h-full min-h-0 items-stretch">
             {lists.map((list, index) => {
               const items = getItemsForList(list._id);
               return (
@@ -290,10 +290,10 @@ export default function ListsPage() {
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.05, duration: 0.2 }}
-                  className="shrink-0 w-80 flex flex-col"
+                  className="shrink-0 w-80 h-full max-h-full flex flex-col min-h-0"
                 >
                   <div
-                    className="bg-card/50 border border-border rounded-xl p-3 flex flex-col flex-1 min-h-0"
+                    className="bg-card/50 border border-border rounded-xl p-3 flex flex-col flex-1 min-h-0 overflow-hidden"
                     style={{
                       borderTopWidth: 3,
                       borderTopColor: list.color || '#6b7280',
