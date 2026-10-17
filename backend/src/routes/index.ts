@@ -1,0 +1,42 @@
+import { Router } from 'express';
+import authRoutes from './auth.routes';
+import projectRoutes from './project.routes';
+import taskRoutes from './task.routes';
+import commentRoutes from './comment.routes';
+import notificationRoutes from './notification.routes';
+import userRoutes from './user.routes';
+import chatRoutes from './chat.routes';
+import calendarRoutes from './calendar.routes';
+import notesRoutes from './notes.routes';
+import foldersRoutes from './folders.routes';
+import habitRoutes from './habit.routes';
+import pushRoutes from './push.routes';
+import paymentRoutes from './payment.routes';
+import uploadRoutes from './upload.routes';
+import fitlogRoutes from './fitlog.routes';
+import whiteboardRoutes from './whiteboard.routes';
+import listsRoutes from './lists.routes';
+import movieRoutes from './movie.routes';
+
+const router = Router();
+
+router.use('/auth', authRoutes);
+router.use('/projects', projectRoutes);
+router.use('/tasks', taskRoutes);
+router.use('/comments', commentRoutes);
+router.use('/notifications', notificationRoutes);
+router.use('/users', userRoutes);
+router.use('/chats', chatRoutes);
+router.use('/calendar', calendarRoutes);
+router.use('/notes', notesRoutes);
+router.use('/folders', foldersRoutes);
+router.use('/habits', habitRoutes);
+router.use('/push', pushRoutes);
+router.use('/payments', paymentRoutes);
+router.use('/upload', uploadRoutes);
+router.use('/fitlog', fitlogRoutes);
+router.use('/whiteboards', whiteboardRoutes);
+router.use('/lists', listsRoutes);
+router.use('/movies', movieRoutes);
+
+export default router;
